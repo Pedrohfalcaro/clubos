@@ -1,0 +1,44 @@
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardAccent {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text);
+  margin: 0;
+}
+
+.value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 0;
+  line-height: 1.1;
+}
+
+.cardAccent .value {
+  color: var(--accent);
+}
+
+.sub {
+  font-size: 12px;
+  color: var(--text);
+  margin: 0;
+}
+
+.color_green .value { color: var(--success); }
+.color_red .value { color: var(--danger); }
+.color_yellow .value { color: var(--warning); }

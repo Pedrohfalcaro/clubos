@@ -1,0 +1,47 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.minute {
+  width: 44px;
+  padding: 6px 4px;
+  text-align: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tick {
+  font-size: 12px;
+  color: var(--text);
+  margin-right: 4px;
+}
+
+.stoppage {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.plus {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stoppageInput {
+  width: 32px;
+  padding: 6px 4px;
+  text-align: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-h);
+  font-size: 12px;
+}

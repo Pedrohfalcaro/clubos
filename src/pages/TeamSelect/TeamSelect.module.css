@@ -1,0 +1,255 @@
+.page {
+  min-height: 100svh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 20px 48px;
+  overflow-y: auto;
+}
+
+.inner {
+  width: 100%;
+  max-width: 960px;
+}
+
+.header {
+  margin-bottom: 28px;
+}
+
+.back {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 20px;
+}
+
+.back:hover {
+  color: var(--accent);
+}
+
+.title {
+  font-size: clamp(24px, 4vw, 28px);
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--text);
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  border-color: rgba(170, 59, 255, 0.35);
+}
+
+.cardExpanded {
+  border-color: var(--accent-border);
+  box-shadow: 0 6px 24px rgba(170, 59, 255, 0.1);
+}
+
+.cardMain {
+  padding: 18px 18px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.cardMain:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.shield {
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.cardTitles {
+  flex: 1;
+  min-width: 0;
+}
+
+.teamName {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 0;
+}
+
+.nickname {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.infoBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.infoBtn:hover,
+.infoBtnActive {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.barIcon {
+  font-size: 13px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.barTrack {
+  flex: 1;
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #c77dff);
+  border-radius: 3px;
+  transition: width 0.35s ease;
+}
+
+.selectHint {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.cardMain:hover .selectHint {
+  opacity: 1;
+}
+
+.infoPanel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s ease;
+  border-top: 1px solid transparent;
+}
+
+.infoPanelOpen {
+  grid-template-rows: 1fr;
+  border-top-color: var(--border);
+}
+
+.infoInner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.infoPanelOpen .infoInner {
+  padding: 14px 18px 18px;
+}
+
+.infoDesc {
+  font-size: 13px;
+  color: var(--text-h);
+  line-height: 1.55;
+  margin: 0 0 12px;
+}
+
+.infoBlock {
+  margin-bottom: 12px;
+}
+
+.infoBlock:last-child {
+  margin-bottom: 0;
+}
+
+.infoLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--accent);
+  margin: 0 0 4px;
+}
+
+.infoText {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.infoList {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding-top: 24px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

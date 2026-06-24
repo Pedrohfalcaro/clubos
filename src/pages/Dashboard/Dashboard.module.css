@@ -1,0 +1,303 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0 0 4px;
+  letter-spacing: -0.5px;
+}
+
+.sub {
+  font-size: 14px;
+  color: var(--text);
+  margin: 0;
+}
+
+.budget {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--success);
+  white-space: nowrap;
+}
+
+.nextMatchCard {
+  width: 100%;
+  text-align: left;
+  background: linear-gradient(135deg, var(--accent-bg) 0%, var(--card-bg) 100%);
+  border: 1px solid var(--accent-border);
+  border-radius: 14px;
+  padding: 20px 24px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.nextMatchCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(170, 59, 255, 0.2);
+}
+
+.nextMatchLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+
+.nextMatchMain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nextMatchTeams {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-h);
+}
+
+.nextMatchMeta {
+  font-size: 13px;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.nextMatchCta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-top: 4px;
+}
+
+.noNextMatch {
+  background: var(--card-bg);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.noNextMatch button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font-size: inherit;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text);
+  margin: 0;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.empty {
+  background: var(--card-bg);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 32px;
+  text-align: center;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.empty strong {
+  color: var(--accent);
+}
+
+.matchList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.matchRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.matchResult {
+  font-size: 14px;
+  font-weight: 800;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.matchInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.matchOpponent {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.matchComp {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.matchScore {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-h);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.matchDate {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.leadersGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 700px) {
+  .leadersGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.leaderCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+
+.leaderTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 0 0 12px;
+}
+
+.leaderEmpty {
+  font-size: 13px;
+  color: var(--text);
+  margin: 0;
+  padding: 8px 0;
+}
+
+.leaderTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.leaderTable th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  padding: 0 8px 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.leaderTable th:last-child {
+  text-align: right;
+  padding-right: 0;
+}
+
+.leaderTable td {
+  padding: 8px 8px 8px 0;
+  color: var(--text-h);
+  border-bottom: 1px solid var(--border);
+}
+
+.leaderTable tr:last-child td {
+  border-bottom: none;
+}
+
+.leaderTable td:first-child {
+  width: 28px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.leaderStat {
+  text-align: right;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  padding-right: 0 !important;
+}
+
+@media (max-width: 640px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .title {
+    font-size: 26px;
+  }
+
+  .matchRow {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .matchDate {
+    width: 100%;
+    text-align: right;
+  }
+}

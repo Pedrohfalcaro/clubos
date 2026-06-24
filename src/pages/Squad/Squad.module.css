@@ -1,0 +1,237 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0 0 4px;
+  letter-spacing: -0.5px;
+}
+
+.sub {
+  font-size: 14px;
+  color: var(--text);
+  margin: 0;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filterBtn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filterBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filterBtnActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.search {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-h);
+  font-size: 13px;
+  outline: none;
+  margin-left: auto;
+  width: 200px;
+  transition: border-color 0.15s;
+}
+
+.search:focus {
+  border-color: var(--accent);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text);
+  margin: 0;
+}
+
+.table {
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tableHead,
+.tableRow,
+.editRow {
+  display: grid;
+  grid-template-columns: 40px 1fr 60px 60px 40px 40px 40px 100px 70px;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 8px;
+}
+
+.tableHead {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.tableRow {
+  font-size: 13px;
+  color: var(--text-h);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.tableRow:hover {
+  background: var(--nav-hover);
+}
+
+.colNum {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.colName {
+  font-weight: 500;
+}
+
+.colAge,
+.colOvr,
+.colStat {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.colOvr {
+  font-weight: 700;
+}
+
+.colStatus {
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.empty {
+  text-align: center;
+  color: var(--text);
+  padding: 48px;
+  font-size: 14px;
+}
+
+.colAction {
+  width: 70px;
+}
+
+.editBtn {
+  padding: 4px 10px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.editBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.editRow {
+  font-size: 13px;
+  background: var(--accent-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.editInputSm {
+  width: 100%;
+  padding: 4px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-h);
+  font-size: 12px;
+}
+
+.editSelect {
+  padding: 4px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-h);
+  font-size: 11px;
+}
+
+.editActions {
+  display: flex;
+  gap: 4px;
+}
+
+.saveBtn {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.cancelBtn {
+  padding: 4px 8px;
+  font-size: 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+}

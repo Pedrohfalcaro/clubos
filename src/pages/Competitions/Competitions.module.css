@@ -1,0 +1,132 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.sub {
+  font-size: 14px;
+  color: var(--text);
+  margin: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text);
+  margin: 0;
+}
+
+.empty {
+  background: var(--card-bg);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 32px;
+  text-align: center;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.table {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tableHead,
+.tableRow {
+  display: grid;
+  grid-template-columns: 32px 1fr 40px 40px 40px 40px 40px 40px 40px 48px;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 4px;
+}
+
+.tableHead {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.tableRow {
+  font-size: 13px;
+  color: var(--text-h);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+
+.tableRow:last-child { border-bottom: none; }
+.tableRow:hover { background: var(--nav-hover); }
+
+.myRow {
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+}
+
+.colPos {
+  color: var(--text);
+  font-size: 12px;
+  text-align: center;
+}
+
+.colTeam {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.colNum {
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.colPts {
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.twoCol .tableHead,
+.twoCol .tableRow {
+  grid-template-columns: 32px 1fr 40px 48px;
+}
+
+@media (max-width: 700px) {
+  .twoCol { grid-template-columns: 1fr; }
+  .tableHead,
+  .tableRow { grid-template-columns: 32px 1fr 32px 32px 32px 32px 32px 32px 32px 40px; }
+}

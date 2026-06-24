@@ -1,0 +1,126 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.sub {
+  font-size: 14px;
+  color: var(--text);
+  margin: 0;
+  max-width: 520px;
+  line-height: 1.5;
+}
+
+.saveBtn {
+  padding: 10px 20px;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.saveBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.saveBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.formationPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pickerLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text);
+}
+
+.formationBtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.formationBtn {
+  padding: 10px 18px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.5px;
+}
+
+.formationBtn:hover {
+  border-color: var(--accent);
+  color: var(--text-h);
+}
+
+.formationBtnActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+
+.fieldCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+@media (min-width: 768px) {
+  .fieldCard {
+    padding: 20px 24px;
+  }
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .formationBtns {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .formationBtn {
+    padding: 10px 8px;
+    font-size: 13px;
+    text-align: center;
+  }
+}

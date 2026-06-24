@@ -1,0 +1,368 @@
+.wrapper {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.wrapperSlot {
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .wrapperSlot {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 34%);
+    gap: 16px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .wrapperSlot {
+    grid-template-columns: minmax(420px, 1fr) minmax(300px, 360px);
+    gap: 20px;
+  }
+}
+
+.field {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  min-height: 340px;
+  max-height: min(72vh, 680px);
+  background: linear-gradient(180deg, #1a5c2e 0%, #1e6b35 50%, #1a5c2e 100%);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.15);
+}
+
+@media (min-width: 768px) {
+  .wrapperSlot .field {
+    min-height: 480px;
+    max-height: min(78vh, 720px);
+    height: 100%;
+  }
+}
+
+.halfLine {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.centerCircle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(60px, 18%, 100px);
+  height: clamp(60px, 18%, 100px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+}
+
+.penaltyTop,
+.penaltyBottom {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 55%;
+  height: 18%;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.penaltyTop {
+  top: 0;
+  border-top: none;
+}
+
+.penaltyBottom {
+  bottom: 0;
+  border-bottom: none;
+}
+
+.fieldPlayer {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.slotMarker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.slotMarker:hover {
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+.slotSelected {
+  z-index: 4;
+}
+
+.slotSelected .emptySlot {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.4);
+}
+
+.emptySlot {
+  width: clamp(40px, 8vw, 52px);
+  height: clamp(40px, 8vw, 52px);
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.slotRole {
+  font-size: clamp(8px, 1.8vw, 10px);
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.3px;
+}
+
+.dropHint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.55);
+  padding: 6px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+  z-index: 10;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+@media (min-width: 768px) {
+  .wrapperSlot .sidebar {
+    max-height: min(78vh, 720px);
+    overflow-y: auto;
+  }
+}
+
+.slotProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.slotProgressBar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.slotProgressFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.25s;
+}
+
+.slotProgressText {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.sidebarTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.slotDragOver .emptySlot {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5);
+}
+
+.playerGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 120px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+@media (min-width: 768px) {
+  .playerGrid {
+    max-height: 300px;
+  }
+}
+
+.playerChip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+  min-width: 0;
+}
+
+.playerChipDraggable {
+  cursor: grab;
+}
+
+.playerChipDraggable:hover {
+  background: var(--nav-hover);
+  border-color: var(--border);
+}
+
+.playerChipDraggable:active {
+  cursor: grabbing;
+}
+
+.playerChipName {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-h);
+  line-height: 1.25;
+  text-align: left;
+  word-break: break-word;
+  flex: 1;
+  min-width: 0;
+}
+
+.benchDropZone {
+  min-height: 64px;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.benchDropZoneActive {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.benchPlaceholder {
+  font-size: 11px;
+  color: var(--text);
+  text-align: center;
+}
+
+.benchGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.benchChip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: grab;
+  min-width: 0;
+}
+
+.benchChip:hover {
+  background: var(--nav-hover);
+}
+
+.benchChipName {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-h);
+  line-height: 1.25;
+  word-break: break-word;
+  flex: 1;
+  min-width: 0;
+}
+
+.benchChip:active {
+  cursor: grabbing;
+}
+
+.emptyList {
+  font-size: 12px;
+  color: var(--text);
+  margin: 0;
+  padding: 8px 4px;
+}
+
+.dragging {
+  opacity: 0.5;
+}
+
+.benchSection {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text);
+  margin: 0;
+}
+
+.warning {
+  font-size: 11px;
+  color: var(--warning);
+  margin: 0;
+}
+
+@media (max-width: 767px) {
+  .field {
+    max-height: 55vh;
+  }
+
+  .dropHint {
+    font-size: 10px;
+    padding: 5px 10px;
+    white-space: normal;
+    text-align: center;
+  }
+}

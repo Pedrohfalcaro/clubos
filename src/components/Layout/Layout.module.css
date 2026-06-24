@@ -1,0 +1,337 @@
+.root {
+  display: flex;
+  min-height: 100svh;
+  width: 100%;
+}
+
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0;
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow-y: auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.brandIcon {
+  font-size: 22px;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.brandName {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-h);
+  letter-spacing: 0.5px;
+}
+
+.club {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.clubLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.clubName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  margin: 0 0 2px;
+}
+
+.managerName {
+  font-size: 12px;
+  color: var(--accent);
+  margin: 0 0 2px;
+}
+
+.clubSeason {
+  font-size: 12px;
+  color: var(--text);
+  margin: 0;
+}
+
+.nav {
+  flex: 1;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.navGroupBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 20px;
+  font-size: 14px;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.navGroupBtn:hover {
+  background: var(--nav-hover);
+  color: var(--text-h);
+}
+
+.navGroupActive {
+  color: var(--text-h);
+}
+
+.navGroupLabel {
+  flex: 1;
+}
+
+.chevron {
+  font-size: 16px;
+  transition: transform 0.2s;
+  color: var(--text);
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.navSub {
+  display: flex;
+  flex-direction: column;
+  padding-left: 12px;
+}
+
+.navSubItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 20px 8px 36px;
+  font-size: 13px;
+  color: var(--text);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: background 0.15s, color 0.15s;
+}
+
+.navSubItem:hover {
+  background: var(--nav-hover);
+  color: var(--text-h);
+}
+
+.navSubActive {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+
+.wipTag {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--warning);
+  opacity: 0.8;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  font-size: 14px;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 0;
+  transition: background 0.15s, color 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.navItem:hover {
+  background: var(--nav-hover);
+  color: var(--text-h);
+}
+
+.navItemActive {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+
+.navIcon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  line-height: 1;
+}
+
+.sidebarFooter {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.resetBtn {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.resetBtn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.content {
+  flex: 1;
+  padding: 32px;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.mobileBar {
+  display: none;
+}
+
+.closeMenu {
+  display: none;
+}
+
+.overlay {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .root {
+    flex-direction: column;
+  }
+
+  .mobileBar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 52px;
+    padding: 0 16px;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--border);
+    z-index: 150;
+  }
+
+  .menuBtn {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text-h);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobileTitle {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-h);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    border: none;
+    z-index: 180;
+    cursor: pointer;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: min(280px, 88vw);
+    height: 100svh;
+    z-index: 190;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: none;
+  }
+
+  .sidebarOpen {
+    transform: translateX(0);
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.4);
+  }
+
+  .closeMenu {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 22px;
+    cursor: pointer;
+  }
+
+  .brand {
+    padding-right: 12px;
+  }
+
+  .content {
+    padding: 68px 16px 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .content {
+    padding: 64px 12px 20px;
+  }
+}

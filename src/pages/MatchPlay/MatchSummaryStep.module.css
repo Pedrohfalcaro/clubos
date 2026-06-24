@@ -1,0 +1,251 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.nameNormal,
+.nameActive {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.nameInactive {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.nameMotm {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.nameWorst {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.nameExpelled {
+  color: var(--text);
+}
+
+.nameBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+
+.motmStar {
+  color: #fbbf24;
+  font-size: 11px;
+}
+
+.ratingDisabled {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 32px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.nameMenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 30;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.nameMenu button {
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-h);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.nameMenu button:hover {
+  background: var(--nav-hover);
+}
+
+.ratingsSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.table {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: visible;
+}
+
+.tableHead,
+.tableRow {
+  display: grid;
+  grid-template-columns: 40px 1fr 48px 64px;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 8px;
+}
+
+.tableHead {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.tableRow {
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.colNum {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.colName {
+  position: relative;
+}
+
+.colPos {
+  font-size: 11px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.ratingCell {
+  position: relative;
+}
+
+.ratingBox {
+  width: 44px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ratingPicker {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 40;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  width: 200px;
+  max-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.ratingInput {
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.ratingList {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 140px;
+}
+
+.ratingList button {
+  padding: 4px;
+  font-size: 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.ratingList button:hover {
+  border-color: var(--accent);
+}
+
+.clearRating {
+  font-size: 11px;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+}
+
+.descSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.descLabel {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text);
+}
+
+.textarea {
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-h);
+  font-size: 14px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}

@@ -1,0 +1,94 @@
+[
+  {
+    "id": "corinthians",
+    "name": "Corinthians",
+    "nickname": "Timão",
+    "country": "brazil",
+    "budget": 38000000,
+    "fans": 30000000,
+    "boardConfidence": 80,
+    "supporterConfidence": 85,
+    "description": "Um dos maiores clubes do Brasil, com a torcida mais numerosa do país e tradição em conquistas nacionais e internacionais.",
+    "history": "Fundado em 1910, o Corinthians construiu uma história marcada por títulos do Brasileirão, Copas do Brasil e a conquista histórica do Mundial de Clubes em 2012.",
+    "achievements": ["2x Mundial de Clubes", "7x Brasileirão", "3x Copa do Brasil", "1x Libertadores"],
+    "currentMoment": "Elenco competitivo buscando retorno ao topo do futebol paulista e nacional.",
+    "statistics": {
+      "matches": 0,
+      "wins": 0,
+      "draws": 0,
+      "losses": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0,
+      "points": 0
+    }
+  },
+  {
+    "id": "sao-paulo",
+    "name": "São Paulo",
+    "nickname": "Tricolor",
+    "country": "brazil",
+    "budget": 35000000,
+    "fans": 28000000,
+    "boardConfidence": 80,
+    "supporterConfidence": 85,
+    "description": "Clube vencedor por excelência, referência em formação de jogadores e títulos internacionais.",
+    "history": "Fundado em 1930, o São Paulo é o clube brasileiro com mais títulos da Libertadores e tradição no Morumbi.",
+    "achievements": ["3x Mundial de Clubes", "6x Brasileirão", "3x Libertadores", "1x Copa do Brasil"],
+    "currentMoment": "Reconstrução com foco no desenvolvimento de jovens da base.",
+    "statistics": {
+      "matches": 0,
+      "wins": 0,
+      "draws": 0,
+      "losses": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0,
+      "points": 0
+    }
+  },
+  {
+    "id": "santos",
+    "name": "Santos",
+    "nickname": "Peixe",
+    "country": "brazil",
+    "budget": 22000000,
+    "fans": 4500000,
+    "boardConfidence": 80,
+    "supporterConfidence": 85,
+    "description": "A casa de Pelé e berço de talentos, com identidade ofensiva e história na Vila Belmiro.",
+    "history": "Fundado em 1912, o Santos brilhou especialmente na década de 1960 e mantém tradição de revelar craques.",
+    "achievements": ["3x Libertadores", "8x Brasileirão", "1x Copa do Brasil", "2x Mundial de Clubes"],
+    "currentMoment": "Momento de transição, apostando em jovens promissores da base.",
+    "statistics": {
+      "matches": 0,
+      "wins": 0,
+      "draws": 0,
+      "losses": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0,
+      "points": 0
+    }
+  },
+  {
+    "id": "xv-piracicaba",
+    "name": "XV de Piracicaba",
+    "nickname": "Nhô Quim",
+    "country": "brazil",
+    "budget": 8000000,
+    "fans": 500000,
+    "boardConfidence": 80,
+    "supporterConfidence": 85,
+    "description": "Clube tradicional do interior paulista, com torcida apaixonada e desafio de subir de divisão.",
+    "history": "Fundado em 1913, o XV de Piracicaba é um dos clubes mais antigos do Brasil e referência no interior.",
+    "achievements": ["Tradição no Campeonato Paulista", "História centenária"],
+    "currentMoment": "Projeto ambicioso de retorno ao futebol profissional de elite.",
+    "statistics": {
+      "matches": 0,
+      "wins": 0,
+      "draws": 0,
+      "losses": 0,
+      "goalsFor": 0,
+      "goalsAgainst": 0,
+      "points": 0
+    }
+  }
+]

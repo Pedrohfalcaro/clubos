@@ -1,0 +1,70 @@
+.list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.listRight {
+  align-items: flex-end;
+}
+
+.listRight .item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.minute {
+  color: var(--text);
+  font-weight: 600;
+  min-width: 36px;
+  flex-shrink: 0;
+}
+
+.content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon {
+  font-size: 12px;
+}
+
+.iconRed {
+  font-size: 8px;
+}
+
+.nameWhite {
+  color: var(--text-h);
+  font-weight: 500;
+}
+
+.nameWhiteStrong {
+  color: var(--text-h);
+  font-weight: 700;
+}
+
+.nameGray {
+  color: var(--text);
+}
+
+.nameYellow {
+  color: #eab308;
+  font-weight: 500;
+}
+
+.nameRed {
+  color: #ef4444;
+  font-weight: 500;
+}
