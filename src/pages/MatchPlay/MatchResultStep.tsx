@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import MinuteInput from '../../components/MinuteInput/MinuteInput';
 import SearchableSelect from '../../components/SearchableSelect/SearchableSelect';
 import SubstitutionModal from '../../components/SubstitutionModal/SubstitutionModal';
+import CollapsibleEventBlock from '../../components/CollapsibleEventBlock/CollapsibleEventBlock';
 import MatchTimeline, { type TimelineEvent } from '../../components/MatchTimeline/MatchTimeline';
 import type { Player } from '../../types/Player';
 import type {
@@ -13,7 +14,7 @@ import type {
   OpponentCardEntry,
   OpponentSubEntry,
 } from '../../types/Match';
-import { defaultMinute, uid } from '../../utils/matchEvents';
+import { defaultMinute, formatMinute, uid } from '../../utils/matchEvents';
 import { getFieldPlayerIds, isPlayerOnField } from '../../utils/matchPlayHelpers';
 import styles from './MatchResultStep.module.css';
 
@@ -44,6 +45,22 @@ interface MatchResultStepProps {
   onOpponentSubsChange: (s: OpponentSubEntry[]) => void;
 }
 
+function isFormOpen(id: string, complete: boolean, expandedIds: Set<string>) {
+  return expandedIds.has(id) || !complete;
+}
+
+function isTeamGoalComplete(g: TeamGoalEntry): boolean {
+  return g.type === 'own' ? !!g.opponentScorerName?.trim() : !!g.playerId;
+}
+
+function teamGoalSummary(g: TeamGoalEntry, players: Player[]): string {
+  const min = formatMinute(g.minute);
+  if (g.type === 'own') return `${min} · GC ${g.opponentScorerName}`;
+  const scorer = players.find(p => p.id === g.playerId)?.name ?? '—';
+  const assist = g.assistPlayerId ? players.find(p => p.id === g.assistPlayerId)?.name : null;
+  return assist ? `${min} · ⚽ ${scorer} (${assist})` : `${min} · ⚽ ${scorer}`;
+}
+
 export default function MatchResultStep(props: MatchResultStepProps) {
   const {
     teamName, opponentName, homeTeam, awayTeam, isTeamHome,
@@ -57,6 +74,7 @@ export default function MatchResultStep(props: MatchResultStepProps) {
     opponentSubs, onOpponentSubsChange,
   } = props;
 
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [subModal, setSubModal] = useState<{ playerIn: Player; required: boolean } | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [voluntarySubOpen, setVoluntarySubOpen] = useState(false);
@@ -75,6 +93,10 @@ export default function MatchResultStep(props: MatchResultStepProps) {
     () => [...fieldIds].map(id => players.find(p => p.id === id)).filter(Boolean).map(p => ({ value: p!.id, label: p!.name })),
     [fieldIds, players],
   );
+
+  function openEdit(id: string) {
+    setExpandedIds(prev => new Set(prev).add(id));
+  }
 
   function resolvePlayer(id: string) {
     return players.find(p => p.id === id);
@@ -104,8 +126,7 @@ export default function MatchResultStep(props: MatchResultStepProps) {
       minute: data.minute,
       side: 'team',
     };
-    const newSubs = [...teamSubs, sub];
-    onTeamSubsChange(newSubs);
+    onTeamSubsChange([...teamSubs, sub]);
     setSubModal(null);
     pendingAction?.();
     setPendingAction(null);
@@ -116,10 +137,12 @@ export default function MatchResultStep(props: MatchResultStepProps) {
   }
 
   function addCard(type: 'yellow' | 'red') {
+    const id = uid();
     onTeamCardsChange([
       ...teamCards,
-      { id: uid(), playerId: '', playerName: '', type, minute: defaultMinute() },
+      { id, playerId: '', playerName: '', type, minute: defaultMinute() },
     ]);
+    setExpandedIds(prev => new Set(prev).add(id));
   }
 
   function updateCard(id: string, patch: Partial<TeamCardEntry>) {
@@ -228,76 +251,132 @@ export default function MatchResultStep(props: MatchResultStepProps) {
     <div className={styles.sidePanel}>
       <h3 className={styles.panelTitle}>{teamName}</h3>
 
-      {teamGoals.map((g, i) => (
-        <div key={g.id} className={styles.eventBlock}>
-          <div className={styles.eventRow}>
-            <MinuteInput value={g.minute} onChange={m => updateGoal(i, { minute: m })} />
-            {g.type === 'own' ? (
-              <input
-                className={styles.textInput}
-                placeholder="Autor do gol contra"
-                value={g.opponentScorerName ?? ''}
-                onChange={e => updateGoal(i, { opponentScorerName: e.target.value })}
-              />
-            ) : (
-              <SearchableSelect
-                options={squadOptions}
-                value={g.playerId ?? ''}
-                onChange={pid => ensureOnField(pid, () => updateGoal(i, { playerId: pid, type: 'team' }))}
-                placeholder="Autor do gol..."
-              />
-            )}
-            <button
-              type="button"
-              className={styles.toggleOwn}
-              onClick={() => updateGoal(i, {
-                type: g.type === 'own' ? 'team' : 'own',
-                playerId: '',
-                opponentScorerName: '',
-              })}
-              title="Alternar gol contra"
-            >
-              {g.type === 'own' ? '⚽' : '🔴'}
-            </button>
-          </div>
-          {g.type === 'team' && (
-            <div className={styles.assistRow}>
-              <span className={styles.assistLabel}>Assistência (opcional)</span>
-              <SearchableSelect
-                options={[{ value: '', label: 'Sem assistência' }, ...squadOptions]}
-                value={g.assistPlayerId ?? ''}
-                onChange={pid => {
-                  if (!pid) updateGoal(i, { assistPlayerId: undefined });
-                  else ensureOnField(pid, () => updateGoal(i, { assistPlayerId: pid }));
-                }}
-                placeholder="Assistência..."
-              />
+      {teamGoals.map((g, i) => {
+        const complete = isTeamGoalComplete(g);
+        return (
+          <CollapsibleEventBlock
+            key={g.id}
+            isComplete={complete}
+            expanded={isFormOpen(g.id, complete, expandedIds)}
+            summary={teamGoalSummary(g, players)}
+            onEdit={() => openEdit(g.id)}
+          >
+            <div className={styles.eventFields}>
+              <div className={styles.minuteRow}>
+                <span className={styles.fieldLabel}>Minuto</span>
+                <MinuteInput value={g.minute} onChange={m => updateGoal(i, { minute: m })} />
+              </div>
+              <div className={styles.fieldRow}>
+                {g.type === 'own' ? (
+                  <input
+                    className={styles.textInput}
+                    placeholder="Autor do gol contra"
+                    value={g.opponentScorerName ?? ''}
+                    onChange={e => updateGoal(i, { opponentScorerName: e.target.value })}
+                  />
+                ) : (
+                  <SearchableSelect
+                    options={squadOptions}
+                    value={g.playerId ?? ''}
+                    onChange={pid => ensureOnField(pid, () => updateGoal(i, { playerId: pid, type: 'team' }))}
+                    placeholder="Autor do gol..."
+                  />
+                )}
+                <button
+                  type="button"
+                  className={styles.toggleOwn}
+                  onClick={() => updateGoal(i, {
+                    type: g.type === 'own' ? 'team' : 'own',
+                    playerId: '',
+                    opponentScorerName: '',
+                  })}
+                  title="Alternar gol contra"
+                >
+                  {g.type === 'own' ? '⚽' : '🔴'}
+                </button>
+              </div>
+              {g.type === 'team' && (
+                <div className={styles.assistRow}>
+                  <span className={styles.assistLabel}>Assistência (opcional)</span>
+                  <SearchableSelect
+                    options={[{ value: '', label: 'Sem assistência' }, ...squadOptions]}
+                    value={g.assistPlayerId ?? ''}
+                    onChange={pid => {
+                      if (!pid) updateGoal(i, { assistPlayerId: undefined });
+                      else ensureOnField(pid, () => updateGoal(i, { assistPlayerId: pid }));
+                    }}
+                    placeholder="Assistência..."
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      ))}
+          </CollapsibleEventBlock>
+        );
+      })}
 
       <div className={styles.cardSection}>
-        {teamCards.map(card => (
-          <div key={card.id} className={styles.eventRow}>
-            <span className={card.type === 'yellow' ? styles.cardIconY : styles.cardIconR}>
-              {card.type === 'yellow' ? '🟨' : '🟥'}
-            </span>
-            <MinuteInput value={card.minute} onChange={m => updateCard(card.id, { minute: m })} />
-            <SearchableSelect
-              options={squadOptions}
-              value={card.playerId}
-              onChange={pid => applyCardPlayer(card, pid)}
-              placeholder="Jogador..."
-            />
-            <button type="button" className={styles.removeBtn} onClick={() => onTeamCardsChange(teamCards.filter(c => c.id !== card.id))}>×</button>
-          </div>
-        ))}
+        {teamCards.map(card => {
+          const complete = !!card.playerId;
+          const summary = `${formatMinute(card.minute)} · ${card.type === 'yellow' ? '🟨' : '🟥'} ${card.playerName || '—'}`;
+          return (
+            <CollapsibleEventBlock
+              key={card.id}
+              isComplete={complete}
+              expanded={isFormOpen(card.id, complete, expandedIds)}
+              summary={summary}
+              onEdit={() => openEdit(card.id)}
+              onRemove={() => onTeamCardsChange(teamCards.filter(c => c.id !== card.id))}
+            >
+              <div className={styles.eventFields}>
+                <div className={styles.minuteRow}>
+                  <span className={styles.fieldLabel}>Minuto</span>
+                  <span className={card.type === 'yellow' ? styles.cardIconY : styles.cardIconR}>
+                    {card.type === 'yellow' ? '🟨' : '🟥'}
+                  </span>
+                  <MinuteInput value={card.minute} onChange={m => updateCard(card.id, { minute: m })} />
+                </div>
+                <SearchableSelect
+                  options={squadOptions}
+                  value={card.playerId}
+                  onChange={pid => applyCardPlayer(card, pid)}
+                  placeholder="Jogador..."
+                />
+              </div>
+            </CollapsibleEventBlock>
+          );
+        })}
         <div className={styles.cardBtns}>
           <button type="button" className={styles.yellowBtn} onClick={() => addCard('yellow')}>🟨 Amarelo</button>
           <button type="button" className={styles.redBtn} onClick={() => addCard('red')}>🟥 Vermelho</button>
         </div>
       </div>
+
+      {teamSubs.map(sub => {
+        const complete = true;
+        const summary = `${formatMinute(sub.minute)} · 🔼 ${sub.playerInName} · 🔽 ${sub.playerOutName}`;
+        return (
+          <CollapsibleEventBlock
+            key={sub.id}
+            isComplete={complete}
+            expanded={isFormOpen(sub.id, complete, expandedIds)}
+            summary={summary}
+            onEdit={() => openEdit(sub.id)}
+            onRemove={() => onTeamSubsChange(teamSubs.filter(s => s.id !== sub.id))}
+          >
+            <div className={styles.eventFields}>
+              <div className={styles.minuteRow}>
+                <span className={styles.fieldLabel}>Minuto</span>
+                <MinuteInput
+                  value={sub.minute}
+                  onChange={m => onTeamSubsChange(teamSubs.map(s => s.id === sub.id ? { ...s, minute: m } : s))}
+                />
+              </div>
+              <p className={styles.subDetail}>Entra: {sub.playerInName}</p>
+              <p className={styles.subDetail}>Sai: {sub.playerOutName}</p>
+            </div>
+          </CollapsibleEventBlock>
+        );
+      })}
 
       <button type="button" className={styles.subBtn} onClick={() => setVoluntarySubOpen(true)}>
         🔄 Substituição
@@ -310,60 +389,130 @@ export default function MatchResultStep(props: MatchResultStepProps) {
       <h3 className={styles.panelTitle}>{opponentName}</h3>
       <p className={styles.optionalHint}>Todos os campos opcionais — apenas texto</p>
 
-      {opponentGoals.map((g, i) => (
-        <div key={g.id} className={styles.eventBlock}>
-          <div className={styles.eventRow}>
-            <MinuteInput value={g.minute} onChange={m => onOpponentGoalsChange(opponentGoals.map((og, j) => j === i ? { ...og, minute: m } : og))} />
-            <input
-              className={styles.textInput}
-              placeholder="Autor do gol"
-              value={g.scorerName}
-              onChange={e => onOpponentGoalsChange(opponentGoals.map((og, j) => j === i ? { ...og, scorerName: e.target.value } : og))}
-            />
-          </div>
-          <div className={styles.assistRow}>
-            <span className={styles.assistLabel}>Assistência (opcional)</span>
-            <input
-              className={styles.textInput}
-              placeholder="Nome do assistente"
-              value={g.assistName ?? ''}
-              onChange={e => onOpponentGoalsChange(opponentGoals.map((og, j) => j === i ? { ...og, assistName: e.target.value } : og))}
-            />
-          </div>
-        </div>
-      ))}
+      {opponentGoals.map((g, i) => {
+        const complete = !!g.scorerName.trim();
+        const assist = g.assistName ? ` (${g.assistName})` : '';
+        const summary = `${formatMinute(g.minute)} · ⚽ ${g.scorerName || '—'}${assist}`;
+        return (
+          <CollapsibleEventBlock
+            key={g.id}
+            isComplete={complete}
+            expanded={isFormOpen(g.id, complete, expandedIds)}
+            summary={summary}
+            onEdit={() => openEdit(g.id)}
+          >
+            <div className={styles.eventFields}>
+              <div className={styles.minuteRow}>
+                <span className={styles.fieldLabel}>Minuto</span>
+                <MinuteInput value={g.minute} onChange={m => onOpponentGoalsChange(opponentGoals.map((og, j) => j === i ? { ...og, minute: m } : og))} />
+              </div>
+              <input
+                className={styles.textInput}
+                placeholder="Autor do gol"
+                value={g.scorerName}
+                onChange={e => onOpponentGoalsChange(opponentGoals.map((og, j) => j === i ? { ...og, scorerName: e.target.value } : og))}
+              />
+              <div className={styles.assistRow}>
+                <span className={styles.assistLabel}>Assistência (opcional)</span>
+                <input
+                  className={styles.textInput}
+                  placeholder="Nome do assistente"
+                  value={g.assistName ?? ''}
+                  onChange={e => onOpponentGoalsChange(opponentGoals.map((og, j) => j === i ? { ...og, assistName: e.target.value } : og))}
+                />
+              </div>
+            </div>
+          </CollapsibleEventBlock>
+        );
+      })}
 
-      {opponentCards.map(card => (
-        <div key={card.id} className={styles.eventRow}>
-          <span className={card.type === 'yellow' ? styles.cardIconY : styles.cardIconR}>
-            {card.type === 'yellow' ? '🟨' : '🟥'}
-          </span>
-          <MinuteInput value={card.minute} onChange={m => onOpponentCardsChange(opponentCards.map(c => c.id === card.id ? { ...c, minute: m } : c))} />
-          <input
-            className={styles.textInput}
-            placeholder="Nome do jogador"
-            value={card.playerName}
-            onChange={e => onOpponentCardsChange(opponentCards.map(c => c.id === card.id ? { ...c, playerName: e.target.value } : c))}
-          />
-          <button type="button" className={styles.removeBtn} onClick={() => onOpponentCardsChange(opponentCards.filter(c => c.id !== card.id))}>×</button>
-        </div>
-      ))}
+      {opponentCards.map(card => {
+        const complete = !!card.playerName.trim();
+        const summary = `${formatMinute(card.minute)} · ${card.type === 'yellow' ? '🟨' : '🟥'} ${card.playerName || '—'}`;
+        return (
+          <CollapsibleEventBlock
+            key={card.id}
+            isComplete={complete}
+            expanded={isFormOpen(card.id, complete, expandedIds)}
+            summary={summary}
+            onEdit={() => openEdit(card.id)}
+            onRemove={() => onOpponentCardsChange(opponentCards.filter(c => c.id !== card.id))}
+          >
+            <div className={styles.eventFields}>
+              <div className={styles.minuteRow}>
+                <span className={styles.fieldLabel}>Minuto</span>
+                <span className={card.type === 'yellow' ? styles.cardIconY : styles.cardIconR}>
+                  {card.type === 'yellow' ? '🟨' : '🟥'}
+                </span>
+                <MinuteInput value={card.minute} onChange={m => onOpponentCardsChange(opponentCards.map(c => c.id === card.id ? { ...c, minute: m } : c))} />
+              </div>
+              <input
+                className={styles.textInput}
+                placeholder="Nome do jogador"
+                value={card.playerName}
+                onChange={e => onOpponentCardsChange(opponentCards.map(c => c.id === card.id ? { ...c, playerName: e.target.value } : c))}
+              />
+            </div>
+          </CollapsibleEventBlock>
+        );
+      })}
       <div className={styles.cardBtns}>
-        <button type="button" className={styles.yellowBtn} onClick={() => onOpponentCardsChange([...opponentCards, { id: uid(), playerName: '', type: 'yellow', minute: defaultMinute() }])}>🟨 Amarelo</button>
-        <button type="button" className={styles.redBtn} onClick={() => onOpponentCardsChange([...opponentCards, { id: uid(), playerName: '', type: 'red', minute: defaultMinute() }])}>🟥 Vermelho</button>
+        <button
+          type="button"
+          className={styles.yellowBtn}
+          onClick={() => {
+            const id = uid();
+            onOpponentCardsChange([...opponentCards, { id, playerName: '', type: 'yellow', minute: defaultMinute() }]);
+            setExpandedIds(prev => new Set(prev).add(id));
+          }}
+        >
+          🟨 Amarelo
+        </button>
+        <button
+          type="button"
+          className={styles.redBtn}
+          onClick={() => {
+            const id = uid();
+            onOpponentCardsChange([...opponentCards, { id, playerName: '', type: 'red', minute: defaultMinute() }]);
+            setExpandedIds(prev => new Set(prev).add(id));
+          }}
+        >
+          🟥 Vermelho
+        </button>
       </div>
 
-      {opponentSubs.map((s, i) => (
-        <div key={s.id} className={styles.eventBlock}>
-          <div className={styles.eventRow}>
-            <MinuteInput value={s.minute} onChange={m => onOpponentSubsChange(opponentSubs.map((os, j) => j === i ? { ...os, minute: m } : os))} />
-            <input className={styles.textInput} placeholder="Entra" value={s.playerIn} onChange={e => onOpponentSubsChange(opponentSubs.map((os, j) => j === i ? { ...os, playerIn: e.target.value } : os))} />
-            <input className={styles.textInput} placeholder="Sai" value={s.playerOut} onChange={e => onOpponentSubsChange(opponentSubs.map((os, j) => j === i ? { ...os, playerOut: e.target.value } : os))} />
-            <button type="button" className={styles.removeBtn} onClick={() => onOpponentSubsChange(opponentSubs.filter((_, j) => j !== i))}>×</button>
-          </div>
-        </div>
-      ))}
-      <button type="button" className={styles.subBtn} onClick={() => onOpponentSubsChange([...opponentSubs, { id: uid(), playerIn: '', playerOut: '', minute: defaultMinute() }])}>
+      {opponentSubs.map((s, i) => {
+        const complete = !!(s.playerIn.trim() && s.playerOut.trim());
+        const summary = `${formatMinute(s.minute)} · 🔼 ${s.playerIn || '—'} · 🔽 ${s.playerOut || '—'}`;
+        return (
+          <CollapsibleEventBlock
+            key={s.id}
+            isComplete={complete}
+            expanded={isFormOpen(s.id, complete, expandedIds)}
+            summary={summary}
+            onEdit={() => openEdit(s.id)}
+            onRemove={() => onOpponentSubsChange(opponentSubs.filter((_, j) => j !== i))}
+          >
+            <div className={styles.eventFields}>
+              <div className={styles.minuteRow}>
+                <span className={styles.fieldLabel}>Minuto</span>
+                <MinuteInput value={s.minute} onChange={m => onOpponentSubsChange(opponentSubs.map((os, j) => j === i ? { ...os, minute: m } : os))} />
+              </div>
+              <input className={styles.textInput} placeholder="Entra" value={s.playerIn} onChange={e => onOpponentSubsChange(opponentSubs.map((os, j) => j === i ? { ...os, playerIn: e.target.value } : os))} />
+              <input className={styles.textInput} placeholder="Sai" value={s.playerOut} onChange={e => onOpponentSubsChange(opponentSubs.map((os, j) => j === i ? { ...os, playerOut: e.target.value } : os))} />
+            </div>
+          </CollapsibleEventBlock>
+        );
+      })}
+      <button
+        type="button"
+        className={styles.subBtn}
+        onClick={() => {
+          const id = uid();
+          onOpponentSubsChange([...opponentSubs, { id, playerIn: '', playerOut: '', minute: defaultMinute() }]);
+          setExpandedIds(prev => new Set(prev).add(id));
+        }}
+      >
         🔄 Substituição
       </button>
     </div>
@@ -374,7 +523,9 @@ export default function MatchResultStep(props: MatchResultStepProps) {
       <div className={styles.scoreboard}>
         <div className={styles.teamCol}>
           <span className={styles.teamLabel}>{homeTeam}</span>
-          <MatchTimeline events={homeTimeline} align="left" />
+          <div className={styles.timelineWrap}>
+            <MatchTimeline events={homeTimeline} align="left" />
+          </div>
         </div>
         <div className={styles.scoreCol}>
           <input
@@ -405,7 +556,9 @@ export default function MatchResultStep(props: MatchResultStepProps) {
         </div>
         <div className={styles.teamCol}>
           <span className={styles.teamLabel}>{awayTeam}</span>
-          <MatchTimeline events={awayTimeline} align="right" />
+          <div className={styles.timelineWrap}>
+            <MatchTimeline events={awayTimeline} align="right" />
+          </div>
         </div>
       </div>
 

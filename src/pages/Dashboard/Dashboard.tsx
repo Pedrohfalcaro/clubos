@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatCard from '../../components/StatCard/StatCard';
+import Tutorial from '../../components/Tutorial/Tutorial';
 import { useGame } from '../../context/GameContext';
 import { getHomeAway, locationLabel } from '../../utils/matchStats';
+import { WELCOME_TUTORIAL, hasSeenWelcome, markWelcomeSeen } from '../../utils/tutorials';
 import styles from './Dashboard.module.css';
 
 function formatBudget(value: number): string {
@@ -22,6 +24,7 @@ export default function Dashboard() {
   const { state } = useGame();
   const navigate = useNavigate();
   const { team, matches, manager } = state;
+  const [showWelcome, setShowWelcome] = useState(() => !hasSeenWelcome());
 
   if (!team) return null;
 
@@ -210,6 +213,16 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+
+      {showWelcome && (
+        <Tutorial
+          steps={WELCOME_TUTORIAL}
+          onComplete={() => {
+            markWelcomeSeen();
+            setShowWelcome(false);
+          }}
+        />
+      )}
     </div>
   );
 }

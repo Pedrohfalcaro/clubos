@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import type { Player } from '../../types/Player';
 import PlayerJersey from '../PlayerJersey/PlayerJersey';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import type { FormationPreset } from '../../utils/formations';
 import styles from './FormationField.module.css';
 
@@ -24,8 +25,6 @@ interface FormationFieldProps {
   preset?: FormationPreset | null;
 }
 
-const DRAG_THRESHOLD = 10;
-
 export default function FormationField({
   players,
   formation,
@@ -39,14 +38,15 @@ export default function FormationField({
   slotMode = false,
   preset = null,
 }: FormationFieldProps) {
+  const isMobile = useIsMobile();
+  const allowDrag = !isMobile;
+
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [movingSlot, setMovingSlot] = useState<number | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [selectedBench, setSelectedBench] = useState(false);
   const [benchDragOver, setBenchDragOver] = useState(false);
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null);
-  const [touchGhost, setTouchGhost] = useState<{ playerId: string; x: number; y: number } | null>(null);
-  const touchDragRef = useRef<{ playerId: string; startX: number; startY: number; active: boolean } | null>(null);
 
   const onFieldIds = new Set(formation.map(f => f.playerId));
   const benchIds = new Set(bench);
@@ -116,83 +116,8 @@ export default function FormationField({
     }
   }
 
-  function resolveDropTarget(clientX: number, clientY: number) {
-    const el = document.elementFromPoint(clientX, clientY);
-    const slotEl = el?.closest('[data-slot-index]');
-    if (slotEl) {
-      return { type: 'slot' as const, index: Number(slotEl.getAttribute('data-slot-index')) };
-    }
-    if (el?.closest('[data-bench-drop]')) {
-      return { type: 'bench' as const };
-    }
-    return null;
-  }
-
-  function updateDropHighlight(clientX: number, clientY: number) {
-    const target = resolveDropTarget(clientX, clientY);
-    if (target?.type === 'slot') {
-      setDragOverSlot(target.index);
-      setBenchDragOver(false);
-    } else if (target?.type === 'bench') {
-      setBenchDragOver(true);
-      setDragOverSlot(null);
-    } else {
-      setDragOverSlot(null);
-      setBenchDragOver(false);
-    }
-  }
-
-  function handleTouchStart(playerId: string, e: React.TouchEvent) {
-    const touch = e.touches[0];
-    touchDragRef.current = {
-      playerId,
-      startX: touch.clientX,
-      startY: touch.clientY,
-      active: false,
-    };
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    const ref = touchDragRef.current;
-    if (!ref) return;
-    const touch = e.touches[0];
-    const dx = touch.clientX - ref.startX;
-    const dy = touch.clientY - ref.startY;
-
-    if (!ref.active && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
-      ref.active = true;
-      setDraggingId(ref.playerId);
-    }
-
-    if (ref.active) {
-      e.preventDefault();
-      setTouchGhost({ playerId: ref.playerId, x: touch.clientX, y: touch.clientY });
-      updateDropHighlight(touch.clientX, touch.clientY);
-    }
-  }
-
-  function handleTouchEnd(e: React.TouchEvent) {
-    const ref = touchDragRef.current;
-    if (!ref) return;
-
-    if (ref.active) {
-      const touch = e.changedTouches[0];
-      const target = resolveDropTarget(touch.clientX, touch.clientY);
-      if (target?.type === 'slot' && slotMode && preset) {
-        assignToSlot(target.index, ref.playerId);
-      } else if (target?.type === 'bench') {
-        addToBench(ref.playerId);
-      }
-    }
-
-    touchDragRef.current = null;
-    setTouchGhost(null);
-    setDraggingId(null);
-    setDragOverSlot(null);
-    setBenchDragOver(false);
-  }
-
   function handleSlotDrop(e: React.DragEvent, slotIndex: number) {
+    if (!allowDrag) return;
     e.preventDefault();
     e.stopPropagation();
     const playerId = e.dataTransfer.getData('playerId');
@@ -204,6 +129,7 @@ export default function FormationField({
   }
 
   function handleBenchDrop(e: React.DragEvent) {
+    if (!allowDrag) return;
     e.preventDefault();
     e.stopPropagation();
     const playerId = e.dataTransfer.getData('playerId');
@@ -214,7 +140,7 @@ export default function FormationField({
   }
 
   function handleFieldDrop(e: React.DragEvent, x?: number, y?: number) {
-    if (slotMode) return;
+    if (!allowDrag || slotMode) return;
     e.preventDefault();
     const playerId = e.dataTransfer.getData('playerId');
     if (!playerId) return;
@@ -275,19 +201,13 @@ export default function FormationField({
     setDraggingId(playerId);
   }
 
-  const touchHandlers = (playerId: string) => ({
-    onTouchStart: (e: React.TouchEvent) => handleTouchStart(playerId, e),
-    onTouchMove: handleTouchMove,
-    onTouchEnd: handleTouchEnd,
-  });
-
   const slotsFilled = preset ? preset.slots.filter((_, i) => findPlayerAtSlot(i)).length : formation.length;
 
   return (
     <div className={`${styles.wrapper} ${slotMode ? styles.wrapperSlot : ''}`}>
       <div
         className={styles.field}
-        onDragOver={e => !slotMode && e.preventDefault()}
+        onDragOver={e => allowDrag && !slotMode && e.preventDefault()}
         onDrop={e => handleFieldDrop(e)}
       >
         <div className={styles.halfLine} />
@@ -310,6 +230,7 @@ export default function FormationField({
                 style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
                 onClick={() => handleSlotClick(i)}
                 onDragOver={e => {
+                  if (!allowDrag) return;
                   e.preventDefault();
                   e.stopPropagation();
                   setDragOverSlot(i);
@@ -319,9 +240,9 @@ export default function FormationField({
               >
                 {player ? (
                   <div
-                    draggable
-                    className={styles.touchDraggable}
+                    draggable={allowDrag}
                     onDragStart={e => {
+                      if (!allowDrag) return;
                       const fi = formation.findIndex(f => f.playerId === player.id);
                       if (fi >= 0) handleSlotDrag(fi, e);
                     }}
@@ -331,7 +252,6 @@ export default function FormationField({
                       setDragOverSlot(null);
                     }}
                     onClick={e => e.stopPropagation()}
-                    {...touchHandlers(player.id)}
                     role="presentation"
                   >
                     <PlayerJersey
@@ -355,12 +275,11 @@ export default function FormationField({
             return (
               <div
                 key={slot.playerId}
-                className={`${styles.fieldPlayer} ${styles.touchDraggable}`}
+                className={styles.fieldPlayer}
                 style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
-                draggable
-                onDragStart={e => handleSlotDrag(i, e)}
+                draggable={allowDrag}
+                onDragStart={e => allowDrag && handleSlotDrag(i, e)}
                 onDragEnd={() => setMovingSlot(null)}
-                {...touchHandlers(player.id)}
               >
                 <PlayerJersey
                   player={player}
@@ -372,17 +291,21 @@ export default function FormationField({
           })
         )}
 
-        {movingSlot !== null && !slotMode && (
+        {movingSlot !== null && !slotMode && allowDrag && (
           <div className={styles.dropHint}>Solte para reposicionar</div>
         )}
 
-        {slotMode && (selectedSlot !== null || selectedBench || dragOverSlot !== null) && (
+        {slotMode && (selectedSlot !== null || selectedBench) && (
           <div className={styles.dropHint}>
-            {dragOverSlot !== null
-              ? `Solte em ${preset?.slots[dragOverSlot]?.role}`
-              : selectedBench
-                ? 'Toque em um jogador para o banco'
-                : `Posição ${preset?.slots[selectedSlot!]?.role} — arraste ou selecione um jogador`}
+            {selectedBench
+              ? 'Toque em um jogador para o banco'
+              : `Posição ${preset?.slots[selectedSlot!]?.role} — selecione um jogador`}
+          </div>
+        )}
+
+        {slotMode && allowDrag && dragOverSlot !== null && (
+          <div className={styles.dropHint}>
+            {`Solte em ${preset?.slots[dragOverSlot]?.role}`}
           </div>
         )}
       </div>
@@ -409,13 +332,12 @@ export default function FormationField({
           {available.map(player => (
             <div
               key={player.id}
-              draggable
-              onDragStart={e => startListDrag(player.id, e)}
+              draggable={allowDrag}
+              onDragStart={e => allowDrag && startListDrag(player.id, e)}
               onDragEnd={() => setDraggingId(null)}
               onClick={() => slotMode && handlePlayerPick(player.id)}
-              className={`${styles.playerChip} ${draggingId === player.id ? styles.dragging : ''} ${slotMode ? styles.playerChipDraggable : ''} ${styles.touchDraggable}`}
+              className={`${styles.playerChip} ${draggingId === player.id ? styles.dragging : ''} ${slotMode ? styles.playerChipDraggable : ''}`}
               title={player.name}
-              {...touchHandlers(player.id)}
             >
               <PlayerJersey player={player} size="xs" hideName />
               <span className={styles.playerChipName}>{player.name}</span>
@@ -436,6 +358,7 @@ export default function FormationField({
               className={`${styles.benchDropZone} ${benchDragOver ? styles.benchDropZoneActive : ''} ${selectedBench ? styles.benchDropZoneSelected : ''}`}
               onClick={handleBenchClick}
               onDragOver={e => {
+                if (!allowDrag) return;
                 e.preventDefault();
                 setBenchDragOver(true);
               }}
@@ -444,7 +367,11 @@ export default function FormationField({
             >
               {bench.length === 0 ? (
                 <span className={styles.benchPlaceholder}>
-                  {selectedBench ? 'Selecione um jogador' : 'Arraste ou toque aqui, depois no jogador'}
+                  {selectedBench
+                    ? 'Selecione um jogador'
+                    : isMobile
+                      ? 'Toque aqui, depois no jogador'
+                      : 'Arraste ou toque aqui, depois no jogador'}
                 </span>
               ) : (
                 <div className={styles.benchGrid}>
@@ -454,12 +381,11 @@ export default function FormationField({
                     return (
                       <div
                         key={id}
-                        className={`${styles.benchChip} ${styles.touchDraggable}`}
-                        draggable
-                        onDragStart={e => handleBenchPlayerDrag(id, e)}
+                        className={styles.benchChip}
+                        draggable={allowDrag}
+                        onDragStart={e => allowDrag && handleBenchPlayerDrag(id, e)}
                         onDragEnd={() => setDraggingId(null)}
                         title={player.name}
-                        {...touchHandlers(id)}
                       >
                         <PlayerJersey
                           player={player}
@@ -480,15 +406,6 @@ export default function FormationField({
           </div>
         )}
       </div>
-
-      {touchGhost && getPlayer(touchGhost.playerId) && (
-        <div
-          className={styles.touchGhost}
-          style={{ left: touchGhost.x, top: touchGhost.y }}
-        >
-          <PlayerJersey player={getPlayer(touchGhost.playerId)!} size="sm" hideName />
-        </div>
-      )}
     </div>
   );
 }

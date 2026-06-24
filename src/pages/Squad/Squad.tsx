@@ -110,6 +110,7 @@ export default function Squad() {
       {Object.entries(grouped).map(([pos, group]) => (
         <section key={pos} className={styles.group}>
           <h2 className={styles.groupTitle}>{POSITION_LABELS[pos] ?? pos}</h2>
+
           <div className={styles.table}>
             <div className={styles.tableHead}>
               <span className={styles.colNum}>#</span>
@@ -187,6 +188,85 @@ export default function Squad() {
                       Editar
                     </button>
                   </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className={styles.mobileList}>
+            {group.map(p => (
+              <div key={`m-${p.id}`} className={styles.mobileCard}>
+                {editingId === p.id ? (
+                  <div className={styles.mobileEdit}>
+                    <p className={styles.mobileName}>{p.name}</p>
+                    <div className={styles.mobileEditGrid}>
+                      <label>
+                        <span>#</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={editForm.number}
+                          onChange={e => setEditForm(f => ({ ...f, number: e.target.value }))}
+                        />
+                      </label>
+                      <label>
+                        <span>Idade</span>
+                        <input
+                          type="number"
+                          min={15}
+                          max={45}
+                          value={editForm.age}
+                          onChange={e => setEditForm(f => ({ ...f, age: Number(e.target.value) }))}
+                        />
+                      </label>
+                      <label>
+                        <span>OVR</span>
+                        <input
+                          type="number"
+                          min={40}
+                          max={99}
+                          value={editForm.overall}
+                          onChange={e => setEditForm(f => ({ ...f, overall: Number(e.target.value) }))}
+                        />
+                      </label>
+                      <label>
+                        <span>Status</span>
+                        <select
+                          value={editForm.status}
+                          onChange={e => setEditForm(f => ({ ...f, status: e.target.value as PlayerStatus }))}
+                        >
+                          {STATUS_OPTIONS.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div className={styles.mobileEditActions}>
+                      <button type="button" className={styles.saveBtn} onClick={saveEdit}>Salvar</button>
+                      <button type="button" className={styles.cancelBtn} onClick={cancelEdit}>Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className={styles.mobileCardTop}>
+                      <span className={styles.mobileNum}>{p.number ?? '—'}</span>
+                      <span className={styles.mobileName}>{p.name}</span>
+                      <span className={styles.mobileOvr} style={{ color: overallColor(p.overall) }}>
+                        {p.overall}
+                      </span>
+                    </div>
+                    <div className={styles.mobileCardMeta}>
+                      <span>{p.age} anos</span>
+                      <span>J {p.stats.matches}</span>
+                      <span>G {p.stats.goals}</span>
+                      <span>A {p.stats.assists}</span>
+                      <span style={{ color: STATUS_COLOR[p.status] }}>{p.status}</span>
+                    </div>
+                    <button type="button" className={styles.mobileEditBtn} onClick={() => startEdit(p.id)}>
+                      Editar
+                    </button>
+                  </>
                 )}
               </div>
             ))}

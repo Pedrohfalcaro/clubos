@@ -1,47 +1,61 @@
 .row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex-shrink: 0;
+  padding: 4px 8px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 
 .minute {
-  width: 44px;
+  width: 40px;
   padding: 6px 4px;
   text-align: center;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: transparent;
+  border: none;
   color: var(--text-h);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.minute:focus {
+  outline: none;
 }
 
 .tick {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text);
-  margin-right: 4px;
+  font-weight: 600;
 }
 
 .stoppage {
   display: flex;
   align-items: center;
   gap: 2px;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+  margin-left: 2px;
 }
 
 .plus {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  color: var(--text);
+  color: var(--accent);
 }
 
 .stoppageInput {
-  width: 32px;
-  padding: 6px 4px;
+  width: 28px;
+  padding: 4px 2px;
   text-align: center;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: transparent;
+  border: none;
   color: var(--text-h);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stoppageInput:focus {
+  outline: none;
 }

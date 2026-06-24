@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react';
 import MatchScheduleModal from '../../components/MatchScheduleModal/MatchScheduleModal';
 import { useGame } from '../../context/GameContext';
+import {
+  COMPETITION_COLORS,
+  COMPETITION_LABELS,
+  getCompetitionColor,
+  locationIcon,
+} from '../../utils/calendarHelpers';
+import type { CompetitionCategory } from '../../utils/calendarHelpers';
 import styles from './Calendar.module.css';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -8,6 +15,8 @@ const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
+
+const LEGEND_CATEGORIES: CompetitionCategory[] = ['national', 'national_cup', 'continental', 'state'];
 
 function toDateKey(d: Date): string {
   const y = d.getFullYear();
@@ -89,6 +98,8 @@ export default function Calendar() {
           const dateKey = toDateKey(date);
           const dayMatches = matchesByDate.get(dateKey) ?? [];
           const isToday = dateKey === toDateKey(new Date());
+          const primaryMatch = dayMatches[0];
+          const locationMark = primaryMatch ? locationIcon(primaryMatch.location) : null;
 
           return (
             <button
@@ -97,18 +108,26 @@ export default function Calendar() {
               className={`${styles.day} ${isToday ? styles.dayToday : ''} ${dayMatches.length ? styles.dayHasMatch : ''}`}
               onClick={() => openDay(dateKey)}
             >
-              <span className={styles.dayNum}>{date.getDate()}</span>
+              <div className={styles.dayHeader}>
+                {locationMark && (
+                  <span className={styles.locationIcon} title={primaryMatch.location}>
+                    {locationMark}
+                  </span>
+                )}
+                <span className={styles.dayNum}>{date.getDate()}</span>
+              </div>
               {dayMatches.length > 0 && (
                 <div className={styles.dayMatches}>
-                  {dayMatches.slice(0, 2).map(m => (
+                  {dayMatches.slice(0, 3).map(m => (
                     <span
                       key={m.id}
-                      className={`${styles.matchDot} ${m.status === 'completed' ? styles.matchDone : styles.matchScheduled}`}
-                      title={`${m.opponent} · ${m.competition}`}
+                      className={styles.matchMarker}
+                      style={{ background: getCompetitionColor(m.competition) }}
+                      title={`${m.opponent} · ${m.competition}${m.status === 'completed' ? ' (realizada)' : ''}`}
                     />
                   ))}
-                  {dayMatches.length > 2 && (
-                    <span className={styles.more}>+{dayMatches.length - 2}</span>
+                  {dayMatches.length > 3 && (
+                    <span className={styles.more}>+{dayMatches.length - 3}</span>
                   )}
                 </div>
               )}
@@ -118,8 +137,21 @@ export default function Calendar() {
       </div>
 
       <div className={styles.legend}>
-        <span><span className={`${styles.legendDot} ${styles.matchScheduled}`} /> Agendada</span>
-        <span><span className={`${styles.legendDot} ${styles.matchDone}`} /> Realizada</span>
+        <div className={styles.legendGroup}>
+          <span className={styles.legendTitle}>Competições</span>
+          {LEGEND_CATEGORIES.map(cat => (
+            <span key={cat} className={styles.legendItem}>
+              <span className={styles.legendMarker} style={{ background: COMPETITION_COLORS[cat] }} />
+              {COMPETITION_LABELS[cat]}
+            </span>
+          ))}
+        </div>
+        <div className={styles.legendGroup}>
+          <span className={styles.legendTitle}>Local</span>
+          <span className={styles.legendItem}>🏠 Casa</span>
+          <span className={styles.legendItem}>✈️ Fora</span>
+          <span className={styles.legendItem}>— Neutro</span>
+        </div>
       </div>
 
       <MatchScheduleModal

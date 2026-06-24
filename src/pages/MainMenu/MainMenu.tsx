@@ -1,16 +1,12 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
 import { hasSave } from '../../services/storage';
-import Tutorial from '../../components/Tutorial/Tutorial';
-import { WELCOME_TUTORIAL, hasSeenWelcome, markWelcomeSeen } from '../../utils/tutorials';
 import styles from './MainMenu.module.css';
 
 export default function MainMenu() {
   const navigate = useNavigate();
   const { loadSavedGame } = useGame();
   const canLoad = hasSave();
-  const [showWelcome, setShowWelcome] = useState(() => !hasSeenWelcome());
 
   function handleLoad() {
     if (!canLoad) return;
@@ -42,16 +38,6 @@ export default function MainMenu() {
           <p className={styles.hint}>Nenhum save encontrado. Inicie uma nova carreira.</p>
         )}
       </div>
-
-      {showWelcome && (
-        <Tutorial
-          steps={WELCOME_TUTORIAL}
-          onComplete={() => {
-            markWelcomeSeen();
-            setShowWelcome(false);
-          }}
-        />
-      )}
     </div>
   );
 }

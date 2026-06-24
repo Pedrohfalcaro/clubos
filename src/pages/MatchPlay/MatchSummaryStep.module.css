@@ -249,3 +249,54 @@
   outline: none;
   border-color: var(--accent);
 }
+
+@media (max-width: 768px) {
+  .tableHead {
+    display: none;
+  }
+
+  .tableRow {
+    grid-template-columns: 32px 1fr 40px 52px;
+    padding: 12px;
+    gap: 6px;
+  }
+
+  .colPos {
+    display: none;
+  }
+
+  .colName {
+    min-width: 0;
+  }
+
+  .nameBtn {
+    font-size: 14px;
+    word-break: break-word;
+  }
+
+  .ratingBox {
+    width: 48px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .ratingPicker {
+    right: 0;
+    left: auto;
+    width: min(200px, calc(100vw - 48px));
+  }
+
+  .nameMenu {
+    min-width: 140px;
+  }
+
+  .textarea {
+    min-height: 100px;
+  }
+}
+
+@media (max-width: 400px) {
+  .tableRow {
+    grid-template-columns: 28px 1fr 48px;
+  }
+}
