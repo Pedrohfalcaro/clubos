@@ -1,0 +1,55 @@
+{
+    "teams": [
+      {
+        "id": "corinthians",
+        "name": "Corinthians",
+        "nickname": "Timão",
+        "budget": 100000000,
+        "fans": 95000000,
+        "boardConfidence": 80,
+        "supporterConfidence": 85
+      },
+      {
+        "id": "sao-paulo",
+        "name": "São Paulo",
+        "nickname": "Tricolor",
+        "budget": 100000000,
+        "fans": 22000000,
+        "boardConfidence": 80,
+        "supporterConfidence": 85
+      },
+      {
+        "id": "santos",
+        "name": "Santos",
+        "nickname": "Peixe",
+        "budget": 80000000,
+        "fans": 7000000,
+        "boardConfidence": 80,
+        "supporterConfidence": 85
+      },
+      {
+        "id": "xv-piracicaba",
+        "name": "XV de Piracicaba",
+        "nickname": "Nhô Quim",
+        "budget": 15000000,
+        "fans": 500000,
+        "boardConfidence": 80,
+        "supporterConfidence": 85
+      }
+    ],
+    "players": [
+        {
+            "id": "corinthians-hugo-souza",
+            "teamId": "corinthians",
+            "name": "Hugo Souza",
+            "position": "GK",
+            "number": 1,
+            "age": 27,
+            "salary": 0,
+            "marketValue": 0,
+            "morale": 75,
+            "potential": 80,
+            "status": "Titular"
+          }
+    ]
+  }

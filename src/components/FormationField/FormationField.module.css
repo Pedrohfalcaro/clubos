@@ -273,9 +273,23 @@
   flex-shrink: 0;
 }
 
-.benchDropZoneActive {
+.benchDropZoneActive,
+.benchDropZoneSelected {
   border-color: var(--accent);
   background: var(--accent-bg);
+}
+
+.touchDraggable {
+  touch-action: pan-y;
+}
+
+.touchGhost {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10000;
+  opacity: 0.92;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35));
 }
 
 .benchPlaceholder {

@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
 import Tutorial from '../Tutorial/Tutorial';
+import {
+  SECTION_TUTORIALS,
+  hasSeenSection,
+  markSectionSeen,
+} from '../../utils/tutorials';
 import styles from './Layout.module.css';
 
 interface NavLinkItem {
@@ -72,9 +77,10 @@ const WIP_ROUTES = new Set([
 ]);
 
 export default function Layout() {
-  const { state, resetGame, completeTutorial } = useGame();
+  const { state, resetGame } = useGame();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sectionTutorial, setSectionTutorial] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
     for (const g of NAV_GROUPS) {
@@ -86,6 +92,14 @@ export default function Layout() {
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!state.started) return;
+    const steps = SECTION_TUTORIALS[location.pathname];
+    if (steps && !hasSeenSection(location.pathname)) {
+      setSectionTutorial(location.pathname);
+    }
+  }, [location.pathname, state.started]);
 
   function toggleGroup(id: string) {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
@@ -206,8 +220,14 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      {state.started && !state.tutorialCompleted && (
-        <Tutorial onComplete={completeTutorial} />
+      {sectionTutorial && SECTION_TUTORIALS[sectionTutorial] && (
+        <Tutorial
+          steps={SECTION_TUTORIALS[sectionTutorial]}
+          onComplete={() => {
+            markSectionSeen(sectionTutorial);
+            setSectionTutorial(null);
+          }}
+        />
       )}
     </div>
   );

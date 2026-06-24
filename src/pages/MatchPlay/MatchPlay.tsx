@@ -104,7 +104,7 @@ export default function MatchPlay() {
 
   const homeAway = match ? getHomeAway(teamName, { ...match, goalsFor, goalsAgainst }) : null;
   const starters = formation.map(f => f.playerId);
-  const lineupValid = formation.length === 11 && bench.length >= 7 && bench.length <= 9;
+  const lineupValid = formation.length === 11 && bench.length <= 9;
   const isTeamHome = homeAway?.homeTeam === teamName;
 
   useEffect(() => {
@@ -213,7 +213,7 @@ export default function MatchPlay() {
               bench={bench}
               onBenchChange={setBench}
               showBench
-              benchMin={7}
+              benchMin={0}
               benchMax={9}
               slotMode
               preset={preset}

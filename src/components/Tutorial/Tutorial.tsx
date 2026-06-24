@@ -1,42 +1,18 @@
 import { useState } from 'react';
+import type { TutorialStep } from '../../utils/tutorials';
 import styles from './Tutorial.module.css';
 
-const STEPS = [
-  {
-    title: 'Bem-vindo ao ClubOS!',
-    body: 'Este é seu painel de controle. Aqui você acompanha a próxima partida, resultados recentes e estatísticas do clube.',
-    section: 'Dashboard',
-  },
-  {
-    title: 'Clube',
-    body: 'Gerencie elenco, táticas e (em breve) treinamento, transferências, diretoria, finanças e sala de troféus.',
-    section: 'Clube',
-  },
-  {
-    title: 'Jogos',
-    body: 'Registre partidas, consulte o calendário e acompanhe suas competições da temporada.',
-    section: 'Jogos',
-  },
-  {
-    title: 'Social & Manager',
-    body: 'Seções de redes sociais, manchetes e gestão pessoal estão chegando em atualizações futuras.',
-    section: 'Em breve',
-  },
-  {
-    title: 'Pronto para começar!',
-    body: 'Configure sua tática, escale o time e registre sua primeira partida. Boa sorte, técnico!',
-    section: 'Dica',
-  },
-];
-
 interface TutorialProps {
+  steps: TutorialStep[];
   onComplete: () => void;
 }
 
-export default function Tutorial({ onComplete }: TutorialProps) {
+export default function Tutorial({ steps, onComplete }: TutorialProps) {
   const [step, setStep] = useState(0);
-  const current = STEPS[step];
-  const isLast = step === STEPS.length - 1;
+  const current = steps[step];
+  const isLast = step === steps.length - 1;
+
+  if (!current) return null;
 
   return (
     <div className={styles.overlay}>
@@ -45,11 +21,13 @@ export default function Tutorial({ onComplete }: TutorialProps) {
         <h2 className={styles.title}>{current.title}</h2>
         <p className={styles.body}>{current.body}</p>
 
-        <div className={styles.dots}>
-          {STEPS.map((_, i) => (
-            <span key={i} className={`${styles.dot} ${i === step ? styles.dotActive : ''}`} />
-          ))}
-        </div>
+        {steps.length > 1 && (
+          <div className={styles.dots}>
+            {steps.map((_, i) => (
+              <span key={i} className={`${styles.dot} ${i === step ? styles.dotActive : ''}`} />
+            ))}
+          </div>
+        )}
 
         <div className={styles.actions}>
           <button type="button" className={styles.skip} onClick={onComplete}>
@@ -60,7 +38,7 @@ export default function Tutorial({ onComplete }: TutorialProps) {
             className={styles.next}
             onClick={() => (isLast ? onComplete() : setStep(s => s + 1))}
           >
-            {isLast ? 'Começar' : 'Próximo'}
+            {isLast ? 'Entendi' : 'Próximo'}
           </button>
         </div>
       </div>

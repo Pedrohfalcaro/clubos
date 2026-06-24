@@ -80,44 +80,41 @@ export default function Calendar() {
       </div>
 
       <div className={styles.calendar}>
-        <div className={styles.weekdays}>
-          {WEEKDAYS.map(d => (
-            <span key={d} className={styles.weekday}>{d}</span>
-          ))}
-        </div>
-        <div className={styles.days}>
-          {calendarDays.map(({ date, key }) => {
-            if (!date) return <div key={key} className={styles.dayEmpty} />;
-            const dateKey = toDateKey(date);
-            const dayMatches = matchesByDate.get(dateKey) ?? [];
-            const isToday = dateKey === toDateKey(new Date());
+        {WEEKDAYS.map(d => (
+          <span key={d} className={styles.weekday}>{d}</span>
+        ))}
+        {calendarDays.map(({ date, key }) => {
+          if (!date) return <div key={key} className={styles.dayEmpty} aria-hidden />;
 
-            return (
-              <button
-                key={key}
-                type="button"
-                className={`${styles.day} ${isToday ? styles.dayToday : ''} ${dayMatches.length ? styles.dayHasMatch : ''}`}
-                onClick={() => openDay(dateKey)}
-              >
-                <span className={styles.dayNum}>{date.getDate()}</span>
-                {dayMatches.length > 0 && (
-                  <div className={styles.dayMatches}>
-                    {dayMatches.slice(0, 2).map(m => (
-                      <span
-                        key={m.id}
-                        className={`${styles.matchDot} ${m.status === 'completed' ? styles.matchDone : styles.matchScheduled}`}
-                        title={`${m.opponent} · ${m.competition}`}
-                      />
-                    ))}
-                    {dayMatches.length > 2 && (
-                      <span className={styles.more}>+{dayMatches.length - 2}</span>
-                    )}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
+          const dateKey = toDateKey(date);
+          const dayMatches = matchesByDate.get(dateKey) ?? [];
+          const isToday = dateKey === toDateKey(new Date());
+
+          return (
+            <button
+              key={key}
+              type="button"
+              className={`${styles.day} ${isToday ? styles.dayToday : ''} ${dayMatches.length ? styles.dayHasMatch : ''}`}
+              onClick={() => openDay(dateKey)}
+            >
+              <span className={styles.dayNum}>{date.getDate()}</span>
+              {dayMatches.length > 0 && (
+                <div className={styles.dayMatches}>
+                  {dayMatches.slice(0, 2).map(m => (
+                    <span
+                      key={m.id}
+                      className={`${styles.matchDot} ${m.status === 'completed' ? styles.matchDone : styles.matchScheduled}`}
+                      title={`${m.opponent} · ${m.competition}`}
+                    />
+                  ))}
+                  {dayMatches.length > 2 && (
+                    <span className={styles.more}>+{dayMatches.length - 2}</span>
+                  )}
+                </div>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <div className={styles.legend}>
