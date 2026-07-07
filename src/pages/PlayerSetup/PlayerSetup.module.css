@@ -1,0 +1,43 @@
+.field select {
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-h);
+  font-size: 14px;
+  outline: none;
+}
+
+.field select:focus {
+  border-color: var(--accent);
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sliderRow input[type="range"] {
+  flex: 1;
+}
+
+.sliderValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 36px;
+  text-align: right;
+}
+
+@media (max-width: 480px) {
+  .fieldRow {
+    grid-template-columns: 1fr;
+  }
+}

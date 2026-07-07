@@ -10,8 +10,12 @@ export default function MainMenu() {
 
   function handleLoad() {
     if (!canLoad) return;
-    loadSavedGame();
-    navigate('/dashboard');
+    const mode = loadSavedGame();
+    if (mode === 'player') {
+      navigate('/player/dashboard');
+    } else {
+      navigate('/dashboard');
+    }
   }
 
   return (
@@ -21,7 +25,7 @@ export default function MainMenu() {
         <h1 className={styles.title}>ClubOS</h1>
 
         <div className={styles.actions}>
-          <button type="button" className={styles.primary} onClick={() => navigate('/new/country')}>
+          <button type="button" className={styles.primary} onClick={() => navigate('/new/mode')}>
             Começar
           </button>
           <button

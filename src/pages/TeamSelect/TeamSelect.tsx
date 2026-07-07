@@ -107,10 +107,11 @@ function TeamCard({ team, maxBudget, maxFans, isInfoOpen, onToggleInfo, onSelect
 }
 
 export default function TeamSelect() {
-  const { selectTeam } = useGame();
+  const { state, selectTeam } = useGame();
   const navigate = useNavigate();
   const brazilTeams = allTeams.filter(t => t.country === 'brazil');
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  const countryLabel = state.pendingCoachCountry ?? 'Brasil';
 
   const maxBudget = Math.max(...brazilTeams.map(t => t.budget));
   const maxFans = Math.max(...brazilTeams.map(t => t.fans));
@@ -128,7 +129,7 @@ export default function TeamSelect() {
             ← Voltar
           </button>
           <h1 className={styles.title}>Escolha seu clube</h1>
-          <p className={styles.subtitle}>🇧🇷 Brasil</p>
+          <p className={styles.subtitle}>{countryLabel}</p>
         </header>
 
         <div className={styles.grid}>
