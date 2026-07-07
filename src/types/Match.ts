@@ -95,6 +95,8 @@ export interface MatchLineup {
   bench: string[];
 }
 
+import type { PlayerMatchPerformance } from './PlayerMatchPerformance';
+
 export interface Match {
   id: string;
   teamId: string;
@@ -117,6 +119,8 @@ export interface Match {
   playerRatings?: PlayerMatchRating[];
   motmPlayerId?: string;
   worstPlayerId?: string;
+  clubName?: string;
+  playerPerformance?: PlayerMatchPerformance;
 }
 
 export interface ScheduleMatchInput {

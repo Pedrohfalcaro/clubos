@@ -2,9 +2,11 @@
 
 Este documento lista as seções e funcionalidades planejadas para o ClubOS, incluindo o que já está disponível e o que está em construção.
 
+> **Especificação detalhada do Modo Jogador:** ver [`modo-jogador.md`](./modo-jogador.md)
+
 ## Disponível agora
 
-### Fluxo inicial
+### Fluxo inicial — Treinador
 - Splash com logo e carregamento
 - Menu principal (Começar / Carregar)
 - Seleção de país (Brasil disponível)
@@ -27,7 +29,32 @@ Este documento lista as seções e funcionalidades planejadas para o ClubOS, inc
 
 ---
 
-## Em construção — Clube
+## Próxima entrega — Modo Jogador (v0.3.0)
+
+### Fluxo inicial — Jogador
+- [ ] Escolha de carreira após "Começar": **Jogador** ou **Treinador**
+- [ ] Setup em 3 passos: criar jogador → clube atual (manual) → competições
+- [ ] Sem base de clubes — dados 100% do usuário e do save
+- [ ] Carregar save detecta o modo automaticamente
+
+### Navegação do jogador
+- [ ] Dashboard pessoal (OVR, stats, contrato, próxima partida)
+- [ ] Registro de partida com foco no desempenho individual
+- [ ] Calendário e competições da temporada
+- [ ] Perfil, contrato, evolução e histórico de clubes
+
+### Exclusivo do treinador (não aparece no jogador)
+- Base de clubes (`teams.json` / `players.json`)
+- Elenco, tática, finanças do clube, transferências, diretoria
+
+### WIP futuro no jogador
+- Relacionamentos (técnico, torcida, colegas)
+- Manchetes e redes sociais pessoais
+- Conquistas e seleção nacional
+
+---
+
+## Em construção — Clube (Treinador)
 
 | Seção | Descrição prevista |
 |-------|-------------------|
@@ -83,3 +110,5 @@ Este documento lista as seções e funcionalidades planejadas para o ClubOS, inc
 ## Versão atual do save
 
 `0.2.0` — inclui táticas, tutorial, manager e competições da temporada.
+
+`0.3.0` (planejado) — modo jogador com `careerMode` e `careerPlayer`; saves antigos migrados como treinador.

@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import styles from './UnderConstruction.module.css';
 
 const TITLES: Record<string, string> = {
@@ -14,12 +14,17 @@ const TITLES: Record<string, string> = {
   pessoal: 'Pessoal',
   metas: 'Metas',
   conquistas: 'Conquistas',
+  redes: 'Redes Sociais',
+  relations: 'Relacionamentos',
 };
 
 export default function UnderConstruction() {
   const { section } = useParams<{ section: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const title = TITLES[section ?? ''] ?? 'Seção';
+  const isPlayer = location.pathname.startsWith('/player');
+  const dashboardPath = isPlayer ? '/player/dashboard' : '/dashboard';
 
   return (
     <div className={styles.page}>
@@ -30,7 +35,7 @@ export default function UnderConstruction() {
         <p className={styles.sub}>
           Esta seção estará disponível em uma atualização futura do ClubOS.
         </p>
-        <button type="button" className={styles.back} onClick={() => navigate('/dashboard')}>
+        <button type="button" className={styles.back} onClick={() => navigate(dashboardPath)}>
           Voltar ao Dashboard
         </button>
       </div>
