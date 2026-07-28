@@ -39,6 +39,28 @@ VITE_FIREBASE_APP_ID=...
 
 Reinicie o `npm run dev` após salvar o `.env`.
 
+## 5. GitHub Pages (produção)
+
+O `.env` **não** vai pro build do Pages. Cadastre as mesmas chaves como **Secrets** do repositório:
+
+**Settings → Secrets and variables → Actions** → New repository secret:
+
+| Secret | Valor |
+|--------|--------|
+| `VITE_FIREBASE_API_KEY` | do `.env` |
+| `VITE_FIREBASE_AUTH_DOMAIN` | do `.env` |
+| `VITE_FIREBASE_PROJECT_ID` | do `.env` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | do `.env` |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | do `.env` |
+| `VITE_FIREBASE_APP_ID` | do `.env` |
+
+O workflow `deploy.yml` injeta essas variáveis no `npm run build`.
+
+### Domínios autorizados no Firebase
+Authentication → Settings → Authorized domains → adicione:
+- `localhost`
+- `pedrohfalcaro.github.io`
+
 ## Comportamento
 - Login Google obrigatório no menu
 - Save sincroniza na nuvem (`users/{uid}/data/save`) com debounce ~600ms
