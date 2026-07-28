@@ -1,246 +1,231 @@
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 16px;
 }
 
-.sectionTitle {
+.intro {
+  margin: 0;
   font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
   color: var(--text);
-  margin: 0 0 12px;
+  line-height: 1.4;
 }
 
-.nameNormal,
-.nameActive {
-  color: var(--text-h);
-  font-weight: 600;
-}
-
-.nameInactive {
-  color: var(--text);
-  font-size: 13px;
-}
-
-.nameMotm {
-  color: #fbbf24;
-  font-weight: 700;
-}
-
-.nameWorst {
-  color: #ef4444;
-  font-weight: 600;
-}
-
-.nameExpelled {
-  color: var(--text);
-}
-
-.nameBtn {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font-size: 13px;
-  text-align: left;
-}
-
-.motmStar {
-  color: #fbbf24;
-  font-size: 11px;
-}
-
-.ratingDisabled {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 32px;
-  color: var(--text);
-  font-size: 13px;
-}
-
-.nameMenu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 30;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  min-width: 160px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-}
-
-.nameMenu button {
-  padding: 8px 10px;
-  background: transparent;
-  border: none;
-  color: var(--text-h);
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.nameMenu button:hover {
-  background: var(--nav-hover);
-}
-
-.ratingsSection {
-  display: flex;
-  flex-direction: column;
-}
-
-.table {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: visible;
-}
-
-.tableHead,
-.tableRow {
-  display: grid;
-  grid-template-columns: 40px 1fr 48px 64px;
-  align-items: center;
-  padding: 10px 14px;
-  gap: 8px;
-}
-
-.tableHead {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--text);
-  border-bottom: 1px solid var(--border);
-}
-
-.tableRow {
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-}
-
-.tableRow:last-child {
-  border-bottom: none;
-}
-
-.colNum {
-  color: var(--text);
-  font-size: 12px;
-}
-
-.colName {
-  position: relative;
-}
-
-.colPos {
-  font-size: 11px;
-  color: var(--text);
-  font-weight: 600;
-}
-
-.ratingCell {
-  position: relative;
-}
-
-.ratingBox {
-  width: 44px;
-  height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: #fff;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ratingPicker {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 40;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px;
-  width: 200px;
-  max-height: 220px;
+.section {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
-.ratingInput {
-  padding: 6px 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-h);
-  font-size: 13px;
-}
-
-.ratingList {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  overflow-y: auto;
-  max-height: 140px;
-}
-
-.ratingList button {
-  padding: 4px;
+.sectionTitle {
   font-size: 11px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text-h);
-  cursor: pointer;
-}
-
-.ratingList button:hover {
-  border-color: var(--accent);
-}
-
-.clearRating {
-  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
   color: var(--text);
-  background: none;
-  border: none;
-  cursor: pointer;
+  margin: 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 28px minmax(72px, 1.1fr) minmax(110px, 1.6fr) 40px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowMotm {
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.rowWorst {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
   text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.exp {
+  color: var(--danger);
+  font-size: 10px;
+}
+
+.pos {
+  font-size: 10px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.slider {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  border-radius: 999px;
+  appearance: none;
+  outline: none;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  cursor: pointer;
+}
+
+.nudge {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.nudge:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.score {
+  min-width: 40px;
+  height: 26px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+  user-select: none;
+}
+
+.score[role='button'] {
+  cursor: pointer;
+}
+
+.awards {
+  display: flex;
+  gap: 2px;
+}
+
+.award {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.45;
+}
+
+.award:hover {
+  opacity: 0.85;
+  background: var(--bg);
+}
+
+.awardMotm {
+  opacity: 1;
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.awardWorst {
+  opacity: 1;
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .descSection {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .descLabel {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: var(--text);
 }
 
 .textarea {
-  padding: 12px;
+  padding: 10px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text-h);
-  font-size: 14px;
+  font-size: 13px;
   resize: vertical;
   font-family: inherit;
 }
@@ -250,53 +235,32 @@
   border-color: var(--accent);
 }
 
-@media (max-width: 768px) {
-  .tableHead {
-    display: none;
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 24px 1fr 40px auto;
+    grid-template-areas:
+      'num identity score awards'
+      'controls controls controls controls';
+    row-gap: 6px;
   }
 
-  .tableRow {
-    grid-template-columns: 32px 1fr 40px 52px;
-    padding: 12px;
-    gap: 6px;
+  .num {
+    grid-area: num;
   }
 
-  .colPos {
-    display: none;
+  .identity {
+    grid-area: identity;
   }
 
-  .colName {
-    min-width: 0;
+  .controls {
+    grid-area: controls;
   }
 
-  .nameBtn {
-    font-size: 14px;
-    word-break: break-word;
+  .score {
+    grid-area: score;
   }
 
-  .ratingBox {
-    width: 48px;
-    height: 36px;
-    font-size: 14px;
-  }
-
-  .ratingPicker {
-    right: 0;
-    left: auto;
-    width: min(200px, calc(100vw - 48px));
-  }
-
-  .nameMenu {
-    min-width: 140px;
-  }
-
-  .textarea {
-    min-height: 100px;
-  }
-}
-
-@media (max-width: 400px) {
-  .tableRow {
-    grid-template-columns: 28px 1fr 48px;
+  .awards {
+    grid-area: awards;
   }
 }

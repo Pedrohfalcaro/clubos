@@ -1,0 +1,549 @@
+.page {
+  padding: 24px 20px 48px;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ── Header ───────────────────────────── */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.headerLeft h1 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.headerLeft p {
+  font-size: 13px;
+  color: var(--text);
+  margin: 0;
+}
+
+/* ── Tabs ─────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.tab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover {
+  color: var(--text-h);
+}
+
+.tabActive {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Hero card ────────────────────────── */
+.heroCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.heroLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+
+.heroAmount {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.heroAmount.negative {
+  color: var(--danger, #ef4444);
+}
+
+.heroMeta {
+  display: flex;
+  gap: 24px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.heroMetaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heroMetaLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.heroMetaVal {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.heroMetaVal.danger {
+  color: var(--danger, #ef4444);
+}
+
+/* ── Stat row ─────────────────────────── */
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.statCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.statVal {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.statVal.green { color: #22c55e; }
+.statVal.red   { color: #ef4444; }
+
+/* ── Section header ───────────────────── */
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--text);
+  margin: 0;
+}
+
+/* ── CTA / action buttons ─────────────── */
+.btnPrimary {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btnSecondary {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btnDanger {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(239,68,68,.4);
+  background: rgba(239,68,68,.08);
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ── Ledger ───────────────────────────── */
+.ledger {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.ledgerFilters {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.filterChip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.filterChipActive {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.ledgerList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ledgerRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: start;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ledgerRow:last-child {
+  border-bottom: none;
+}
+
+.ledgerMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ledgerLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ledgerSub {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.ledgerAmount {
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.income { color: #22c55e; }
+.expense { color: #ef4444; }
+
+.emptyState {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* ── Wage table ───────────────────────── */
+.wageTable {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.wageRow {
+  display: grid;
+  grid-template-columns: 24px 1fr 80px 80px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.wageRow:last-child { border-bottom: none; }
+
+.wageNum {
+  text-align: center;
+  font-weight: 700;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.wageName {
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wagePos {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.wageVal {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-h);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.wageEdit {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-h);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 7px;
+}
+
+.wageHeader {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.wageTotRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+/* ── Prize table ──────────────────────── */
+.prizeTable {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.prizeRow {
+  display: grid;
+  grid-template-columns: 1fr repeat(4, 70px) 36px;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.prizeRow:last-child { border-bottom: none; }
+
+.prizeComp {
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prizeInput {
+  width: 100%;
+  padding: 4px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-h);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.prizeInput:focus { outline: none; border-color: var(--accent); }
+
+.prizeRemove {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.prizeHeader {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+/* ── Adjustment modal ─────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modalTitle {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.formInput, .formSelect {
+  padding: 9px 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-h);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.formInput:focus, .formSelect:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.formTypeRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.typeBtn {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.typeBtnIn.active {
+  background: rgba(34,197,94,.12);
+  border-color: rgba(34,197,94,.45);
+  color: #22c55e;
+}
+
+.typeBtnOut.active {
+  background: rgba(239,68,68,.1);
+  border-color: rgba(239,68,68,.35);
+  color: #ef4444;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .statRow {
+    grid-template-columns: 1fr 1fr;
+  }
+  .wageRow {
+    grid-template-columns: 24px 1fr 70px auto;
+  }
+  .wagePos { display: none; }
+  .prizeRow {
+    grid-template-columns: 1fr repeat(2, 60px) 36px;
+  }
+}

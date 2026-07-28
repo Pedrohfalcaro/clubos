@@ -7,11 +7,14 @@ import {
   detectFormationKey,
   type FormationKey,
 } from '../../utils/formations';
+import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
 import styles from './Tactics.module.css';
 
 export default function Tactics() {
   const { state, saveTactics } = useGame();
   const players = state.players;
+  const primaryColor = state.team?.primaryColor ?? DEFAULT_PRIMARY;
+  const secondaryColor = state.team?.secondaryColor ?? DEFAULT_SECONDARY;
 
   const [formationKey, setFormationKey] = useState<FormationKey>(() => {
     if (state.tactics?.formation?.length) {
@@ -76,6 +79,9 @@ export default function Tactics() {
           benchMax={9}
           slotMode
           preset={preset}
+          kitColor={primaryColor}
+          primaryColor={primaryColor}
+          secondaryColor={secondaryColor}
         />
       </div>
 

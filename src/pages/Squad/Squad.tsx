@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGame } from '../../context/GameContext';
 import type { PlayerStatus } from '../../types/Player';
+import { formatMoney } from '../../utils/finance';
 import styles from './Squad.module.css';
 
 const POSITION_ORDER = ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'CF', 'ST'];
@@ -10,14 +11,15 @@ const POSITION_LABELS: Record<string, string> = {
   RW: 'Pontas Direitas', LW: 'Pontas Esquerdas', CF: 'Centroavantes', ST: 'Atacantes',
 };
 
-const STATUS_FILTERS: Array<PlayerStatus | 'Todos'> = ['Todos', 'Titular', 'Reserva', 'Promessa', 'Transferível'];
-const STATUS_OPTIONS: PlayerStatus[] = ['Titular', 'Reserva', 'Promessa', 'Transferível'];
+const STATUS_FILTERS: Array<PlayerStatus | 'Todos'> = ['Todos', 'Titular', 'Reserva', 'Promessa', 'Transferível', 'Emprestado'];
+const STATUS_OPTIONS: PlayerStatus[] = ['Titular', 'Reserva', 'Promessa', 'Transferível', 'Emprestado'];
 
 const STATUS_COLOR: Record<string, string> = {
   Titular: 'var(--success)',
   Reserva: 'var(--text)',
   Promessa: 'var(--accent)',
   Transferível: 'var(--danger)',
+  Emprestado: '#f59e0b',
 };
 
 function overallColor(ovr: number): string {
@@ -36,7 +38,10 @@ export default function Squad() {
     age: 0,
     overall: 0,
     status: 'Titular' as PlayerStatus,
+    salary: 0,
+    marketValue: 0,
   });
+  const currency = state.finance?.currency ?? 'BRL';
 
   const players = state.players.filter(p => {
     const matchStatus = filter === 'Todos' || p.status === filter;
@@ -59,6 +64,8 @@ export default function Squad() {
       age: p.age,
       overall: p.overall,
       status: p.status,
+      salary: p.salary ?? 0,
+      marketValue: p.marketValue ?? 0,
     });
   }
 
@@ -69,6 +76,8 @@ export default function Squad() {
       age: editForm.age,
       overall: editForm.overall,
       status: editForm.status,
+      salary: editForm.salary,
+      marketValue: editForm.marketValue,
     });
     setEditingId(null);
   }
@@ -117,7 +126,7 @@ export default function Squad() {
               <span className={styles.colName}>Nome</span>
               <span className={styles.colAge}>Idade</span>
               <span className={styles.colOvr}>OVR</span>
-              <span className={styles.colStat}>J</span>
+              <span className={styles.colMatches}>J</span>
               <span className={styles.colStat}>G</span>
               <span className={styles.colStat}>A</span>
               <span className={styles.colStatus}>Status</span>
@@ -153,7 +162,13 @@ export default function Squad() {
                       value={editForm.overall}
                       onChange={e => setEditForm(f => ({ ...f, overall: Number(e.target.value) }))}
                     />
-                    <span className={styles.colStat}>{p.stats.matches}</span>
+                    <span className={styles.colMatches}>
+                      <span>{p.stats.matches}</span>
+                      <span className={styles.minutes} title="Minutos jogados">
+                        <span className={styles.minutesIcon} aria-hidden>⏱</span>
+                        {p.stats.minutes ?? 0}'
+                      </span>
+                    </span>
                     <span className={styles.colStat}>{p.stats.goals}</span>
                     <span className={styles.colStat}>{p.stats.assists}</span>
                     <select
@@ -178,7 +193,13 @@ export default function Squad() {
                     <span className={styles.colOvr} style={{ color: overallColor(p.overall) }}>
                       {p.overall}
                     </span>
-                    <span className={styles.colStat}>{p.stats.matches}</span>
+                    <span className={styles.colMatches}>
+                      <span>{p.stats.matches}</span>
+                      <span className={styles.minutes} title="Minutos jogados">
+                        <span className={styles.minutesIcon} aria-hidden>⏱</span>
+                        {p.stats.minutes ?? 0}'
+                      </span>
+                    </span>
                     <span className={styles.colStat}>{p.stats.goals}</span>
                     <span className={styles.colStat}>{p.stats.assists}</span>
                     <span className={styles.colStatus} style={{ color: STATUS_COLOR[p.status] }}>
@@ -241,6 +262,24 @@ export default function Squad() {
                           ))}
                         </select>
                       </label>
+                      <label>
+                        <span>Salário</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editForm.salary}
+                          onChange={e => setEditForm(f => ({ ...f, salary: Number(e.target.value) }))}
+                        />
+                      </label>
+                      <label>
+                        <span>Valor mercado</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editForm.marketValue}
+                          onChange={e => setEditForm(f => ({ ...f, marketValue: Number(e.target.value) }))}
+                        />
+                      </label>
                     </div>
                     <div className={styles.mobileEditActions}>
                       <button type="button" className={styles.saveBtn} onClick={saveEdit}>Salvar</button>
@@ -259,10 +298,20 @@ export default function Squad() {
                     <div className={styles.mobileCardMeta}>
                       <span>{p.age} anos</span>
                       <span>J {p.stats.matches}</span>
+                      <span className={styles.minutes} title="Minutos jogados">
+                        <span className={styles.minutesIcon} aria-hidden>⏱</span>
+                        {p.stats.minutes ?? 0}'
+                      </span>
                       <span>G {p.stats.goals}</span>
                       <span>A {p.stats.assists}</span>
                       <span style={{ color: STATUS_COLOR[p.status] }}>{p.status}</span>
                     </div>
+                    {(p.salary > 0 || p.marketValue > 0) && (
+                      <div className={styles.mobileCardMeta} style={{ marginTop: 2, fontSize: 11 }}>
+                        {p.salary > 0 && <span title="Salário">💰 {formatMoney(p.salary, currency)}/mês</span>}
+                        {p.marketValue > 0 && <span title="Valor de mercado">🏷 {formatMoney(p.marketValue, currency)}</span>}
+                      </div>
+                    )}
                     <button type="button" className={styles.mobileEditBtn} onClick={() => startEdit(p.id)}>
                       Editar
                     </button>

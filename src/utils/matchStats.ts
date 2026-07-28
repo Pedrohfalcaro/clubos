@@ -1,6 +1,7 @@
 import type { Match } from '../types/Match';
 import type { Player } from '../types/Player';
 import type { Team, TeamStatistics } from '../types/Team';
+import { getMatchPlayingTime } from './playingTime';
 
 export function calcResult(goalsFor: number, goalsAgainst: number): 'win' | 'draw' | 'loss' {
   if (goalsFor > goalsAgainst) return 'win';
@@ -31,7 +32,7 @@ export function recalculateFromMatches(
   const playerStatsMap = new Map(
     players.map(p => [
       p.id,
-      { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+      { matches: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
     ]),
   );
 
@@ -51,10 +52,12 @@ export function recalculateFromMatches(
       statistics.losses += 1;
     }
 
-    const matchPlayerIds = new Set(match.playerMatches);
-    for (const pid of matchPlayerIds) {
+    const playingTime = getMatchPlayingTime(match);
+    for (const [pid, mins] of playingTime) {
       const stats = playerStatsMap.get(pid);
-      if (stats) stats.matches += 1;
+      if (!stats) continue;
+      stats.matches += 1;
+      stats.minutes += mins;
     }
 
     for (const goal of match.goals.filter(g => !g.isOwnGoal && g.playerId)) {
@@ -79,7 +82,10 @@ export function recalculateFromMatches(
     team: { ...team, statistics },
     players: players.map(p => ({
       ...p,
-      stats: playerStatsMap.get(p.id) ?? p.stats,
+      stats: playerStatsMap.get(p.id) ?? {
+        ...p.stats,
+        minutes: p.stats.minutes ?? 0,
+      },
     })),
   };
 }
@@ -116,4 +122,18 @@ export function locationLabel(location: Match['location']): string {
   if (location === 'home') return 'Em Casa';
   if (location === 'away') return 'Fora';
   return 'Neutro';
+}
+
+/** Average match rating for a player across completed matches where they played. */
+export function calcPlayerAverageRating(playerId: string, matches: Match[]): number | null {
+  const ratings: number[] = [];
+  for (const match of matches) {
+    if (match.status !== 'completed') continue;
+    const played = getMatchPlayingTime(match);
+    if (!played.has(playerId)) continue;
+    const entry = match.playerRatings?.find(r => r.playerId === playerId);
+    if (entry?.rating != null) ratings.push(entry.rating);
+  }
+  if (ratings.length === 0) return null;
+  return ratings.reduce((a, b) => a + b, 0) / ratings.length;
 }

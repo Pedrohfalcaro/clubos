@@ -96,7 +96,7 @@ export default function MatchRegistration() {
                   <button type="button" className={styles.editBtn} onClick={() => openEdit(match)}>
                     Editar
                   </button>
-                  <button type="button" className={styles.playBtn} onClick={() => navigate(`/match/${match.id}/play`)}>
+                  <button type="button" className={styles.playBtn} onClick={() => navigate(`/match/${match.id}/pulse`)}>
                     Jogar Partida
                   </button>
                 </div>

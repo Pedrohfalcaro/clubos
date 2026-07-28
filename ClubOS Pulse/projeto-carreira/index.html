@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Gerador narrativo de eventos para modo carreira de futebol." />
+    <title>Gerador de Eventos — Modo Carreira</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-bg" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand__mark">MC</span>
+        <div>
+          <p class="brand__name">Modo Carreira</p>
+          <p class="brand__sub">Gerador de Eventos</p>
+        </div>
+      </div>
+    </header>
+
+    <nav id="main-nav" class="nav" aria-label="Principal" hidden>
+      <button type="button" class="nav__btn is-active" data-nav="home">Gerar</button>
+      <button type="button" class="nav__btn" data-nav="elenco">Elenco</button>
+      <button type="button" class="nav__btn" data-nav="historico">Histórico</button>
+      <button type="button" class="nav__btn" data-nav="config">Config</button>
+    </nav>
+
+    <main class="main">
+      <!-- SETUP -->
+      <section data-screen="setup" class="screen" aria-labelledby="setup-title">
+        <h1 id="setup-title" class="screen__title">Configure sua carreira</h1>
+        <p class="screen__lead">Informe o clube e o elenco. Tudo fica salvo neste navegador.</p>
+
+        <form id="form-setup" class="panel" novalidate>
+          <label class="field">
+            <span>Nome do clube</span>
+            <input id="setup-clube" type="text" maxlength="48" required placeholder="Ex.: Aurora FC" />
+          </label>
+
+          <div class="panel__head">
+            <h2>Elenco</h2>
+            <div class="row-actions">
+              <button type="button" id="btn-setup-exemplo" class="btn btn--ghost">Elenco de exemplo</button>
+              <button type="button" id="btn-setup-add" class="btn btn--ghost">+ Atleta</button>
+            </div>
+          </div>
+          <div id="setup-atletas" class="athlete-rows"></div>
+
+          <button type="submit" class="btn btn--primary btn--block">Salvar e começar</button>
+        </form>
+      </section>
+
+      <!-- HOME -->
+      <section data-screen="home" class="screen" hidden aria-labelledby="home-clube">
+        <p class="eyebrow">Pré-partida</p>
+        <h1 id="home-clube" class="screen__title screen__title--hero">Clube</h1>
+        <p id="home-meta" class="screen__lead"></p>
+
+        <div id="home-ultimo" class="last-box panel panel--soft"></div>
+
+        <div class="generate-zone">
+          <button type="button" id="btn-gerar" class="btn btn--generate" aria-describedby="gerar-hint">
+            Gerar Evento
+          </button>
+          <p id="gerar-hint" class="muted center">Sorteia se algo acontece antes do próximo jogo.</p>
+        </div>
+
+        <div id="loading" class="loading" hidden role="status" aria-live="polite">
+          <div class="loading__bar"></div>
+          <p>Consultando os bastidores…</p>
+        </div>
+
+        <div id="resultado" class="result-card" hidden aria-live="polite"></div>
+      </section>
+
+      <!-- ELENCO -->
+      <section data-screen="elenco" class="screen" hidden aria-labelledby="elenco-title">
+        <h1 id="elenco-title" class="screen__title">Elenco</h1>
+        <p id="elenco-clube" class="screen__lead"></p>
+        <div class="panel__head">
+          <p class="muted">Personalidade é oculta e influencia os eventos.</p>
+          <button type="button" id="btn-elenco-add" class="btn btn--primary">+ Atleta</button>
+        </div>
+
+        <form id="form-elenco" class="panel" hidden>
+          <input type="hidden" id="elenco-edit-id" value="" />
+          <h2 id="elenco-form-title">Novo atleta</h2>
+          <label class="field">
+            <span>Nome</span>
+            <input id="elenco-nome" type="text" maxlength="40" required />
+          </label>
+          <div class="filters">
+            <label class="field">
+              <span>Posição</span>
+              <select id="elenco-posicao"></select>
+            </label>
+            <label class="field">
+              <span>Idade (opcional)</span>
+              <input id="elenco-idade" type="number" min="15" max="45" />
+            </label>
+            <label class="field">
+              <span>Status</span>
+              <select id="elenco-status">
+                <option value="disponivel">Disponível</option>
+                <option value="lesionado">Lesionado</option>
+                <option value="indisponivel">Indisponível</option>
+              </select>
+            </label>
+          </div>
+          <div class="row-actions">
+            <button type="button" id="btn-elenco-cancel" class="btn btn--ghost">Cancelar</button>
+            <button type="submit" class="btn btn--primary">Salvar atleta</button>
+          </div>
+        </form>
+
+        <div id="elenco-lista" class="athlete-list"></div>
+      </section>
+
+      <!-- HISTÓRICO -->
+      <section data-screen="historico" class="screen" hidden aria-labelledby="hist-title">
+        <h1 id="hist-title" class="screen__title">Histórico</h1>
+        <p class="screen__lead">Filtre por temporada, categoria ou atleta.</p>
+        <div class="filters panel panel--soft">
+          <label class="field">
+            <span>Temporada</span>
+            <select id="hist-filtro-temporada"></select>
+          </label>
+          <label class="field">
+            <span>Categoria</span>
+            <select id="hist-filtro-categoria"></select>
+          </label>
+          <label class="field">
+            <span>Atleta</span>
+            <select id="hist-filtro-atleta"></select>
+          </label>
+        </div>
+        <div id="historico-lista" class="hist-list"></div>
+      </section>
+
+      <!-- CONFIG -->
+      <section data-screen="config" class="screen" hidden aria-labelledby="cfg-title">
+        <h1 id="cfg-title" class="screen__title">Configurações</h1>
+        <p id="cfg-info" class="screen__lead"></p>
+
+        <form id="form-config" class="panel">
+          <label class="field">
+            <span>Chance de evento: <strong id="chance-label">28%</strong></span>
+            <input id="chance-range" type="range" min="10" max="60" step="1" value="28" />
+          </label>
+
+          <label class="field field--check">
+            <input id="cfg-animacoes" type="checkbox" checked />
+            <span>Animações / loading</span>
+          </label>
+
+          <label class="field">
+            <span>Temporada atual</span>
+            <input id="cfg-temporada" type="number" min="1" max="99" value="1" />
+          </label>
+
+          <div class="row-actions">
+            <button type="button" id="btn-avancar-temporada" class="btn btn--ghost">Avançar temporada</button>
+            <button type="submit" class="btn btn--primary">Salvar</button>
+          </div>
+        </form>
+
+        <div class="panel panel--soft">
+          <h2>Dados</h2>
+          <div class="row-actions wrap">
+            <button type="button" id="btn-export" class="btn btn--ghost">Exportar JSON</button>
+            <button type="button" id="btn-import" class="btn btn--ghost">Importar JSON</button>
+            <input id="input-import" type="file" accept="application/json,.json" hidden />
+            <button type="button" id="btn-reset" class="btn btn--ghost btn--danger">Resetar tudo</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <div id="event-modal" class="modal" hidden>
+      <div class="modal__backdrop" data-modal-close></div>
+      <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button type="button" class="modal__close" data-modal-close aria-label="Fechar">×</button>
+        <div id="modal-content"></div>
+      </div>
+    </div>
+
+    <script src="js/utils.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/probabilities.js"></script>
+    <script src="js/events.js"></script>
+    <script src="js/athletes.js"></script>
+    <script src="js/generator.js"></script>
+    <script src="js/history.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

@@ -1,12 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
 import Tutorial from '../Tutorial/Tutorial';
+import ClubCrest from '../ClubCrest/ClubCrest';
 import {
   SECTION_TUTORIALS,
   hasSeenSection,
   markSectionSeen,
 } from '../../utils/tutorials';
+import {
+  clubThemeVars,
+  DEFAULT_PRIMARY,
+  DEFAULT_SECONDARY,
+} from '../../utils/clubColors';
 import styles from './Layout.module.css';
 
 interface NavLinkItem {
@@ -30,9 +36,9 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/squad', label: 'Elenco' },
       { to: '/tactics', label: 'Tática' },
       { to: '/under/treinamento', label: 'Treinamento' },
-      { to: '/under/transferencias', label: 'Transferências' },
-      { to: '/under/diretoria', label: 'Diretoria' },
-      { to: '/under/financas', label: 'Finanças' },
+      { to: '/transferencias', label: 'Transferências' },
+      { to: '/diretoria', label: 'Diretoria' },
+      { to: '/financas', label: 'Finanças' },
       { to: '/under/trofeus', label: 'Sala de troféus' },
     ],
   },
@@ -44,6 +50,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/matches', label: 'Registro de partida' },
       { to: '/calendar', label: 'Calendário' },
       { to: '/competitions', label: 'Competições' },
+      { to: '/pulse', label: 'Pulse' },
     ],
   },
   {
@@ -70,8 +77,7 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const WIP_ROUTES = new Set([
-  '/under/treinamento', '/under/transferencias', '/under/diretoria',
-  '/under/financas', '/under/trofeus', '/under/redes-sociais',
+  '/under/treinamento', '/under/trofeus', '/under/redes-sociais',
   '/under/manchetes', '/under/coletivas', '/under/social-jogadores',
   '/under/pessoal', '/under/metas', '/under/conquistas',
 ]);
@@ -105,10 +111,21 @@ export default function Layout() {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
   }
 
+  const primary = state.team?.primaryColor ?? DEFAULT_PRIMARY;
+  const secondary = state.team?.secondaryColor ?? DEFAULT_SECONDARY;
+  const themeStyle = useMemo(
+    () => clubThemeVars(primary, secondary) as CSSProperties,
+    [primary, secondary],
+  );
+
   const navContent = (
     <>
       <div className={styles.brand}>
-        <span className={styles.brandIcon}>⬡</span>
+        {state.team ? (
+          <ClubCrest primary={primary} secondary={secondary} size={26} title={state.team.name} />
+        ) : (
+          <span className={styles.brandIcon}>⬡</span>
+        )}
         <span className={styles.brandName}>ClubOS</span>
         <button
           type="button"
@@ -122,8 +139,13 @@ export default function Layout() {
 
       {state.team && (
         <div className={styles.club}>
-          <p className={styles.clubLabel}>Clube Atual</p>
-          <p className={styles.clubName}>{state.team.name}</p>
+          <div className={styles.clubRow}>
+            <ClubCrest primary={primary} secondary={secondary} size={32} />
+            <div>
+              <p className={styles.clubLabel}>Clube Atual</p>
+              <p className={styles.clubName}>{state.team.name}</p>
+            </div>
+          </div>
           {state.manager && (
             <p className={styles.managerName}>{state.manager.name}</p>
           )}
@@ -190,7 +212,7 @@ export default function Layout() {
   );
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} style={themeStyle}>
       <header className={styles.mobileBar}>
         <button
           type="button"

@@ -10,6 +10,7 @@ export function applyPerformanceToStats(
   if (perf.role === 'notCalled') return stats;
   return {
     matches: stats.matches + 1,
+    minutes: (stats.minutes ?? 0) + (perf.minutesPlayed ?? 0),
     goals: stats.goals + perf.goals,
     assists: stats.assists + perf.assists,
     yellowCards: stats.yellowCards + perf.yellowCards,
@@ -24,6 +25,7 @@ export function subtractPerformanceFromStats(
   if (perf.role === 'notCalled') return stats;
   return {
     matches: Math.max(0, stats.matches - 1),
+    minutes: Math.max(0, (stats.minutes ?? 0) - (perf.minutesPlayed ?? 0)),
     goals: Math.max(0, stats.goals - perf.goals),
     assists: Math.max(0, stats.assists - perf.assists),
     yellowCards: Math.max(0, stats.yellowCards - perf.yellowCards),

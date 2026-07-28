@@ -23,6 +23,10 @@ interface FormationFieldProps {
   benchMax?: number;
   slotMode?: boolean;
   preset?: FormationPreset | null;
+  /** Color for outfield tokens on the pitch */
+  kitColor?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
 }
 
 export default function FormationField({
@@ -37,6 +41,9 @@ export default function FormationField({
   benchMax = 9,
   slotMode = false,
   preset = null,
+  kitColor,
+  primaryColor,
+  secondaryColor,
 }: FormationFieldProps) {
   const isMobile = useIsMobile();
   const allowDrag = !isMobile;
@@ -257,6 +264,9 @@ export default function FormationField({
                     <PlayerJersey
                       player={player}
                       size="sm"
+                      kitColor={kitColor}
+                      primaryColor={primaryColor}
+                      secondaryColor={secondaryColor}
                       onClick={() => removeFromField(player.id)}
                     />
                   </div>
@@ -284,6 +294,9 @@ export default function FormationField({
                 <PlayerJersey
                   player={player}
                   size="sm"
+                  kitColor={kitColor}
+                  primaryColor={primaryColor}
+                  secondaryColor={secondaryColor}
                   onClick={() => removeFromField(slot.playerId)}
                 />
               </div>
@@ -339,7 +352,14 @@ export default function FormationField({
               className={`${styles.playerChip} ${draggingId === player.id ? styles.dragging : ''} ${slotMode ? styles.playerChipDraggable : ''}`}
               title={player.name}
             >
-              <PlayerJersey player={player} size="xs" hideName />
+              <PlayerJersey
+                player={player}
+                size="xs"
+                hideName
+                kitColor={kitColor}
+                primaryColor={primaryColor}
+                secondaryColor={secondaryColor}
+              />
               <span className={styles.playerChipName}>{player.name}</span>
             </div>
           ))}
@@ -391,6 +411,9 @@ export default function FormationField({
                           player={player}
                           size="xs"
                           hideName
+                          kitColor={kitColor}
+                          primaryColor={primaryColor}
+                          secondaryColor={secondaryColor}
                           onClick={() => removeFromBench(id)}
                         />
                         <span className={styles.benchChipName}>{player.name}</span>

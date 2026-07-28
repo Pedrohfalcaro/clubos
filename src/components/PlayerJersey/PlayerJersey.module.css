@@ -29,6 +29,8 @@
   border-color: #eab308;
 }
 
+/* Inline kit/GK colors override the default yellow above */
+
 .number {
   font-size: 14px;
   font-weight: 800;

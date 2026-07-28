@@ -1,18 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGame, allTeams } from '../../context/GameContext';
+import { useGame } from '../../context/GameContext';
 import styles from './Setup.module.css';
 
 export default function ManagerSetup() {
   const { state, setManager } = useGame();
   const navigate = useNavigate();
-  const team = allTeams.find(t => t.id === state.pendingTeamId);
+  const team = state.pendingTeam;
 
   const [name, setName] = useState('');
   const [nationality, setNationality] = useState('Brasil');
   const [age, setAge] = useState(35);
 
-  if (!state.pendingTeamId || !team) {
+  if (!team) {
     navigate('/');
     return null;
   }
@@ -63,7 +63,7 @@ export default function ManagerSetup() {
             />
           </div>
           <div className={styles.actions}>
-            <button type="button" className={styles.backBtn} onClick={() => navigate('/')}>
+            <button type="button" className={styles.backBtn} onClick={() => navigate('/new/team')}>
               Voltar
             </button>
             <button type="submit" className={styles.nextBtn}>Continuar</button>

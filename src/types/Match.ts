@@ -54,6 +54,14 @@ export interface OpponentSubEntry {
   minute: MatchMinute;
 }
 
+export interface TeamInjuryEntry {
+  id: string;
+  playerId: string;
+  playerName: string;
+  minute: MatchMinute;
+  note?: string;
+}
+
 export interface PlayerMatchRating {
   playerId: string;
   rating: number | null;
@@ -114,6 +122,7 @@ export interface Match {
   playerMatches: string[];
   lineup?: MatchLineup;
   substitutions?: SubstitutionEvent[];
+  injuries?: TeamInjuryEntry[];
   opponentGoalScorers?: string;
   description?: string;
   playerRatings?: PlayerMatchRating[];
@@ -140,6 +149,7 @@ export interface CompleteMatchInput {
   playerMatches: string[];
   lineup: MatchLineup;
   substitutions?: SubstitutionEvent[];
+  injuries?: TeamInjuryEntry[];
   opponentGoalScorers?: string;
   description?: string;
   playerRatings?: PlayerMatchRating[];

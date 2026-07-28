@@ -65,6 +65,52 @@ export const SECTION_TUTORIALS: Record<string, TutorialStep[]> = {
       body: 'Confira os campeonatos e torneios em que seu clube disputa na temporada atual.',
     },
   ],
+  '/financas': [
+    {
+      section: 'Financeiro',
+      title: 'Controle financeiro',
+      body: 'Acompanhe o caixa, registre receitas e despesas, veja a folha salarial e configure premiações por competição.',
+    },
+    {
+      section: 'Folha',
+      title: 'Folha salarial',
+      body: 'Na aba Folha salarial você vê o custo mensal de cada jogador. Use "Pagar folha" para registrar o débito no extrato.',
+    },
+    {
+      section: 'Premiações',
+      title: 'Premiações',
+      body: 'Configure valores de premiação por competição (vitória, empate, fase eliminatória, campeonato) e registre quando conquistar cada resultado.',
+    },
+  ],
+  '/diretoria': [
+    {
+      section: 'Diretoria',
+      title: 'Relacionamento com a diretoria',
+      body: 'Acompanhe a confiança da diretoria, que reage a resultados, saúde financeira e cumprimento de metas.',
+    },
+    {
+      section: 'Metas',
+      title: 'Metas da temporada',
+      body: 'Defina objetivos que a diretoria espera — posição no campeonato, limite de gastos, vendas de jogadores. Metas cumpridas aumentam a confiança.',
+    },
+    {
+      section: 'Identidade',
+      title: 'Editar o clube',
+      body: 'Altere nome, cores e descrição do clube a qualquer momento em Identidade do clube.',
+    },
+  ],
+  '/transferencias': [
+    {
+      section: 'Transferências',
+      title: 'Mercado de transferências',
+      body: 'Gerencie contratações, vendas e empréstimos. Todas as operações atualizam o caixa automaticamente.',
+    },
+    {
+      section: 'Observação',
+      title: 'Lista de observação',
+      body: 'Guarde jogadores que você está monitorando com clube, valor e notas. Converta em contratação quando a hora chegar.',
+    },
+  ],
 };
 
 const WELCOME_KEY = 'clubos_welcome_seen';

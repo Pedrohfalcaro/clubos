@@ -38,22 +38,15 @@
 }
 
 .stepDot {
-  width: 28px;
-  height: 28px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
+  background: var(--border);
 }
 
 .stepActive {
   background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  box-shadow: 0 0 0 3px var(--accent-bg);
 }
 
 .section {
@@ -96,7 +89,7 @@
   background: var(--accent);
   border: none;
   border-radius: 8px;
-  color: #fff;
+  color: var(--accent-contrast, #fff);
   font-weight: 700;
   cursor: pointer;
 }

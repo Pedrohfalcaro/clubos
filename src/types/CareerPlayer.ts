@@ -63,7 +63,7 @@ export interface CareerPlayer {
 }
 
 export function emptyPlayerStats(): PlayerStats {
-  return { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
+  return { matches: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
 }
 
 export function createDefaultCareerPlayer(

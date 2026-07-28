@@ -1,0 +1,235 @@
+PRD — Gerador de Eventos para Modo Carreira
+
+Versão: 1.0
+
+1. Visão Geral
+
+O objetivo é desenvolver uma aplicação web offline (HTML, CSS e
+JavaScript puro) que funcione apenas abrindo o arquivo index.html.
+
+A aplicação atua como um gerador narrativo para modos carreira de jogos
+de futebol, criando acontecimentos antes das partidas para tornar cada
+temporada única.
+
+Não há integração com EA FC ou FIFA. O usuário apenas registra seu
+elenco e consulta o sistema antes de cada jogo.
+
+------------------------------------------------------------------------
+
+2. Objetivos
+
+• Criar histórias emergentes. • Evitar repetição excessiva. • Interface
+extremamente simples. • Tudo salvo em LocalStorage. • Projeto totalmente
+modular.
+
+------------------------------------------------------------------------
+
+3. Requisitos
+
+Tecnologias: - HTML5 - CSS3 - JavaScript ES6 - Zero frameworks - Zero
+backend
+
+Persistência: - LocalStorage
+
+Compatibilidade: - Chrome - Edge - Firefox
+
+------------------------------------------------------------------------
+
+4. Estrutura do Projeto
+
+/index.html /style.css /script.js
+
+/js storage.js ui.js generator.js athletes.js history.js
+probabilities.js events.js settings.js utils.js
+
+/assets
+
+------------------------------------------------------------------------
+
+5. Fluxo da Aplicação
+
+Primeiro acesso: 1. Informar clube 2. Cadastrar elenco 3. Salvar
+
+Demais acessos: Tela principal.
+
+Botões: - Gerar Evento - Elenco - Histórico - Configurações - Exportar -
+Importar
+
+------------------------------------------------------------------------
+
+6. Modelo de Dados
+
+club - nome
+
+athlete - id - nome - posição - idade - personalidade - moral - fadiga -
+status
+
+settings - chanceEvento - cooldownEventos - animações
+
+history - id - data - temporada - categoria - evento - atletaRelacionado
+
+------------------------------------------------------------------------
+
+7. Sistema de Probabilidades
+
+Chance padrão: Nada = 72% Evento = 28%
+
+Categorias: Atleta = 30 Diretoria = 15 Torcida = 15 Imprensa = 12 Lesão
+= 10 Financeiro = 6 Família = 5 Transferência = 4 Patrocínio = 2
+Escândalo = 1
+
+Cada categoria possui: Comum Incomum Raro Muito raro
+
+------------------------------------------------------------------------
+
+8. Personalidades
+
+Líder Veterano Promessa Temperamental Vaidoso Ambicioso Reservado
+Disciplinado
+
+As personalidades alteram os pesos dos eventos.
+
+------------------------------------------------------------------------
+
+9. Influência da Idade
+
+18–21: - adaptação - evolução - ansiedade - interesse europeu
+
+22–29: - liderança - propostas - boa fase - conflitos
+
+30+: - desgaste - aposentadoria - lesões - família
+
+------------------------------------------------------------------------
+
+10. Categorias
+
+ATLETA Meta: 120 eventos
+
+DIRETORIA Meta: 40 eventos
+
+TORCIDA Meta: 40 eventos
+
+IMPRENSA Meta: 40 eventos
+
+LESÃO Meta: 30 eventos
+
+FAMÍLIA Meta: 20 eventos
+
+FINANCEIRO Meta: 20 eventos
+
+TRANSFERÊNCIA Meta: 30 eventos
+
+PATROCÍNIO Meta: 15 eventos
+
+ESCÂNDALO Meta: 10 eventos
+
+Meta total: 365+ eventos.
+
+------------------------------------------------------------------------
+
+11. Eventos Encadeados
+
+Exemplos:
+
+Insatisfação ↓ Pedido de conversa ↓ Pedido de transferência
+
+Boa fase ↓ Interesse europeu ↓ Proposta oficial
+
+Cobrança da torcida ↓ Pressão da diretoria
+
+------------------------------------------------------------------------
+
+12. Sistema Anti-Repetição
+
+Cada evento recebe: - id único - cooldown
+
+Não repetir: - mesmo evento nos últimos 20 sorteios - mesma categoria
+muitas vezes seguidas
+
+------------------------------------------------------------------------
+
+13. Interface
+
+Visual: - Preto - Branco - Cinza - Minimalista
+
+Tela principal: Nome do clube Quantidade de atletas Último evento Botão
+central “Gerar Evento”
+
+Ao gerar: Loading (1–2 s) Resultado.
+
+------------------------------------------------------------------------
+
+14. Histórico
+
+Cada registro possui: Data Temporada Categoria Título Descrição
+
+Filtros: - temporada - categoria - atleta
+
+------------------------------------------------------------------------
+
+15. Configurações
+
+Alterar chance de eventos. Resetar dados. Exportar JSON. Importar JSON.
+Ativar/desativar animações.
+
+------------------------------------------------------------------------
+
+16. Exportação
+
+Exportar: club athletes history settings
+
+Formato: JSON.
+
+------------------------------------------------------------------------
+
+17. Critérios de Qualidade
+
+Código modular. Sem funções gigantes. Comentários relevantes.
+Responsivo. Sem bibliotecas externas.
+
+------------------------------------------------------------------------
+
+18. Roadmap
+
+Fase 1 Estrutura.
+
+Fase 2 Cadastro.
+
+Fase 3 LocalStorage.
+
+Fase 4 Tela principal.
+
+Fase 5 Gerador.
+
+Fase 6 Banco de eventos.
+
+Fase 7 Histórico.
+
+Fase 8 Configurações.
+
+Fase 9 Polimento.
+
+------------------------------------------------------------------------
+
+19. Melhorias Futuras
+
+-   Relacionamento entre atletas.
+-   Moral dinâmica.
+-   Confiança da diretoria.
+-   Popularidade com torcida.
+-   Notícias em formato de jornal.
+-   Linha do tempo.
+-   Estatísticas da temporada.
+-   Sistema de conquistas.
+-   Exportação em PDF do histórico.
+-   Temas claro/escuro.
+
+------------------------------------------------------------------------
+
+20. Prompt para o Cursor
+
+Desenvolva este projeto de forma incremental. Nunca utilize frameworks.
+Priorize JavaScript moderno. Implemente módulos independentes. Garanta
+persistência completa com LocalStorage. Crie código limpo, comentado e
+reutilizável. Evite duplicação. Implemente todos os requisitos acima
+antes de iniciar melhorias opcionais.

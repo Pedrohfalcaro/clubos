@@ -3,7 +3,7 @@ export const AVAILABLE_COMPETITIONS = [
   'Copa do Brasil',
   'Libertadores',
   'Sul-Americana',
-  'Campeonato Paulista',
+  'Estadual',
   'Amistoso',
 ] as const;
 
