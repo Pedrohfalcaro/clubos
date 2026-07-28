@@ -1,4 +1,6 @@
-export type PlayerStatus = 'Titular' | 'Reserva' | 'Promessa' | 'Transferível';
+export type PlayerStatus = 'Titular' | 'Reserva' | 'Promessa' | 'Transferível' | 'Emprestado';
+
+export type PlayerAvailability = 'disponivel' | 'lesionado' | 'indisponivel';
 
 export type PlayerPosition =
   | 'GK'
@@ -15,6 +17,7 @@ export type PlayerPosition =
 
 export interface PlayerStats {
   matches: number;
+  minutes: number;
   goals: number;
   assists: number;
   yellowCards: number;
@@ -35,4 +38,16 @@ export interface Player {
   marketValue: number;
   status: PlayerStatus;
   stats: PlayerStats;
+  /** Pulse fields */
+  personality?: string;
+  fatigue?: number;
+  availability?: PlayerAvailability;
+}
+
+export const PLAYER_POSITIONS: PlayerPosition[] = [
+  'GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'ST', 'CF',
+];
+
+export function emptyPlayerStats(): PlayerStats {
+  return { matches: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
 }

@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGame, allTeams } from '../../context/GameContext';
+import { useGame } from '../../context/GameContext';
 import { AVAILABLE_COMPETITIONS } from '../../utils/formations';
 import styles from './Setup.module.css';
 
 export default function CompetitionsSetup() {
   const { state, startCareer } = useGame();
   const navigate = useNavigate();
-  const team = allTeams.find(t => t.id === state.pendingTeamId);
+  const team = state.pendingTeam;
 
   const [selected, setSelected] = useState<string[]>(['Campeonato Brasileiro']);
 
-  if (!state.pendingTeamId || !state.manager || !team) {
+  if (!team || !state.manager) {
     navigate('/');
     return null;
   }

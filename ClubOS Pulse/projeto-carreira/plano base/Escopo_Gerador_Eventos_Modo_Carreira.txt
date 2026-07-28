@@ -1,0 +1,155 @@
+ESCOPO DO PROJETO
+
+Nome: Gerador de Eventos para Modo Carreira
+
+Objetivo
+
+Desenvolver uma aplicação web totalmente offline (HTML, CSS e JavaScript
+puro) que funcione apenas abrindo o arquivo index.html. Todas as
+informações devem ser persistidas utilizando LocalStorage.
+
+A aplicação servirá como um gerador narrativo para modos carreira de
+jogos de futebol (EA Sports FC, FIFA, etc.), criando acontecimentos
+antes das partidas para aumentar a imersão.
+
+Requisitos Técnicos
+
+-   HTML5
+-   CSS3
+-   JavaScript ES6+
+-   Nenhuma biblioteca externa
+-   Nenhum backend
+-   Persistência via LocalStorage
+-   Estrutura modular
+
+Estrutura sugerida
+
+/ index.html style.css script.js
+
+/js storage.js generator.js ui.js history.js events.js probabilities.js
+athletes.js
+
+Fluxo
+
+Primeiro acesso
+
+Solicitar: - Nome do clube - Cadastro do elenco
+
+Tela do elenco: Cada linha possui: - Nome (obrigatório) - Posição
+(obrigatório) - Idade (opcional)
+
+Botões: - Adicionar atleta - Remover atleta - Salvar
+
+Após salvar, nunca perguntar novamente, exceto se o usuário optar por
+reiniciar os dados.
+
+Tela principal
+
+Exibir: - Nome do clube - Quantidade de atletas - Botão “Gerar Evento”
+
+Ao clicar: 1. Mostrar loading (1 a 2 segundos) 2. Sortear se existe
+evento 3. Se não existir: Mostrar “Nada aconteceu antes desta partida.”
+4. Se existir: Mostrar categoria, título e descrição.
+
+Probabilidades
+
+Evento: - Nada acontece: 72% - Há evento: 28%
+
+Categorias (peso): - Atleta 30 - Diretoria 15 - Torcida 15 - Imprensa
+12 - Lesão/Físico 10 - Financeiro 6 - Família 5 - Transferências 4 -
+Patrocínio 2 - Escândalo 1
+
+Dentro das categorias: - Eventos comuns - Incomuns - Raros - Muito raros
+
+Sistema de atletas
+
+Cada atleta: - nome - posição - idade - moral (100) - personalidade
+(oculta)
+
+Personalidades: - Líder - Ambicioso - Disciplinado - Temperamental -
+Promessa - Veterano - Reservado - Vaidoso
+
+Idade influencia eventos: 18-21: - evolução - adaptação - ansiedade -
+destaque
+
+22-29: - propostas - liderança - boa fase
+
+30+: - desgaste - aposentadoria - família - lesões
+
+Categorias e exemplos
+
+Atleta: - Chegou atrasado. - Treinou além do horário. - Recebeu
+proposta. - Virou pai. - Casou. - Discussão no treino. - Recuperou
+lesão. - Má fase. - Boa fase. - Pedido de conversa. - Reclama por ser
+reserva.
+
+Diretoria: - Exige vitória. - Cobra classificação. - Promete reforços. -
+Corta orçamento. - Prioriza base.
+
+Torcida: - Protesto. - Apoio. - Faixas. - Festa no aeroporto. - Cobrança
+no CT.
+
+Imprensa: - Boatos. - Entrevista polêmica. - Jornal elogia. - Ex-jogador
+critica.
+
+Família: - Casamento. - Nascimento. - Problema familiar. - Mudança de
+cidade.
+
+Lesão: - Desgaste. - Resfriado. - Entorse. - Dor muscular.
+
+Financeiro: - Premiação. - Salários atrasados. - Novo patrocinador.
+
+Transferências: - Clube europeu interessado. - Proposta recusada. -
+Empresário pressiona.
+
+Escândalo (raríssimo): - Apostas. - Festa antes do jogo. - Briga. -
+Polêmica em rede social.
+
+Histórico
+
+Registrar: - Data/hora - Temporada - Categoria - Evento
+
+Permitir filtro por temporada.
+
+Configurações
+
+-   Alterar chance geral de eventos.
+-   Exportar LocalStorage em JSON.
+-   Importar JSON.
+-   Resetar dados.
+
+UX
+
+-   Interface minimalista.
+-   Preto, branco e cinza.
+-   Animações leves.
+-   Responsivo.
+
+Organização do código
+
+storage.js - salvar() - carregar() - resetar()
+
+generator.js - gerarEvento() - escolherCategoria() - escolherEvento()
+
+history.js - registrar() - listar()
+
+events.js - banco completo de eventos
+
+ui.js - renderizações
+
+probabilities.js - pesos
+
+athletes.js - seleção de atleta - lógica por idade - personalidade
+
+Banco de eventos
+
+Meta: - 300+ eventos - Sem repetição frequente - Cooldown para evitar
+repetir o mesmo evento rapidamente - Possibilidade de eventos em cadeia
+(ex.: insatisfação -> pedido de transferência)
+
+Objetivo final
+
+Criar uma ferramenta que gere uma narrativa dinâmica para o modo
+carreira, tornando cada temporada única através de eventos variados,
+persistentes e personalizados conforme elenco, idade, personalidade e
+contexto do clube.

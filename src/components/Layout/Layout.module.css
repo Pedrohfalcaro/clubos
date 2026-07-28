@@ -45,6 +45,13 @@
   border-bottom: 1px solid var(--border);
 }
 
+.clubRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .clubLabel {
   font-size: 10px;
   text-transform: uppercase;

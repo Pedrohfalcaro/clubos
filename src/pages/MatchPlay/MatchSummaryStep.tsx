@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { Player } from '../../types/Player';
 import type { PlayerMatchRating, SubstitutionEvent, TeamCardEntry } from '../../types/Match';
-import { POSITION_ORDER, POSITION_LABELS, RATING_OPTIONS, ratingColor } from '../../utils/matchEvents';
+import { POSITION_ORDER, POSITION_LABELS, ratingColor } from '../../utils/matchEvents';
 import { getExpelledPlayerIds } from '../../utils/matchPlayHelpers';
 import styles from './MatchSummaryStep.module.css';
+
+const MIN_RATING = 5;
+const MAX_RATING = 10;
 
 interface MatchSummaryStepProps {
   players: Player[];
@@ -21,116 +24,115 @@ interface MatchSummaryStepProps {
   onDescriptionChange: (v: string) => void;
 }
 
-interface PlayerRowProps {
-  player: Player;
-  interactive: boolean;
-  rating: number | null;
-  ratingPicker: string | null;
-  nameMenu: string | null;
-  motmPlayerId: string | null;
-  worstPlayerId: string | null;
-  expelled: Set<string>;
-  onRatingPicker: (id: string | null) => void;
-  onNameMenu: (id: string | null) => void;
-  onSetRating: (playerId: string, rating: number | null) => void;
-  onToggleMotm: (id: string) => void;
-  onToggleWorst: (id: string) => void;
+function sortByPosition(list: Player[]): Player[] {
+  return [...list].sort((a, b) => {
+    const pa = POSITION_ORDER.indexOf(a.position);
+    const pb = POSITION_ORDER.indexOf(b.position);
+    return pa - pb || a.name.localeCompare(b.name);
+  });
 }
 
-function PlayerRow({
+function RatingRow({
   player,
-  interactive,
   rating,
-  ratingPicker,
-  nameMenu,
-  motmPlayerId,
-  worstPlayerId,
+  isMotm,
+  isWorst,
   expelled,
-  onRatingPicker,
-  onNameMenu,
   onSetRating,
   onToggleMotm,
   onToggleWorst,
-}: PlayerRowProps) {
-  function nameClass(id: string): string {
-    if (!interactive) return styles.nameInactive;
-    if (motmPlayerId === id) return styles.nameMotm;
-    if (worstPlayerId === id) return styles.nameWorst;
-    if (expelled.has(id)) return styles.nameExpelled;
-    return styles.nameActive;
-  }
+}: {
+  player: Player;
+  rating: number | null;
+  isMotm: boolean;
+  isWorst: boolean;
+  expelled: boolean;
+  onSetRating: (v: number | null) => void;
+  onToggleMotm: () => void;
+  onToggleWorst: () => void;
+}) {
+  const value = rating ?? 7;
 
   return (
-    <div className={styles.tableRow}>
-      <span className={styles.colNum}>{player.number ?? '—'}</span>
-      <span className={styles.colName}>
-        {interactive ? (
-          <>
-            <button
-              type="button"
-              className={`${styles.nameBtn} ${nameClass(player.id)}`}
-              onClick={() => onNameMenu(nameMenu === player.id ? null : player.id)}
-            >
-              {player.name}
-              {motmPlayerId === player.id && <span className={styles.motmStar}> ★</span>}
-            </button>
-            {nameMenu === player.id && (
-              <div className={styles.nameMenu}>
-                <button type="button" onClick={() => onToggleMotm(player.id)}>Man of the Match</button>
-                <button type="button" onClick={() => onToggleWorst(player.id)}>Worst Player</button>
-              </div>
-            )}
-          </>
-        ) : (
-          <span className={styles.nameInactive}>{player.name}</span>
-        )}
-      </span>
-      <span className={styles.colPos}>{POSITION_LABELS[player.position] ?? player.position}</span>
-      <div className={styles.ratingCell}>
-        {interactive ? (
-          <>
-            <button
-              type="button"
-              className={styles.ratingBox}
-              style={{ background: ratingColor(rating) }}
-              onClick={() => onRatingPicker(ratingPicker === player.id ? null : player.id)}
-            >
-              {rating !== null ? rating.toFixed(1) : '—'}
-            </button>
-            {ratingPicker === player.id && (
-              <div className={styles.ratingPicker}>
-                <input
-                  type="number"
-                  step={0.1}
-                  min={0.5}
-                  max={10}
-                  placeholder="Ex: 7.4"
-                  className={styles.ratingInput}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      const v = Number((e.target as HTMLInputElement).value);
-                      if (v >= 0.5 && v <= 10) onSetRating(player.id, Math.round(v * 10) / 10);
-                    }
-                  }}
-                />
-                <div className={styles.ratingList}>
-                  {RATING_OPTIONS.map(r => (
-                    <button key={r} type="button" onClick={() => onSetRating(player.id, r)}>
-                      {r.toFixed(1)}
-                    </button>
-                  ))}
-                </div>
-                <button type="button" className={styles.clearRating} onClick={() => onSetRating(player.id, null)}>
-                  Limpar
-                </button>
-              </div>
-            )}
-          </>
-        ) : (
-          <span className={styles.ratingDisabled}>—</span>
-        )}
+    <li
+      className={`${styles.row} ${isMotm ? styles.rowMotm : ''} ${isWorst ? styles.rowWorst : ''}`}
+    >
+      <span className={styles.num}>{player.number ?? '—'}</span>
+      <div className={styles.identity}>
+        <span className={styles.name}>
+          {player.name}
+          {expelled && <span className={styles.exp}> EXP</span>}
+        </span>
+        <span className={styles.pos}>{POSITION_LABELS[player.position] ?? player.position}</span>
       </div>
-    </div>
+
+      <div className={styles.controls}>
+        <button
+          type="button"
+          className={styles.nudge}
+          disabled={rating == null || value <= MIN_RATING}
+          onClick={() => onSetRating(Math.max(MIN_RATING, Math.round((value - 0.1) * 10) / 10))}
+          aria-label="Diminuir nota"
+        >
+          −
+        </button>
+        <input
+          type="range"
+          className={styles.slider}
+          min={MIN_RATING}
+          max={MAX_RATING}
+          step={0.1}
+          value={value}
+          onChange={e => onSetRating(Math.round(Number(e.target.value) * 10) / 10)}
+          style={{
+            background: `linear-gradient(90deg, ${ratingColor(rating ?? 7)} ${((value - MIN_RATING) / (MAX_RATING - MIN_RATING)) * 100}%, var(--border) 0)`,
+          }}
+          aria-label={`Nota de ${player.name}`}
+        />
+        <button
+          type="button"
+          className={styles.nudge}
+          disabled={value >= MAX_RATING}
+          onClick={() => onSetRating(Math.min(MAX_RATING, Math.round((value + 0.1) * 10) / 10))}
+          aria-label="Aumentar nota"
+        >
+          +
+        </button>
+      </div>
+
+      <span
+        className={styles.score}
+        style={{ background: ratingColor(rating), color: '#fff' }}
+        title={rating != null ? 'Clique para limpar' : undefined}
+        onClick={() => rating != null && onSetRating(null)}
+        role={rating != null ? 'button' : undefined}
+      >
+        {rating != null ? rating.toFixed(1) : '—'}
+      </span>
+
+      <div className={styles.awards}>
+        <button
+          type="button"
+          className={`${styles.award} ${isMotm ? styles.awardMotm : ''}`}
+          onClick={onToggleMotm}
+          title="Destaque"
+          aria-label="Marcar destaque"
+          aria-pressed={isMotm}
+        >
+          ★
+        </button>
+        <button
+          type="button"
+          className={`${styles.award} ${isWorst ? styles.awardWorst : ''}`}
+          onClick={onToggleWorst}
+          title="Pior em campo"
+          aria-label="Marcar pior em campo"
+          aria-pressed={isWorst}
+        >
+          ↓
+        </button>
+      </div>
+    </li>
   );
 }
 
@@ -149,118 +151,94 @@ export default function MatchSummaryStep({
   description,
   onDescriptionChange,
 }: MatchSummaryStepProps) {
-  const [ratingPicker, setRatingPicker] = useState<string | null>(null);
-  const [nameMenu, setNameMenu] = useState<string | null>(null);
-
   const expelled = useMemo(() => getExpelledPlayerIds(teamCards), [teamCards]);
-  const subbedInSet = useMemo(() => new Set(teamSubs.map(s => s.playerInId)), [teamSubs]);
+  const subbedInIds = useMemo(() => new Set(teamSubs.map(s => s.playerInId)), [teamSubs]);
 
   const sortedStarters = useMemo(() => {
-    return starters
-      .map(id => players.find(p => p.id === id))
-      .filter(Boolean)
-      .sort((a, b) => {
-        const pa = POSITION_ORDER.indexOf(a!.position);
-        const pb = POSITION_ORDER.indexOf(b!.position);
-        return pa - pb || a!.name.localeCompare(b!.name);
-      }) as Player[];
+    return sortByPosition(
+      starters
+        .map(id => players.find(p => p.id === id))
+        .filter((p): p is Player => Boolean(p)),
+    );
   }, [starters, players]);
 
-  const sortedBench = useMemo(() => {
-    return bench
-      .map(id => players.find(p => p.id === id))
-      .filter(Boolean)
-      .sort((a, b) => {
-        const pa = POSITION_ORDER.indexOf(a!.position);
-        const pb = POSITION_ORDER.indexOf(b!.position);
-        return pa - pb || a!.name.localeCompare(b!.name);
-      }) as Player[];
-  }, [bench, players]);
+  const enteredFromBench = useMemo(() => {
+    return sortByPosition(
+      bench
+        .filter(id => subbedInIds.has(id))
+        .map(id => players.find(p => p.id === id))
+        .filter((p): p is Player => Boolean(p)),
+    );
+  }, [bench, players, subbedInIds]);
 
   function setRating(playerId: string, rating: number | null) {
     onRatingsChange({ ...ratings, [playerId]: rating });
-    setRatingPicker(null);
   }
 
   function toggleMotm(id: string) {
     onMotmChange(motmPlayerId === id ? null : id);
     if (worstPlayerId === id) onWorstChange(null);
-    setNameMenu(null);
   }
 
   function toggleWorst(id: string) {
     onWorstChange(worstPlayerId === id ? null : id);
     if (motmPlayerId === id) onMotmChange(null);
-    setNameMenu(null);
   }
-
-  const rowProps = {
-    ratingPicker,
-    nameMenu,
-    motmPlayerId,
-    worstPlayerId,
-    expelled,
-    onRatingPicker: setRatingPicker,
-    onNameMenu: setNameMenu,
-    onSetRating: setRating,
-    onToggleMotm: toggleMotm,
-    onToggleWorst: toggleWorst,
-  };
 
   return (
     <div className={styles.wrap}>
-      <section className={styles.ratingsSection}>
+      <p className={styles.intro}>
+        Arraste o controle · {MIN_RATING.toFixed(1)}–{MAX_RATING.toFixed(1)} · ★ destaque · ↓ pior
+      </p>
+
+      <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Titulares</h3>
-        <div className={styles.table}>
-          <div className={styles.tableHead}>
-            <span>#</span>
-            <span>Nome</span>
-            <span>Pos</span>
-            <span>Nota</span>
-          </div>
+        <ul className={styles.list}>
           {sortedStarters.map(p => (
-            <PlayerRow
+            <RatingRow
               key={p.id}
               player={p}
-              interactive
               rating={ratings[p.id] ?? null}
-              {...rowProps}
+              isMotm={motmPlayerId === p.id}
+              isWorst={worstPlayerId === p.id}
+              expelled={expelled.has(p.id)}
+              onSetRating={v => setRating(p.id, v)}
+              onToggleMotm={() => toggleMotm(p.id)}
+              onToggleWorst={() => toggleWorst(p.id)}
             />
           ))}
-        </div>
+        </ul>
       </section>
 
-      {sortedBench.length > 0 && (
-        <section className={styles.ratingsSection}>
-          <h3 className={styles.sectionTitle}>Banco</h3>
-          <div className={styles.table}>
-            <div className={styles.tableHead}>
-              <span>#</span>
-              <span>Nome</span>
-              <span>Pos</span>
-              <span>Nota</span>
-            </div>
-            {sortedBench.map(p => (
-              <PlayerRow
+      {enteredFromBench.length > 0 && (
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Entraram do banco</h3>
+          <ul className={styles.list}>
+            {enteredFromBench.map(p => (
+              <RatingRow
                 key={p.id}
                 player={p}
-                interactive={subbedInSet.has(p.id)}
                 rating={ratings[p.id] ?? null}
-                {...rowProps}
+                isMotm={motmPlayerId === p.id}
+                isWorst={worstPlayerId === p.id}
+                expelled={expelled.has(p.id)}
+                onSetRating={v => setRating(p.id, v)}
+                onToggleMotm={() => toggleMotm(p.id)}
+                onToggleWorst={() => toggleWorst(p.id)}
               />
             ))}
-          </div>
+          </ul>
         </section>
       )}
 
       <section className={styles.descSection}>
-        <label className={styles.descLabel}>Descrição do jogo (opcional)</label>
+        <label className={styles.descLabel}>Descrição (opcional)</label>
         <textarea
           className={styles.textarea}
           value={description}
           onChange={e => onDescriptionChange(e.target.value)}
-          placeholder="Como foi a partida? Destaques, clima, momentos importantes..."
-          rows={5}
+          placeholder="Como foi a partida?"
+          rows={3}
         />
       </section>
     </div>

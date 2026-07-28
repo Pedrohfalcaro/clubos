@@ -18,6 +18,9 @@ export interface Team {
   boardConfidence: number;
   supporterConfidence: number;
   statistics: TeamStatistics;
+  /** Kit / brand colors */
+  primaryColor?: string;
+  secondaryColor?: string;
   description?: string;
   history?: string;
   achievements?: string[];

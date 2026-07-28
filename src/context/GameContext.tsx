@@ -8,16 +8,26 @@ import type { CareerMode, SetupStep } from '../types/CareerMode';
 import type { CareerPlayer, ClubInfo, InjuryEntry } from '../types/CareerPlayer';
 import { createDefaultCareerPlayer, emptyPlayerStats } from '../types/CareerPlayer';
 import type { CompletePlayerMatchInput } from '../types/PlayerMatchPerformance';
-import { saveGame, loadGame, clearGame } from '../services/storage';
+import { clearGame, type GameSave } from '../services/storage';
 import { calcResult, recalculateFromMatches } from '../utils/matchStats';
 import { applyPerformanceToStats, subtractPerformanceFromStats } from '../utils/playerStats';
 import { calcMoraleChanges, applyMoraleDelta } from '../utils/playerMorale';
 import type { MatchResult } from '../types/Match';
-import teamsData from '../data/teams.json';
-import playersData from '../data/players.json';
-
-const allTeams = teamsData as Team[];
-const allPlayers = playersData as Player[];
+import {
+  createDefaultPulseState,
+  generatePulse,
+  playerToPulseAthlete,
+  type PulseSettings,
+  type PulseState,
+} from '../pulse';
+import type { ClubFinance, FinanceLedgerEntry } from '../types/Finance';
+import { createDefaultFinance } from '../types/Finance';
+import type { BoardState, BoardGoal } from '../types/Board';
+import { createDefaultBoardState } from '../types/Board';
+import type { TransferState, WatchlistPlayer, TransferRecord } from '../types/Transfer';
+import { createDefaultTransferState } from '../types/Transfer';
+import { newLedgerEntry, wageBill } from '../utils/finance';
+import { useAuth } from './AuthContext';
 
 const PLAYER_TEAM_ID = 'player-career';
 
@@ -25,7 +35,8 @@ export interface GameState {
   started: boolean;
   careerMode: CareerMode | null;
   setupStep: SetupStep;
-  pendingTeamId: string | null;
+  pendingTeam: Team | null;
+  pendingPlayers: Player[];
   pendingCoachCountry: string | null;
   pendingCareerPlayer: Partial<CareerPlayer> | null;
   teamId: string | null;
@@ -38,14 +49,18 @@ export interface GameState {
   season: number;
   tactics: SavedTactics | null;
   tutorialCompleted: boolean;
+  pulse: PulseState;
+  finance: ClubFinance;
+  board: BoardState;
+  transfers: TransferState;
 }
 
 type GameAction =
   | { type: 'SELECT_CAREER_MODE'; mode: CareerMode }
   | { type: 'SET_COACH_COUNTRY'; country: string }
-  | { type: 'SELECT_TEAM'; teamId: string }
+  | { type: 'SET_CUSTOM_CLUB'; team: Team; players: Player[] }
   | { type: 'SET_MANAGER'; manager: Manager }
-  | { type: 'START_CAREER'; teamId: string; manager: Manager; seasonCompetitions: string[] }
+  | { type: 'START_CAREER'; manager: Manager; seasonCompetitions: string[] }
   | { type: 'SET_CAREER_PLAYER'; player: Partial<CareerPlayer> }
   | { type: 'SET_PLAYER_CLUB'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number }
   | { type: 'FINISH_PLAYER_SETUP'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number; mainCompetition: string }
@@ -55,7 +70,9 @@ type GameAction =
   | { type: 'ADD_INJURY'; injury: Omit<InjuryEntry, 'id'> }
   | { type: 'REMOVE_INJURY'; injuryId: string }
   | { type: 'ADVANCE_SEASON' }
-  | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status'>> }
+  | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue'>> }
+  | { type: 'ADD_PLAYER'; player: Player }
+  | { type: 'REMOVE_PLAYER'; playerId: string }
   | { type: 'SCHEDULE_MATCH'; match: Match }
   | { type: 'UPDATE_SCHEDULED_MATCH'; matchId: string; updates: ScheduleMatchInput }
   | { type: 'COMPLETE_MATCH'; input: CompleteMatchInput }
@@ -63,15 +80,33 @@ type GameAction =
   | { type: 'COMPLETE_PLAYER_MATCH'; input: CompletePlayerMatchInput }
   | { type: 'UPDATE_PLAYER_MATCH'; input: CompletePlayerMatchInput }
   | { type: 'SAVE_TACTICS'; tactics: SavedTactics }
-  | { type: 'LOAD_SAVE'; state: Omit<GameState, 'started' | 'setupStep' | 'pendingTeamId' | 'pendingCoachCountry' | 'pendingCareerPlayer'> }
+  | { type: 'APPLY_PULSE'; matchId: string }
+  | { type: 'UPDATE_PULSE_SETTINGS'; settings: Partial<PulseSettings> }
+  | { type: 'LOAD_SAVE'; state: Omit<GameState, 'started' | 'setupStep' | 'pendingTeam' | 'pendingPlayers' | 'pendingCoachCountry' | 'pendingCareerPlayer'> }
   | { type: 'COMPLETE_TUTORIAL' }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  // Finance
+  | { type: 'APPLY_LEDGER'; entry: FinanceLedgerEntry }
+  | { type: 'PAY_WAGES' }
+  | { type: 'SET_PRIZE_TABLE'; competition: string; prize: { win?: number; draw?: number; knockout?: number; champion?: number } }
+  | { type: 'UPDATE_FINANCE'; updates: Partial<ClubFinance> }
+  // Board
+  | { type: 'UPDATE_BOARD'; updates: Partial<BoardState> }
+  | { type: 'SET_BOARD_GOAL'; goal: BoardGoal }
+  | { type: 'REMOVE_BOARD_GOAL'; goalId: string }
+  | { type: 'ADJUST_BOARD_CONFIDENCE'; delta: number; reason: string }
+  | { type: 'UPDATE_TEAM'; updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>> }
+  // Transfers
+  | { type: 'ADD_WATCHLIST'; player: WatchlistPlayer }
+  | { type: 'REMOVE_WATCHLIST'; playerId: string }
+  | { type: 'UPDATE_WATCHLIST'; playerId: string; updates: Partial<WatchlistPlayer> }
+  | { type: 'EXECUTE_TRANSFER'; record: TransferRecord; newPlayer?: Player; removedPlayerId?: string; ledgerEntries: FinanceLedgerEntry[] };
 
 interface GameContextValue {
   state: GameState;
   selectCareerMode: (mode: CareerMode) => void;
   setCoachCountry: (country: string) => void;
-  selectTeam: (teamId: string) => void;
+  setCustomClub: (team: Team, players: Player[]) => void;
   setManager: (manager: Manager) => void;
   startCareer: (seasonCompetitions: string[]) => void;
   setCareerPlayer: (data: Partial<CareerPlayer>) => void;
@@ -94,7 +129,12 @@ interface GameContextValue {
   addInjury: (injury: Omit<InjuryEntry, 'id'>) => void;
   removeInjury: (injuryId: string) => void;
   advanceSeason: () => void;
-  updatePlayer: (playerId: string, updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status'>>) => void;
+  updatePlayer: (
+    playerId: string,
+    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue'>>,
+  ) => void;
+  addPlayer: (player: Player) => void;
+  removePlayer: (playerId: string) => void;
   scheduleMatch: (input: ScheduleMatchInput) => string;
   schedulePlayerMatch: (input: ScheduleMatchInput) => string;
   updateScheduledMatch: (matchId: string, updates: ScheduleMatchInput) => void;
@@ -103,18 +143,38 @@ interface GameContextValue {
   completePlayerMatch: (input: CompletePlayerMatchInput) => void;
   updatePlayerMatch: (input: CompletePlayerMatchInput) => void;
   saveTactics: (tactics: SavedTactics) => void;
-  loadSavedGame: () => CareerMode | null;
+  rollPulseForMatch: (matchId: string) => void;
+  updatePulseSettings: (settings: Partial<PulseSettings>) => void;
+  loadSavedGame: () => Promise<CareerMode | null>;
   completeTutorial: () => void;
   resetGame: () => void;
   getTeamPlayers: () => Player[];
   getMatch: (matchId: string) => Match | undefined;
+  getSaveSnapshot: () => GameSave | null;
+  // Finance
+  applyLedger: (entry: FinanceLedgerEntry) => void;
+  payWages: () => void;
+  setPrizeTable: (competition: string, prize: { win?: number; draw?: number; knockout?: number; champion?: number }) => void;
+  updateFinance: (updates: Partial<ClubFinance>) => void;
+  // Board
+  updateBoard: (updates: Partial<BoardState>) => void;
+  setBoardGoal: (goal: BoardGoal) => void;
+  removeBoardGoal: (goalId: string) => void;
+  adjustBoardConfidence: (delta: number, reason: string) => void;
+  updateTeam: (updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>>) => void;
+  // Transfers
+  addWatchlist: (player: WatchlistPlayer) => void;
+  removeWatchlist: (playerId: string) => void;
+  updateWatchlist: (playerId: string, updates: Partial<WatchlistPlayer>) => void;
+  executeTransfer: (record: TransferRecord, newPlayer?: Player, removedPlayerId?: string, ledgerEntries?: FinanceLedgerEntry[]) => void;
 }
 
 const initialState: GameState = {
   started: false,
   careerMode: null,
   setupStep: 'mode',
-  pendingTeamId: null,
+  pendingTeam: null,
+  pendingPlayers: [],
   pendingCoachCountry: null,
   pendingCareerPlayer: null,
   teamId: null,
@@ -127,6 +187,10 @@ const initialState: GameState = {
   season: 2025,
   tactics: null,
   tutorialCompleted: false,
+  pulse: createDefaultPulseState(),
+  finance: createDefaultFinance(),
+  board: createDefaultBoardState(),
+  transfers: createDefaultTransferState(),
 };
 
 function updatePlayerFromMatch(
@@ -178,25 +242,31 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_COACH_COUNTRY':
       return { ...state, pendingCoachCountry: action.country };
 
-    case 'SELECT_TEAM':
-      return { ...state, setupStep: 'manager', pendingTeamId: action.teamId };
+    case 'SET_CUSTOM_CLUB':
+      return {
+        ...state,
+        setupStep: 'manager',
+        pendingTeam: action.team,
+        pendingPlayers: action.players,
+      };
 
     case 'SET_MANAGER':
       return { ...state, setupStep: 'competitions', manager: action.manager };
 
     case 'START_CAREER': {
-      const team = allTeams.find(t => t.id === action.teamId);
-      if (!team) return state;
-      const players = allPlayers.filter(p => p.teamId === action.teamId);
+      if (!state.pendingTeam || state.pendingPlayers.length === 0) return state;
+      const team = state.pendingTeam;
+      const players = state.pendingPlayers.map(p => ({ ...p, teamId: team.id }));
       return {
         ...state,
         started: true,
         careerMode: 'coach',
         setupStep: 'done',
-        pendingTeamId: null,
+        pendingTeam: null,
+        pendingPlayers: [],
         pendingCoachCountry: null,
         pendingCareerPlayer: null,
-        teamId: action.teamId,
+        teamId: team.id,
         team,
         manager: action.manager,
         seasonCompetitions: action.seasonCompetitions,
@@ -205,6 +275,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         matches: [],
         season: 2025,
         tutorialCompleted: false,
+        pulse: createDefaultPulseState(),
+        finance: createDefaultFinance(team.budget ?? 5_000_000),
+        board: createDefaultBoardState(),
+        transfers: createDefaultTransferState(),
       };
     }
 
@@ -378,6 +452,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ),
       };
 
+    case 'ADD_PLAYER':
+      return { ...state, players: [...state.players, action.player] };
+
+    case 'REMOVE_PLAYER':
+      return { ...state, players: state.players.filter(p => p.id !== action.playerId) };
+
     case 'SCHEDULE_MATCH':
       return { ...state, matches: [...state.matches, action.match] };
 
@@ -393,6 +473,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'COMPLETE_MATCH': {
       if (!state.team) return state;
+      const injuredIds = new Set((action.input.injuries ?? []).map(i => i.playerId));
+      const result = calcResult(action.input.goalsFor, action.input.goalsAgainst);
       const updatedMatches = state.matches.map(m =>
         m.id === action.input.matchId
           ? {
@@ -400,13 +482,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               status: 'completed' as const,
               goalsFor: action.input.goalsFor,
               goalsAgainst: action.input.goalsAgainst,
-              result: calcResult(action.input.goalsFor, action.input.goalsAgainst),
+              result,
               goals: action.input.goals,
               assists: action.input.assists,
               cards: action.input.cards,
               playerMatches: action.input.playerMatches,
               lineup: action.input.lineup,
               substitutions: action.input.substitutions,
+              injuries: action.input.injuries,
               opponentGoalScorers: action.input.opponentGoalScorers,
               description: action.input.description,
               playerRatings: action.input.playerRatings,
@@ -415,12 +498,40 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             }
           : m,
       );
-      const recalculated = recalculateFromMatches(state.team, state.players, updatedMatches);
-      return { ...state, matches: updatedMatches, ...recalculated };
+      const playersWithInjury = state.players.map(p =>
+        injuredIds.has(p.id) ? { ...p, availability: 'lesionado' as const } : p,
+      );
+      const recalculated = recalculateFromMatches(state.team, playersWithInjury, updatedMatches);
+
+      // Board confidence reaction
+      const confDelta = result === 'win' ? 3 : result === 'draw' ? 0 : -4;
+      const confReason = result === 'win' ? 'Vitória' : result === 'draw' ? 'Empate' : 'Derrota';
+      const newConf = Math.max(0, Math.min(100, (recalculated.team?.boardConfidence ?? state.team.boardConfidence) + confDelta));
+      const confEntry = confDelta !== 0
+        ? { date: new Date().toISOString().slice(0, 10), value: newConf, reason: confReason }
+        : null;
+      const updatedBoard = confEntry
+        ? {
+            ...state.board,
+            confidenceHistory: [confEntry, ...state.board.confidenceHistory].slice(0, 50),
+          }
+        : state.board;
+      const teamWithConf = recalculated.team
+        ? { ...recalculated.team, boardConfidence: newConf }
+        : recalculated.team;
+
+      return {
+        ...state,
+        matches: updatedMatches,
+        ...recalculated,
+        team: teamWithConf ?? recalculated.team,
+        board: updatedBoard,
+      };
     }
 
     case 'UPDATE_COMPLETED_MATCH': {
       if (!state.team) return state;
+      const injuredIds = new Set((action.input.injuries ?? []).map(i => i.playerId));
       const updatedMatches = state.matches.map(m =>
         m.id === action.input.matchId
           ? {
@@ -434,6 +545,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               playerMatches: action.input.playerMatches,
               lineup: action.input.lineup,
               substitutions: action.input.substitutions,
+              injuries: action.input.injuries,
               opponentGoalScorers: action.input.opponentGoalScorers,
               description: action.input.description,
               playerRatings: action.input.playerRatings,
@@ -442,7 +554,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             }
           : m,
       );
-      const recalculated = recalculateFromMatches(state.team, state.players, updatedMatches);
+      const playersWithInjury = state.players.map(p =>
+        injuredIds.has(p.id) ? { ...p, availability: 'lesionado' as const } : p,
+      );
+      const recalculated = recalculateFromMatches(state.team, playersWithInjury, updatedMatches);
       return { ...state, matches: updatedMatches, ...recalculated };
     }
 
@@ -501,6 +616,48 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SAVE_TACTICS':
       return { ...state, tactics: action.tactics };
 
+    case 'APPLY_PULSE': {
+      if (!state.team) return state;
+      if (state.pulse.rolledMatchIds.includes(action.matchId)) return state;
+
+      const output = generatePulse({
+        club: {
+          id: state.team.id,
+          nome: state.team.name,
+          temporadaAtual: state.season,
+        },
+        athletes: state.players.map(playerToPulseAthlete),
+        pulseState: state.pulse,
+        matchId: action.matchId,
+      });
+
+      const players = state.players.map(p => {
+        const patch = output.athletePatches.find(x => x.id === p.id);
+        if (!patch) return p;
+        return {
+          ...p,
+          morale: patch.moral ?? p.morale,
+          fatigue: patch.fadiga ?? p.fatigue,
+          availability: patch.availability ?? p.availability,
+        };
+      });
+
+      return {
+        ...state,
+        players,
+        pulse: output.pulseState,
+      };
+    }
+
+    case 'UPDATE_PULSE_SETTINGS':
+      return {
+        ...state,
+        pulse: {
+          ...state.pulse,
+          settings: { ...state.pulse.settings, ...action.settings },
+        },
+      };
+
     case 'COMPLETE_TUTORIAL':
       return { ...state, tutorialCompleted: true };
 
@@ -508,14 +665,162 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         started: true,
         setupStep: 'done',
-        pendingTeamId: null,
+        pendingTeam: null,
+        pendingPlayers: [],
         pendingCoachCountry: null,
         pendingCareerPlayer: null,
         ...action.state,
+        pulse: action.state.pulse ?? createDefaultPulseState(),
+        finance: action.state.finance ?? createDefaultFinance(),
+        board: action.state.board ?? createDefaultBoardState(),
+        transfers: action.state.transfers ?? createDefaultTransferState(),
       };
 
     case 'RESET':
       return initialState;
+
+    // ─── Finance ───────────────────────────────────────────────────────────────
+
+    case 'APPLY_LEDGER': {
+      const newBalance = state.finance.balance + action.entry.amount;
+      const updatedTeam = state.team ? { ...state.team, budget: newBalance } : state.team;
+      return {
+        ...state,
+        team: updatedTeam,
+        finance: {
+          ...state.finance,
+          balance: newBalance,
+          ledger: [action.entry, ...state.finance.ledger],
+        },
+      };
+    }
+
+    case 'PAY_WAGES': {
+      const bill = wageBill(state.players);
+      if (bill <= 0) return state;
+      const entry = newLedgerEntry('wage', -bill, 'Folha salarial', state.season);
+      const newBalance = state.finance.balance - bill;
+      const updatedTeam = state.team ? { ...state.team, budget: newBalance } : state.team;
+      return {
+        ...state,
+        team: updatedTeam,
+        finance: {
+          ...state.finance,
+          balance: newBalance,
+          ledger: [entry, ...state.finance.ledger],
+        },
+      };
+    }
+
+    case 'SET_PRIZE_TABLE': {
+      return {
+        ...state,
+        finance: {
+          ...state.finance,
+          prizeTable: { ...state.finance.prizeTable, [action.competition]: action.prize },
+        },
+      };
+    }
+
+    case 'UPDATE_FINANCE':
+      return { ...state, finance: { ...state.finance, ...action.updates } };
+
+    // ─── Board ─────────────────────────────────────────────────────────────────
+
+    case 'UPDATE_BOARD':
+      return { ...state, board: { ...state.board, ...action.updates } };
+
+    case 'SET_BOARD_GOAL': {
+      const exists = state.board.goals.find(g => g.id === action.goal.id);
+      const goals = exists
+        ? state.board.goals.map(g => g.id === action.goal.id ? action.goal : g)
+        : [...state.board.goals, action.goal];
+      return { ...state, board: { ...state.board, goals } };
+    }
+
+    case 'REMOVE_BOARD_GOAL':
+      return { ...state, board: { ...state.board, goals: state.board.goals.filter(g => g.id !== action.goalId) } };
+
+    case 'ADJUST_BOARD_CONFIDENCE': {
+      if (!state.team) return state;
+      const newConf = Math.max(0, Math.min(100, state.team.boardConfidence + action.delta));
+      const entry = { date: new Date().toISOString().slice(0, 10), value: newConf, reason: action.reason };
+      return {
+        ...state,
+        team: { ...state.team, boardConfidence: newConf },
+        board: {
+          ...state.board,
+          confidenceHistory: [entry, ...state.board.confidenceHistory].slice(0, 50),
+        },
+      };
+    }
+
+    case 'UPDATE_TEAM': {
+      if (!state.team) return state;
+      return { ...state, team: { ...state.team, ...action.updates } };
+    }
+
+    // ─── Transfers ─────────────────────────────────────────────────────────────
+
+    case 'ADD_WATCHLIST':
+      return { ...state, transfers: { ...state.transfers, watchlist: [...state.transfers.watchlist, action.player] } };
+
+    case 'REMOVE_WATCHLIST':
+      return { ...state, transfers: { ...state.transfers, watchlist: state.transfers.watchlist.filter(p => p.id !== action.playerId) } };
+
+    case 'UPDATE_WATCHLIST':
+      return {
+        ...state,
+        transfers: {
+          ...state.transfers,
+          watchlist: state.transfers.watchlist.map(p =>
+            p.id === action.playerId ? { ...p, ...action.updates } : p,
+          ),
+        },
+      };
+
+    case 'EXECUTE_TRANSFER': {
+      const { record, newPlayer, removedPlayerId, ledgerEntries } = action;
+      let players = state.players;
+      let finance = state.finance;
+
+      if (removedPlayerId) {
+        players = players.filter(p => p.id !== removedPlayerId);
+      }
+      if (newPlayer) {
+        players = [...players, newPlayer];
+      }
+      if (record.type === 'loan_out' && removedPlayerId) {
+        players = state.players.map(p =>
+          p.id === removedPlayerId ? { ...p, status: 'Emprestado' as const } : p,
+        );
+      }
+
+      let newBalance = finance.balance;
+      const newLedger = [...finance.ledger];
+      for (const e of ledgerEntries) {
+        newBalance += e.amount;
+        newLedger.unshift(e);
+      }
+
+      const updatedTeam = state.team ? { ...state.team, budget: newBalance } : state.team;
+      finance = { ...finance, balance: newBalance, ledger: newLedger };
+
+      // Remove from watchlist if converted from there
+      const watchlist = state.transfers.watchlist.filter(w => w.id !== record.playerId);
+
+      return {
+        ...state,
+        players,
+        team: updatedTeam,
+        finance,
+        transfers: {
+          ...state.transfers,
+          watchlist,
+          history: [record, ...state.transfers.history],
+        },
+      };
+    }
 
     default:
       return state;
@@ -526,34 +831,54 @@ const GameContext = createContext<GameContextValue | null>(null);
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
+  const { persistSave, fetchCloudSave } = useAuth();
 
   useEffect(() => {
     if (!state.started) return;
 
-    if (state.careerMode === 'coach' && state.team && state.teamId) {
-      saveGame({
-        careerMode: 'coach',
-        teamId: state.teamId,
-        team: state.team,
-        players: state.players,
-        matches: state.matches,
-        season: state.season,
-        manager: state.manager,
-        seasonCompetitions: state.seasonCompetitions,
-        tactics: state.tactics,
-        tutorialCompleted: state.tutorialCompleted,
-      });
-    } else if (state.careerMode === 'player' && state.careerPlayer) {
-      saveGame({
-        careerMode: 'player',
-        careerPlayer: state.careerPlayer,
-        matches: state.matches,
-        season: state.season,
-        seasonCompetitions: state.seasonCompetitions,
-        tutorialCompleted: state.tutorialCompleted,
-      });
+    let cancelled = false;
+
+    async function sync() {
+      try {
+        if (state.careerMode === 'coach' && state.team && state.teamId) {
+          await persistSave({
+            careerMode: 'coach',
+            teamId: state.teamId,
+            team: state.team,
+            players: state.players,
+            matches: state.matches,
+            season: state.season,
+            manager: state.manager,
+            seasonCompetitions: state.seasonCompetitions,
+            tactics: state.tactics,
+            tutorialCompleted: state.tutorialCompleted,
+            pulse: state.pulse,
+            finance: state.finance,
+            board: state.board,
+            transfers: state.transfers,
+          });
+        } else if (state.careerMode === 'player' && state.careerPlayer) {
+          await persistSave({
+            careerMode: 'player',
+            careerPlayer: state.careerPlayer,
+            matches: state.matches,
+            season: state.season,
+            seasonCompetitions: state.seasonCompetitions,
+            tutorialCompleted: state.tutorialCompleted,
+          });
+        }
+      } catch (err) {
+        if (!cancelled) console.error('Falha ao salvar na nuvem', err);
+      }
     }
-  }, [state]);
+
+    // Debounce cloud writes — avoid hammering Firestore on every keystroke
+    const timer = window.setTimeout(sync, 600);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [state, persistSave]);
 
   function selectCareerMode(mode: CareerMode) {
     dispatch({ type: 'SELECT_CAREER_MODE', mode });
@@ -563,8 +888,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_COACH_COUNTRY', country });
   }
 
-  function selectTeam(teamId: string) {
-    dispatch({ type: 'SELECT_TEAM', teamId });
+  function setCustomClub(team: Team, players: Player[]) {
+    dispatch({ type: 'SET_CUSTOM_CLUB', team, players });
   }
 
   function setManager(manager: Manager) {
@@ -572,10 +897,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }
 
   function startCareer(seasonCompetitions: string[]) {
-    if (!state.pendingTeamId || !state.manager) return;
+    if (!state.pendingTeam || !state.manager || state.pendingPlayers.length === 0) return;
     dispatch({
       type: 'START_CAREER',
-      teamId: state.pendingTeamId,
       manager: state.manager,
       seasonCompetitions,
     });
@@ -630,9 +954,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   function updatePlayer(
     playerId: string,
-    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status'>>,
+    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue'>>,
   ) {
     dispatch({ type: 'UPDATE_PLAYER', playerId, updates });
+  }
+
+  function addPlayer(player: Player) {
+    dispatch({ type: 'ADD_PLAYER', player });
+  }
+
+  function removePlayer(playerId: string) {
+    dispatch({ type: 'REMOVE_PLAYER', playerId });
   }
 
   function scheduleMatch(input: ScheduleMatchInput): string {
@@ -704,8 +1036,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SAVE_TACTICS', tactics });
   }
 
-  function loadSavedGame(): CareerMode | null {
-    const save = loadGame();
+  function rollPulseForMatch(matchId: string) {
+    dispatch({ type: 'APPLY_PULSE', matchId });
+  }
+
+  function updatePulseSettings(settings: Partial<PulseSettings>) {
+    dispatch({ type: 'UPDATE_PULSE_SETTINGS', settings });
+  }
+
+  async function loadSavedGame(): Promise<CareerMode | null> {
+    const save = await fetchCloudSave();
     if (!save) return null;
 
     if (save.careerMode === 'player' && save.careerPlayer) {
@@ -723,31 +1063,79 @@ export function GameProvider({ children }: { children: ReactNode }) {
           season: save.season,
           tactics: null,
           tutorialCompleted: save.tutorialCompleted ?? false,
+          pulse: createDefaultPulseState(),
+          finance: createDefaultFinance(),
+          board: createDefaultBoardState(),
+          transfers: createDefaultTransferState(),
         },
       });
       return 'player';
     }
 
     if (save.team && save.teamId) {
+      const players = save.players ?? [];
+      const matches = save.matches;
+      const recalculated = recalculateFromMatches(save.team, players, matches);
       dispatch({
         type: 'LOAD_SAVE',
         state: {
           careerMode: 'coach',
           teamId: save.teamId,
-          team: save.team,
+          team: recalculated.team,
           manager: save.manager ?? null,
           seasonCompetitions: save.seasonCompetitions,
-          players: save.players ?? [],
-          matches: save.matches,
+          players: recalculated.players,
+          matches,
           season: save.season,
           tactics: save.tactics ?? null,
           careerPlayer: null,
           tutorialCompleted: save.tutorialCompleted ?? false,
+          pulse: save.pulse ?? createDefaultPulseState(),
+          finance: save.finance ?? createDefaultFinance(save.team.budget ?? 5_000_000),
+          board: save.board ?? createDefaultBoardState(),
+          transfers: save.transfers ?? createDefaultTransferState(),
         },
       });
       return 'coach';
     }
 
+    return null;
+  }
+
+  function getSaveSnapshot(): GameSave | null {
+    if (!state.started) return null;
+    if (state.careerMode === 'coach' && state.team && state.teamId) {
+      return {
+        version: '0.5.0',
+        savedAt: new Date().toISOString(),
+        careerMode: 'coach',
+        teamId: state.teamId,
+        team: state.team,
+        players: state.players,
+        matches: state.matches,
+        season: state.season,
+        manager: state.manager,
+        seasonCompetitions: state.seasonCompetitions,
+        tactics: state.tactics,
+        tutorialCompleted: state.tutorialCompleted,
+        pulse: state.pulse,
+        finance: state.finance,
+        board: state.board,
+        transfers: state.transfers,
+      };
+    }
+    if (state.careerMode === 'player' && state.careerPlayer) {
+      return {
+        version: '0.5.0',
+        savedAt: new Date().toISOString(),
+        careerMode: 'player',
+        careerPlayer: state.careerPlayer,
+        matches: state.matches,
+        season: state.season,
+        seasonCompetitions: state.seasonCompetitions,
+        tutorialCompleted: state.tutorialCompleted,
+      };
+    }
     return null;
   }
 
@@ -768,13 +1156,71 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return state.matches.find(m => m.id === matchId);
   }
 
+  // ─── Finance ───────────────────────────────────────────────────────────────
+
+  function applyLedger(entry: FinanceLedgerEntry) {
+    dispatch({ type: 'APPLY_LEDGER', entry });
+  }
+
+  function payWages() {
+    dispatch({ type: 'PAY_WAGES' });
+  }
+
+  function setPrizeTable(competition: string, prize: { win?: number; draw?: number; knockout?: number; champion?: number }) {
+    dispatch({ type: 'SET_PRIZE_TABLE', competition, prize });
+  }
+
+  function updateFinance(updates: Partial<ClubFinance>) {
+    dispatch({ type: 'UPDATE_FINANCE', updates });
+  }
+
+  // ─── Board ─────────────────────────────────────────────────────────────────
+
+  function updateBoard(updates: Partial<BoardState>) {
+    dispatch({ type: 'UPDATE_BOARD', updates });
+  }
+
+  function setBoardGoal(goal: BoardGoal) {
+    dispatch({ type: 'SET_BOARD_GOAL', goal });
+  }
+
+  function removeBoardGoal(goalId: string) {
+    dispatch({ type: 'REMOVE_BOARD_GOAL', goalId });
+  }
+
+  function adjustBoardConfidence(delta: number, reason: string) {
+    dispatch({ type: 'ADJUST_BOARD_CONFIDENCE', delta, reason });
+  }
+
+  function updateTeam(updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>>) {
+    dispatch({ type: 'UPDATE_TEAM', updates });
+  }
+
+  // ─── Transfers ─────────────────────────────────────────────────────────────
+
+  function addWatchlist(player: WatchlistPlayer) {
+    dispatch({ type: 'ADD_WATCHLIST', player });
+  }
+
+  function removeWatchlist(playerId: string) {
+    dispatch({ type: 'REMOVE_WATCHLIST', playerId });
+  }
+
+  function updateWatchlist(playerId: string, updates: Partial<WatchlistPlayer>) {
+    dispatch({ type: 'UPDATE_WATCHLIST', playerId, updates });
+  }
+
+  function executeTransfer(record: TransferRecord, newPlayer?: Player, removedPlayerId?: string, ledgerEntries?: FinanceLedgerEntry[]) {
+    dispatch({ type: 'EXECUTE_TRANSFER', record, newPlayer, removedPlayerId, ledgerEntries: ledgerEntries ?? [] });
+  }
+
   return (
     <GameContext.Provider
       value={{
         state,
         selectCareerMode,
         setCoachCountry,
-        selectTeam,
+        setCustomClub,
         setManager,
         startCareer,
         setCareerPlayer,
@@ -787,6 +1233,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         removeInjury,
         advanceSeason,
         updatePlayer,
+        addPlayer,
+        removePlayer,
         scheduleMatch,
         schedulePlayerMatch,
         updateScheduledMatch,
@@ -795,11 +1243,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
         completePlayerMatch,
         updatePlayerMatch,
         saveTactics,
+        rollPulseForMatch,
+        updatePulseSettings,
         loadSavedGame,
         completeTutorial,
         resetGame,
         getTeamPlayers,
         getMatch,
+        getSaveSnapshot,
+        applyLedger,
+        payWages,
+        setPrizeTable,
+        updateFinance,
+        updateBoard,
+        setBoardGoal,
+        removeBoardGoal,
+        adjustBoardConfidence,
+        updateTeam,
+        addWatchlist,
+        removeWatchlist,
+        updateWatchlist,
+        executeTransfer,
       }}
     >
       {children}
@@ -812,5 +1276,3 @@ export function useGame(): GameContextValue {
   if (!ctx) throw new Error('useGame must be used inside GameProvider');
   return ctx;
 }
-
-export { allTeams, allPlayers };
