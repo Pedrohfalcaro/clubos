@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useGame } from '../../context/GameContext';
 import { boardStatus } from '../../types/Board';
 import type { BoardGoal, BoardGoalKind } from '../../types/Board';
@@ -8,7 +8,7 @@ import { formatMoney, newLedgerEntry } from '../../utils/finance';
 import { downloadSaveBackup } from '../../utils/backup';
 import styles from './Board.module.css';
 
-type Tab = 'confidence' | 'goals' | 'club';
+type Tab = 'confidence' | 'goals' | 'club' | 'season';
 
 const GOAL_KINDS: { kind: BoardGoalKind; label: string; icon: string; unit: string }[] = [
   { kind: 'league_position', label: 'Posição no campeonato', icon: '🏆', unit: 'posição (1 = 1º)' },
@@ -33,13 +33,15 @@ function goalKindLabel(kind: BoardGoalKind): string {
 }
 
 export default function Board() {
-  const { state, setBoardGoal, removeBoardGoal, updateTeam, applyLedger, getSaveSnapshot } = useGame();
-  const { board, team, season, finance } = state;
+  const { state, setBoardGoal, removeBoardGoal, updateTeam, applyLedger, getSaveSnapshot, advanceSeason } = useGame();
+  const { board, team, season, finance, matches, players, transfers } = state;
 
   const [tab, setTab] = useState<Tab>('confidence');
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupMsg, setBackupMsg] = useState('');
+  const [showAdvanceConfirm, setShowAdvanceConfirm] = useState(false);
+  const [advancedTo, setAdvancedTo] = useState<number | null>(null);
 
   const primary = team?.primaryColor ?? DEFAULT_PRIMARY;
   const secondary = team?.secondaryColor ?? DEFAULT_SECONDARY;
@@ -125,6 +127,52 @@ export default function Board() {
 
   const activeGoals = board.goals.filter(g => g.season === season || g.status === 'active');
 
+  const seasonSummary = useMemo(() => {
+    const completed = matches.filter(m => m.status === 'completed');
+    const wins = completed.filter(m => m.result === 'win').length;
+    const draws = completed.filter(m => m.result === 'draw').length;
+    const losses = completed.filter(m => m.result === 'loss').length;
+    const gf = completed.reduce((s, m) => s + (m.goalsFor ?? 0), 0);
+    const ga = completed.reduce((s, m) => s + (m.goalsAgainst ?? 0), 0);
+    const income = finance.ledger
+      .filter(e => e.season === season && e.amount > 0)
+      .reduce((s, e) => s + e.amount, 0);
+    const expense = finance.ledger
+      .filter(e => e.season === season && e.amount < 0)
+      .reduce((s, e) => s + e.amount, 0);
+    const transfersSeason = transfers.history.filter(t => t.season === season);
+    const topScorers = [...players]
+      .filter(p => p.stats.goals > 0)
+      .sort((a, b) => b.stats.goals - a.stats.goals)
+      .slice(0, 3);
+    const goalsDone = board.goals.filter(g => g.season === season && g.status === 'done').length;
+    const goalsActive = board.goals.filter(g => g.season === season && g.status === 'active').length;
+
+    return {
+      matches: completed.length,
+      wins,
+      draws,
+      losses,
+      gf,
+      ga,
+      income,
+      expense,
+      transfers: transfersSeason.length,
+      topScorers,
+      goalsDone,
+      goalsActive,
+      confidence: team?.boardConfidence ?? 0,
+      balance: finance.balance,
+    };
+  }, [matches, finance, season, transfers.history, players, board.goals, team?.boardConfidence]);
+
+  function confirmAdvanceSeason() {
+    const next = season + 1;
+    advanceSeason();
+    setShowAdvanceConfirm(false);
+    setAdvancedTo(next);
+  }
+
   const confBarColor = status === 'stable' ? '#22c55e' : status === 'watchful' ? '#ca8a04' : '#ef4444';
   const statusClass = status === 'stable' ? styles.statusStable : status === 'watchful' ? styles.statusWatchful : styles.statusCrisis;
 
@@ -142,6 +190,7 @@ export default function Board() {
           ['confidence', 'Confiança'],
           ['goals', 'Metas'],
           ['club', 'Identidade do clube'],
+          ['season', 'Temporada'],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -336,6 +385,117 @@ export default function Board() {
               {backupBusy ? 'Gerando...' : 'Criar backup (ZIP)'}
             </button>
             {backupMsg && <p style={{ margin: 0, fontSize: 12, color: 'var(--accent)' }}>{backupMsg}</p>}
+          </div>
+        </div>
+      )}
+
+      {tab === 'season' && (
+        <div className={styles.editCard}>
+          <p className={styles.editTitle}>Resumo da temporada {season}</p>
+
+          {advancedTo != null && (
+            <div className={styles.seasonBanner}>
+              Temporada {advancedTo} iniciada. Elenco envelheceu +1 ano; estatísticas da temporada zeradas.
+            </div>
+          )}
+
+          <div className={styles.seasonGrid}>
+            <div className={styles.seasonStat}>
+              <span className={styles.seasonStatVal}>{seasonSummary.matches}</span>
+              <span className={styles.seasonStatLbl}>Jogos</span>
+            </div>
+            <div className={styles.seasonStat}>
+              <span className={styles.seasonStatVal}>
+                {seasonSummary.wins}-{seasonSummary.draws}-{seasonSummary.losses}
+              </span>
+              <span className={styles.seasonStatLbl}>V-E-D</span>
+            </div>
+            <div className={styles.seasonStat}>
+              <span className={styles.seasonStatVal}>
+                {seasonSummary.gf}:{seasonSummary.ga}
+              </span>
+              <span className={styles.seasonStatLbl}>Gols (pró/contra)</span>
+            </div>
+            <div className={styles.seasonStat}>
+              <span className={styles.seasonStatVal}>{seasonSummary.confidence}%</span>
+              <span className={styles.seasonStatLbl}>Confiança</span>
+            </div>
+          </div>
+
+          <div className={styles.seasonRows}>
+            <div className={styles.seasonRow}>
+              <span>Caixa atual</span>
+              <strong>{formatMoney(seasonSummary.balance, finance.currency)}</strong>
+            </div>
+            <div className={styles.seasonRow}>
+              <span>Receitas da temporada</span>
+              <strong className={styles.seasonIn}>+{formatMoney(seasonSummary.income, finance.currency)}</strong>
+            </div>
+            <div className={styles.seasonRow}>
+              <span>Despesas da temporada</span>
+              <strong className={styles.seasonOut}>{formatMoney(seasonSummary.expense, finance.currency)}</strong>
+            </div>
+            <div className={styles.seasonRow}>
+              <span>Transferências</span>
+              <strong>{seasonSummary.transfers}</strong>
+            </div>
+            <div className={styles.seasonRow}>
+              <span>Metas (cumpridas / ativas)</span>
+              <strong>{seasonSummary.goalsDone} / {seasonSummary.goalsActive}</strong>
+            </div>
+          </div>
+
+          {seasonSummary.topScorers.length > 0 && (
+            <div>
+              <p className={styles.editTitle}>Artilharia</p>
+              <ul className={styles.seasonScorers}>
+                {seasonSummary.topScorers.map(p => (
+                  <li key={p.id}>
+                    <span>{p.name}</span>
+                    <strong>{p.stats.goals} gols</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className={styles.seasonHint}>
+            Avançar fecha a temporada {season} e abre {season + 1}: idades +1, stats da temporada zeradas,
+            metas ativas marcadas como falhas, Pulse liberado de novo.
+          </p>
+
+          <div className={styles.saveRow}>
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              onClick={() => {
+                setAdvancedTo(null);
+                setShowAdvanceConfirm(true);
+              }}
+            >
+              Avançar para {season + 1}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showAdvanceConfirm && (
+        <div className={styles.overlay} onClick={() => setShowAdvanceConfirm(false)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <p className={styles.modalTitle}>Encerrar temporada {season}?</p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text)', lineHeight: 1.45 }}>
+              Resumo rápido: {seasonSummary.matches} jogos ({seasonSummary.wins}V {seasonSummary.draws}E {seasonSummary.losses}D),
+              {' '}{seasonSummary.gf} gols feitos, caixa {formatMoney(seasonSummary.balance, finance.currency)}.
+              {' '}Isso não pode ser desfeito.
+            </p>
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btnSecondary} onClick={() => setShowAdvanceConfirm(false)}>
+                Cancelar
+              </button>
+              <button type="button" className={styles.btnPrimary} onClick={confirmAdvanceSeason}>
+                Confirmar → {season + 1}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -26,8 +26,11 @@ import type { BoardState, BoardGoal } from '../types/Board';
 import { createDefaultBoardState } from '../types/Board';
 import type { TransferState, WatchlistPlayer, TransferRecord } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
+import type { SeasonArchive } from '../types/SeasonHistory';
+import { emptyTeamStats } from '../types/SeasonHistory';
 import { newLedgerEntry, wageBill } from '../utils/finance';
 import { useAuth } from './AuthContext';
+import { emptyPlayerStats as emptySquadStats } from '../types/Player';
 
 const PLAYER_TEAM_ID = 'player-career';
 
@@ -53,6 +56,7 @@ export interface GameState {
   finance: ClubFinance;
   board: BoardState;
   transfers: TransferState;
+  seasonHistory: SeasonArchive[];
 }
 
 type GameAction =
@@ -184,13 +188,14 @@ const initialState: GameState = {
   players: [],
   careerPlayer: null,
   matches: [],
-  season: 2025,
+  season: 2026,
   tactics: null,
   tutorialCompleted: false,
   pulse: createDefaultPulseState(),
   finance: createDefaultFinance(),
   board: createDefaultBoardState(),
   transfers: createDefaultTransferState(),
+  seasonHistory: [],
 };
 
 function updatePlayerFromMatch(
@@ -273,12 +278,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         players,
         careerPlayer: null,
         matches: [],
-        season: 2025,
+        season: 2026,
         tutorialCompleted: false,
         pulse: createDefaultPulseState(),
         finance: createDefaultFinance(team.budget ?? 5_000_000),
         board: createDefaultBoardState(),
         transfers: createDefaultTransferState(),
+        seasonHistory: [],
       };
     }
 
@@ -426,22 +432,102 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'ADVANCE_SEASON': {
-      if (!state.careerPlayer) return state;
       const newSeason = state.season + 1;
-      return {
-        ...state,
-        season: newSeason,
-        careerPlayer: {
-          ...state.careerPlayer,
-          age: state.careerPlayer.age + 1,
-          contractYearsLeft: Math.max(0, state.careerPlayer.contractYearsLeft - 1),
-          seasonStats: emptyPlayerStats(),
-          overallHistory: [
-            ...state.careerPlayer.overallHistory,
-            { season: newSeason, overall: state.careerPlayer.overall },
-          ],
-        },
-      };
+
+      // Player career mode
+      if (state.careerMode === 'player' && state.careerPlayer) {
+        return {
+          ...state,
+          season: newSeason,
+          careerPlayer: {
+            ...state.careerPlayer,
+            age: state.careerPlayer.age + 1,
+            contractYearsLeft: Math.max(0, state.careerPlayer.contractYearsLeft - 1),
+            seasonStats: emptyPlayerStats(),
+            overallHistory: [
+              ...state.careerPlayer.overallHistory,
+              { season: newSeason, overall: state.careerPlayer.overall },
+            ],
+          },
+        };
+      }
+
+      // Coach mode
+      if (state.careerMode === 'coach' && state.team) {
+        const income = state.finance.ledger
+          .filter(e => e.season === state.season && e.amount > 0)
+          .reduce((s, e) => s + e.amount, 0);
+        const expense = state.finance.ledger
+          .filter(e => e.season === state.season && e.amount < 0)
+          .reduce((s, e) => s + e.amount, 0);
+        const archive: SeasonArchive = {
+          season: state.season,
+          closedAt: new Date().toISOString(),
+          teamStats: { ...state.team.statistics },
+          boardConfidence: state.team.boardConfidence,
+          supporterConfidence: state.team.supporterConfidence,
+          balance: state.finance.balance,
+          income,
+          expense,
+          transferCount: state.transfers.history.filter(t => t.season === state.season).length,
+          players: state.players.map(p => ({
+            playerId: p.id,
+            name: p.name,
+            position: p.position,
+            age: p.age,
+            overall: p.overall,
+            stats: { ...p.stats },
+          })),
+        };
+
+        const players = state.players.map(p => ({
+          ...p,
+          age: p.age + 1,
+          careerStats: {
+            matches: (p.careerStats?.matches ?? 0) + (p.stats.matches ?? 0),
+            minutes: (p.careerStats?.minutes ?? 0) + (p.stats.minutes ?? 0),
+            goals: (p.careerStats?.goals ?? 0) + (p.stats.goals ?? 0),
+            assists: (p.careerStats?.assists ?? 0) + (p.stats.assists ?? 0),
+            yellowCards: (p.careerStats?.yellowCards ?? 0) + (p.stats.yellowCards ?? 0),
+            redCards: (p.careerStats?.redCards ?? 0) + (p.stats.redCards ?? 0),
+          },
+          stats: emptySquadStats(),
+          fatigue: 0,
+        }));
+        const goals = state.board.goals.map(g =>
+          g.status === 'active' && g.season === state.season
+            ? { ...g, status: 'failed' as const }
+            : g,
+        );
+        return {
+          ...state,
+          season: newSeason,
+          players,
+          seasonHistory: [...state.seasonHistory, archive],
+          team: {
+            ...state.team,
+            statistics: emptyTeamStats(),
+          },
+          board: {
+            ...state.board,
+            goals,
+            confidenceHistory: [
+              {
+                date: new Date().toISOString().slice(0, 10),
+                value: state.team.boardConfidence,
+                reason: `Início da temporada ${newSeason}`,
+              },
+              ...state.board.confidenceHistory,
+            ].slice(0, 50),
+          },
+          pulse: {
+            ...state.pulse,
+            rolledMatchIds: [],
+          },
+        };
+      }
+
+      return state;
     }
 
     case 'UPDATE_PLAYER':
@@ -674,6 +760,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         finance: action.state.finance ?? createDefaultFinance(),
         board: action.state.board ?? createDefaultBoardState(),
         transfers: action.state.transfers ?? createDefaultTransferState(),
+        seasonHistory: action.state.seasonHistory ?? [],
       };
 
     case 'RESET':
@@ -856,6 +943,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
             finance: state.finance,
             board: state.board,
             transfers: state.transfers,
+            seasonHistory: state.seasonHistory,
           });
         } else if (state.careerMode === 'player' && state.careerPlayer) {
           await persistSave({
@@ -984,6 +1072,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       assists: [],
       cards: [],
       playerMatches: [],
+      season: state.season,
     };
     dispatch({ type: 'SCHEDULE_MATCH', match });
     return id;
@@ -1007,6 +1096,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       assists: [],
       cards: [],
       playerMatches: [],
+      season: state.season,
     };
     dispatch({ type: 'SCHEDULE_MATCH', match });
     return id;
@@ -1067,6 +1157,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           finance: createDefaultFinance(),
           board: createDefaultBoardState(),
           transfers: createDefaultTransferState(),
+          seasonHistory: [],
         },
       });
       return 'player';
@@ -1094,6 +1185,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           finance: save.finance ?? createDefaultFinance(save.team.budget ?? 5_000_000),
           board: save.board ?? createDefaultBoardState(),
           transfers: save.transfers ?? createDefaultTransferState(),
+          seasonHistory: save.seasonHistory ?? [],
         },
       });
       return 'coach';
@@ -1122,6 +1214,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         finance: state.finance,
         board: state.board,
         transfers: state.transfers,
+        seasonHistory: state.seasonHistory,
       };
     }
     if (state.careerMode === 'player' && state.careerPlayer) {

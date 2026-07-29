@@ -299,6 +299,106 @@
   gap: 10px;
 }
 
+.seasonBanner {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #22c55e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.seasonGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.seasonStat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+}
+
+.seasonStatVal {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.seasonStatLbl {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+
+.seasonRows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.seasonRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.seasonRow:last-child {
+  border-bottom: none;
+}
+
+.seasonRow strong {
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.seasonIn { color: #22c55e; }
+.seasonOut { color: #ef4444; }
+
+.seasonScorers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.seasonScorers li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.seasonHint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+@media (max-width: 600px) {
+  .seasonGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* ── Shared buttons ─────────────────────── */
 .btnPrimary {
   padding: 8px 14px;

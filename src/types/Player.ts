@@ -37,7 +37,10 @@ export interface Player {
   salary: number;
   marketValue: number;
   status: PlayerStatus;
+  /** Current season stats */
   stats: PlayerStats;
+  /** Career totals (accumulated across closed seasons) */
+  careerStats?: PlayerStats;
   /** Pulse fields */
   personality?: string;
   fatigue?: number;

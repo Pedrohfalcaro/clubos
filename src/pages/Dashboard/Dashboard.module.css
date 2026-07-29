@@ -221,6 +221,34 @@
   opacity: 0.9;
 }
 
+.scopeBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scopeBtn {
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scopeBtn:hover {
+  border-color: var(--accent-border);
+  color: var(--text-h);
+}
+
+.scopeBtnActive {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
 /* ——— Hub cards (Finance / Board / Transfers) ——— */
 .hubGrid {
   display: grid;

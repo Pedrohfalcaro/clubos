@@ -8,6 +8,16 @@ import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
 import { WELCOME_TUTORIAL, hasSeenWelcome, markWelcomeSeen } from '../../utils/tutorials';
 import { formatMoney, wageBill, runwayMonths } from '../../utils/finance';
 import { boardStatus } from '../../types/Board';
+import {
+  scopeOptions,
+  teamStatsForScope,
+  matchesForScope,
+  playerStatsForScope,
+  financeForScope,
+  transfersForScope,
+  ledgerForScope,
+  type HistoryScope,
+} from '../../utils/historyScope';
 import styles from './Dashboard.module.css';
 
 function resultLabel(result: string | null): { text: string; className: string } {
@@ -66,12 +76,23 @@ const BOARD_STATUS_LABEL = {
 export default function Dashboard() {
   const { state } = useGame();
   const navigate = useNavigate();
-  const { team, matches, manager, finance, board, transfers, players } = state;
+  const { team, matches, manager, finance, board, transfers, players, seasonHistory } = state;
   const [showWelcome, setShowWelcome] = useState(() => !hasSeenWelcome());
+  const [histScope, setHistScope] = useState<HistoryScope>('current');
 
+  const scopes = useMemo(
+    () => scopeOptions(state.season, seasonHistory),
+    [state.season, seasonHistory],
+  );
+  const isCurrentScope = histScope === 'current' || histScope === state.season;
+
+  const scopedMatches = useMemo(
+    () => matchesForScope(matches, histScope, state.season),
+    [matches, histScope, state.season],
+  );
   const recentMatches = useMemo(
-    () => matches.filter(m => m.status === 'completed').slice(0, 5),
-    [matches],
+    () => [...scopedMatches].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
+    [scopedMatches],
   );
   const nextMatch = useMemo(
     () =>
@@ -84,55 +105,70 @@ export default function Dashboard() {
   const topScorers = useMemo(
     () =>
       [...players]
-        .filter(p => p.stats.goals > 0)
+        .map(p => ({ player: p, stats: playerStatsForScope(p, histScope, seasonHistory, state.season) }))
+        .filter(r => r.stats.goals > 0)
         .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists)
         .slice(0, 5),
-    [players],
+    [players, histScope, seasonHistory, state.season],
   );
 
   const topAssists = useMemo(
     () =>
       [...players]
-        .filter(p => p.stats.assists > 0)
+        .map(p => ({ player: p, stats: playerStatsForScope(p, histScope, seasonHistory, state.season) }))
+        .filter(r => r.stats.assists > 0)
         .sort((a, b) => b.stats.assists - a.stats.assists || b.stats.goals - a.stats.goals)
         .slice(0, 5),
-    [players],
+    [players, histScope, seasonHistory, state.season],
   );
 
   const topRatings = useMemo(() => {
     return [...players]
       .map(p => ({
         player: p,
-        avg: calcPlayerAverageRating(p.id, matches),
+        avg: calcPlayerAverageRating(p.id, scopedMatches),
       }))
       .filter((x): x is { player: typeof players[0]; avg: number } => x.avg != null)
       .sort((a, b) => b.avg - a.avg)
       .slice(0, 5);
-  }, [players, matches]);
+  }, [players, scopedMatches]);
 
   const bill = useMemo(() => wageBill(players), [players]);
   const runway = useMemo(() => runwayMonths(finance, players), [finance, players]);
-  const recentLedger = useMemo(() => finance.ledger.slice(0, 4), [finance.ledger]);
-  const recentTransfers = useMemo(() => transfers.history.slice(0, 4), [transfers.history]);
+  const scopedFinance = useMemo(
+    () => financeForScope(finance, histScope, seasonHistory, state.season),
+    [finance, histScope, seasonHistory, state.season],
+  );
+  const recentLedger = useMemo(
+    () => ledgerForScope(finance.ledger, histScope, state.season).slice(0, 4),
+    [finance.ledger, histScope, state.season],
+  );
+  const scopedTransfers = useMemo(
+    () => transfersForScope(transfers.history, histScope, state.season),
+    [transfers.history, histScope, state.season],
+  );
+  const recentTransfers = useMemo(() => scopedTransfers.slice(0, 4), [scopedTransfers]);
   const activeGoals = useMemo(
     () => board.goals.filter(g => g.status === 'active').slice(0, 3),
     [board.goals],
   );
-  const seasonIncome = useMemo(
-    () => finance.ledger.filter(e => e.season === state.season && e.amount > 0).reduce((s, e) => s + e.amount, 0),
-    [finance.ledger, state.season],
-  );
-  const seasonExpense = useMemo(
-    () => finance.ledger.filter(e => e.season === state.season && e.amount < 0).reduce((s, e) => s + e.amount, 0),
-    [finance.ledger, state.season],
-  );
 
   if (!team) return null;
 
-  const { statistics: s } = team;
+  const s = teamStatsForScope(team.statistics, histScope, seasonHistory, state.season);
   const gd = s.goalsFor - s.goalsAgainst;
   const gdText = gd > 0 ? `+${gd}` : String(gd);
-  const confStatus = boardStatus(team.boardConfidence);
+  const archived = typeof histScope === 'number'
+    ? seasonHistory.find(a => a.season === histScope)
+    : undefined;
+  const boardConf = archived?.boardConfidence ?? team.boardConfidence;
+  const confStatus = boardStatus(boardConf);
+  const scopeLabel =
+    histScope === 'total'
+      ? 'Carreira'
+      : histScope === 'current'
+        ? `Temporada ${state.season}`
+        : `Temporada ${histScope}`;
 
   return (
     <div className={styles.page}>
@@ -221,7 +257,22 @@ export default function Dashboard() {
         </button>
       </nav>
 
-      {nextMatch ? (
+      <div className={styles.scopeBar} role="tablist" aria-label="Período do histórico">
+        {scopes.map(sOpt => (
+          <button
+            key={String(sOpt.value)}
+            type="button"
+            role="tab"
+            aria-selected={histScope === sOpt.value}
+            className={`${styles.scopeBtn} ${histScope === sOpt.value ? styles.scopeBtnActive : ''}`}
+            onClick={() => setHistScope(sOpt.value)}
+          >
+            {sOpt.label}
+          </button>
+        ))}
+      </div>
+
+      {nextMatch && isCurrentScope ? (
         <button
           type="button"
           className={styles.nextMatch}
@@ -246,7 +297,7 @@ export default function Dashboard() {
           </div>
           <span className={styles.nextMatchCta}>Jogar →</span>
         </button>
-      ) : (
+      ) : isCurrentScope ? (
         <button
           type="button"
           className={styles.nextMatchEmpty}
@@ -254,7 +305,7 @@ export default function Dashboard() {
         >
           Nenhuma partida agendada — <strong>agendar agora</strong>
         </button>
-      )}
+      ) : null}
 
       {/* Hub: Financeiro / Diretoria / Transferências */}
       <section className={styles.hubGrid} aria-label="Gestão do clube">
@@ -263,16 +314,24 @@ export default function Dashboard() {
             <h2 className={styles.hubTitle}>Financeiro</h2>
             <span className={styles.hubArrow}>→</span>
           </div>
-          <p className={styles.hubBig}>{formatMoney(finance.balance, finance.currency)}</p>
+          <p className={styles.hubBig}>
+            {formatMoney(scopedFinance.balance ?? finance.balance, finance.currency)}
+          </p>
+          {isCurrentScope ? (
+            <div className={styles.hubMeta}>
+              <span>Folha {formatMoney(bill, finance.currency)}/mês</span>
+              <span>
+                Runway {runway === Infinity ? '∞' : `${runway}m`}
+              </span>
+            </div>
+          ) : (
+            <div className={styles.hubMeta}>
+              <span>{scopeLabel}</span>
+            </div>
+          )}
           <div className={styles.hubMeta}>
-            <span>Folha {formatMoney(bill, finance.currency)}/mês</span>
-            <span>
-              Runway {runway === Infinity ? '∞' : `${runway}m`}
-            </span>
-          </div>
-          <div className={styles.hubMeta}>
-            <span className={styles.hubIn}>+{formatMoney(seasonIncome, finance.currency)}</span>
-            <span className={styles.hubOut}>{formatMoney(seasonExpense, finance.currency)}</span>
+            <span className={styles.hubIn}>+{formatMoney(scopedFinance.income, finance.currency)}</span>
+            <span className={styles.hubOut}>{formatMoney(scopedFinance.expense, finance.currency)}</span>
           </div>
           {recentLedger.length > 0 && (
             <ul className={styles.hubList}>
@@ -293,14 +352,18 @@ export default function Dashboard() {
             <h2 className={styles.hubTitle}>Diretoria</h2>
             <span className={styles.hubArrow}>→</span>
           </div>
-          <p className={styles.hubBig}>{team.boardConfidence}%</p>
+          <p className={styles.hubBig}>{boardConf}%</p>
           <div className={styles.hubMeta}>
             <span className={styles[`hubStatus_${confStatus}`]}>
               {BOARD_STATUS_LABEL[confStatus]}
             </span>
-            <span>{activeGoals.length} meta{activeGoals.length !== 1 ? 's' : ''} ativa{activeGoals.length !== 1 ? 's' : ''}</span>
+            {isCurrentScope ? (
+              <span>{activeGoals.length} meta{activeGoals.length !== 1 ? 's' : ''} ativa{activeGoals.length !== 1 ? 's' : ''}</span>
+            ) : (
+              <span>{scopeLabel}</span>
+            )}
           </div>
-          {activeGoals.length > 0 ? (
+          {isCurrentScope && activeGoals.length > 0 ? (
             <ul className={styles.hubList}>
               {activeGoals.map(g => (
                 <li key={g.id}>
@@ -309,8 +372,14 @@ export default function Dashboard() {
                 </li>
               ))}
             </ul>
-          ) : (
+          ) : isCurrentScope ? (
             <p className={styles.hubEmpty}>Nenhuma meta definida.</p>
+          ) : archived ? (
+            <p className={styles.hubEmpty}>
+              Torcida {archived.supporterConfidence}% no fechamento
+            </p>
+          ) : (
+            <p className={styles.hubEmpty}>Confiança atual do clube.</p>
           )}
         </button>
 
@@ -319,10 +388,16 @@ export default function Dashboard() {
             <h2 className={styles.hubTitle}>Transferências</h2>
             <span className={styles.hubArrow}>→</span>
           </div>
-          <p className={styles.hubBig}>{transfers.history.length}</p>
+          <p className={styles.hubBig}>{scopedTransfers.length}</p>
           <div className={styles.hubMeta}>
-            <span>{transfers.watchlist.length} na observação</span>
-            <span>{players.filter(p => p.status === 'Transferível').length} transferíveis</span>
+            {isCurrentScope ? (
+              <>
+                <span>{transfers.watchlist.length} na observação</span>
+                <span>{players.filter(p => p.status === 'Transferível').length} transferíveis</span>
+              </>
+            ) : (
+              <span>{scopeLabel}</span>
+            )}
           </div>
           {recentTransfers.length > 0 ? (
             <ul className={styles.hubList}>
@@ -343,12 +418,12 @@ export default function Dashboard() {
               ))}
             </ul>
           ) : (
-            <p className={styles.hubEmpty}>Nenhuma operação ainda.</p>
+            <p className={styles.hubEmpty}>Nenhuma operação neste período.</p>
           )}
         </button>
       </section>
 
-      <section className={styles.formStrip} aria-label="Desempenho da temporada">
+      <section className={styles.formStrip} aria-label={`Desempenho — ${scopeLabel}`}>
         <div className={styles.formBlock}>
           <span className={styles.formNum}>{s.matches}</span>
           <span className={styles.formLbl}>Jogos</span>
@@ -400,14 +475,14 @@ export default function Dashboard() {
           <div className={styles.leaderCard}>
             <h3 className={styles.leaderTitle}>Artilharia</h3>
             {topScorers.length === 0 ? (
-              <p className={styles.leaderEmpty}>Sem gols ainda.</p>
+              <p className={styles.leaderEmpty}>Sem gols neste período.</p>
             ) : (
               <ol className={styles.leaderList}>
-                {topScorers.map((p, i) => (
-                  <li key={p.id}>
+                {topScorers.map((row, i) => (
+                  <li key={row.player.id}>
                     <span className={styles.leaderRank}>{i + 1}</span>
-                    <span className={styles.leaderName}>{p.name}</span>
-                    <span className={styles.leaderStat}>{p.stats.goals}</span>
+                    <span className={styles.leaderName}>{row.player.name}</span>
+                    <span className={styles.leaderStat}>{row.stats.goals}</span>
                   </li>
                 ))}
               </ol>
@@ -417,14 +492,14 @@ export default function Dashboard() {
           <div className={styles.leaderCard}>
             <h3 className={styles.leaderTitle}>Assistências</h3>
             {topAssists.length === 0 ? (
-              <p className={styles.leaderEmpty}>Sem assistências ainda.</p>
+              <p className={styles.leaderEmpty}>Sem assistências neste período.</p>
             ) : (
               <ol className={styles.leaderList}>
-                {topAssists.map((p, i) => (
-                  <li key={p.id}>
+                {topAssists.map((row, i) => (
+                  <li key={row.player.id}>
                     <span className={styles.leaderRank}>{i + 1}</span>
-                    <span className={styles.leaderName}>{p.name}</span>
-                    <span className={styles.leaderStat}>{p.stats.assists}</span>
+                    <span className={styles.leaderName}>{row.player.name}</span>
+                    <span className={styles.leaderStat}>{row.stats.assists}</span>
                   </li>
                 ))}
               </ol>
@@ -434,7 +509,7 @@ export default function Dashboard() {
           <div className={styles.leaderCard}>
             <h3 className={styles.leaderTitle}>Nota média</h3>
             {topRatings.length === 0 ? (
-              <p className={styles.leaderEmpty}>Sem notas ainda.</p>
+              <p className={styles.leaderEmpty}>Sem notas neste período.</p>
             ) : (
               <ol className={styles.leaderList}>
                 {topRatings.map((row, i) => (
@@ -459,7 +534,9 @@ export default function Dashboard() {
         </div>
         {recentMatches.length === 0 ? (
           <div className={styles.empty}>
-            Ainda sem jogos. Agende a primeira partida e registre o resultado.
+            {isCurrentScope
+              ? 'Ainda sem jogos. Agende a primeira partida e registre o resultado.'
+              : 'Nenhuma partida registrada neste período.'}
           </div>
         ) : (
           <div className={styles.matchList}>

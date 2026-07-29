@@ -24,6 +24,115 @@
   margin: 0;
 }
 
+.viewTabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.viewTab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.viewTabActive {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.histTotals {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.histTotals > div {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  text-align: center;
+}
+
+.histTotals strong {
+  font-size: 16px;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.histTotals span {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+
+.histTable {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.histRow {
+  display: grid;
+  grid-template-columns: 1.4fr 0.5fr repeat(6, 0.55fr);
+  gap: 6px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  align-items: center;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.histRow:last-child {
+  border-bottom: none;
+}
+
+.histHead {
+  background: var(--bg);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.histName {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 700px) {
+  .histTotals {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .histRow {
+    grid-template-columns: 1fr 40px repeat(3, 36px);
+  }
+  .histRow span:nth-child(n+5) {
+    display: none;
+  }
+  .histHead span:nth-child(n+5) {
+    display: none;
+  }
+}
+
 .controls {
   display: flex;
   align-items: center;

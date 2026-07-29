@@ -130,6 +130,8 @@ export interface Match {
   worstPlayerId?: string;
   clubName?: string;
   playerPerformance?: PlayerMatchPerformance;
+  /** Season in which the match was scheduled / played */
+  season?: number;
 }
 
 export interface ScheduleMatchInput {

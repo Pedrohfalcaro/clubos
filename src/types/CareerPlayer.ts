@@ -92,7 +92,7 @@ export function createDefaultCareerPlayer(
     stats: emptyPlayerStats(),
     seasonStats: emptyPlayerStats(),
     careerHistory: [],
-    overallHistory: [{ season: 2025, overall: partial.overall }],
+    overallHistory: [{ season: 2026, overall: partial.overall }],
     injuries: [],
   };
 }

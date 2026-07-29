@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useGame } from '../../context/GameContext';
 import type { PlayerStatus } from '../../types/Player';
 import { formatMoney } from '../../utils/finance';
+import {
+  scopeOptions,
+  playerStatsForScope,
+  type HistoryScope,
+} from '../../utils/historyScope';
 import styles from './Squad.module.css';
 
 const POSITION_ORDER = ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'CF', 'ST'];
@@ -30,6 +35,8 @@ function overallColor(ovr: number): string {
 
 export default function Squad() {
   const { state, updatePlayer } = useGame();
+  const [view, setView] = useState<'roster' | 'history'>('roster');
+  const [histScope, setHistScope] = useState<HistoryScope>('current');
   const [filter, setFilter] = useState<PlayerStatus | 'Todos'>('Todos');
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -42,12 +49,43 @@ export default function Squad() {
     marketValue: 0,
   });
   const currency = state.finance?.currency ?? 'BRL';
+  const scopes = useMemo(
+    () => scopeOptions(state.season, state.seasonHistory),
+    [state.season, state.seasonHistory],
+  );
 
   const players = state.players.filter(p => {
     const matchStatus = filter === 'Todos' || p.status === filter;
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchSearch;
   });
+
+  const historyRows = useMemo(() => {
+    return [...state.players]
+      .map(p => ({
+        player: p,
+        stats: playerStatsForScope(p, histScope, state.seasonHistory, state.season),
+      }))
+      .filter(row =>
+        row.player.name.toLowerCase().includes(search.toLowerCase()) &&
+        (histScope === 'current' || histScope === 'total' || row.stats.matches > 0 || row.stats.goals > 0 || row.stats.assists > 0),
+      )
+      .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists || b.stats.matches - a.stats.matches);
+  }, [state.players, histScope, state.seasonHistory, state.season, search]);
+
+  const historyTotals = useMemo(() => {
+    return historyRows.reduce(
+      (acc, r) => ({
+        matches: acc.matches + r.stats.matches,
+        minutes: acc.minutes + r.stats.minutes,
+        goals: acc.goals + r.stats.goals,
+        assists: acc.assists + r.stats.assists,
+        yellowCards: acc.yellowCards + r.stats.yellowCards,
+        redCards: acc.redCards + r.stats.redCards,
+      }),
+      { matches: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+    );
+  }, [historyRows]);
 
   const grouped = POSITION_ORDER.reduce<Record<string, typeof players>>((acc, pos) => {
     const group = players.filter(p => p.position === pos);
@@ -91,10 +129,95 @@ export default function Squad() {
       <header className={styles.header}>
         <div>
           <h1 className={styles.title}>Elenco</h1>
-          <p className={styles.sub}>{state.players.length} jogadores · clique em Editar para alterar dados</p>
+          <p className={styles.sub}>
+            {view === 'roster'
+              ? `${state.players.length} jogadores · clique em Editar para alterar dados`
+              : 'Estatísticas por temporada e totais da carreira'}
+          </p>
         </div>
       </header>
 
+      <div className={styles.viewTabs}>
+        <button
+          type="button"
+          className={`${styles.viewTab} ${view === 'roster' ? styles.viewTabActive : ''}`}
+          onClick={() => setView('roster')}
+        >
+          Elenco
+        </button>
+        <button
+          type="button"
+          className={`${styles.viewTab} ${view === 'history' ? styles.viewTabActive : ''}`}
+          onClick={() => setView('history')}
+        >
+          Histórico
+        </button>
+      </div>
+
+      {view === 'history' ? (
+        <>
+          <div className={styles.controls}>
+            <div className={styles.filters}>
+              {scopes.map(s => (
+                <button
+                  key={String(s.value)}
+                  type="button"
+                  className={`${styles.filterBtn} ${histScope === s.value ? styles.filterBtnActive : ''}`}
+                  onClick={() => setHistScope(s.value)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <input
+              className={styles.search}
+              type="text"
+              placeholder="Buscar jogador..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className={styles.histTotals}>
+            <div><strong>{historyTotals.matches}</strong><span>Jogos</span></div>
+            <div><strong>{historyTotals.minutes}'</strong><span>Minutos</span></div>
+            <div><strong>{historyTotals.goals}</strong><span>Gols</span></div>
+            <div><strong>{historyTotals.assists}</strong><span>Assist.</span></div>
+            <div><strong>{historyTotals.yellowCards}</strong><span>CA</span></div>
+            <div><strong>{historyTotals.redCards}</strong><span>CV</span></div>
+          </div>
+
+          {historyRows.length === 0 ? (
+            <div className={styles.empty}>Nenhum dado neste período.</div>
+          ) : (
+            <div className={styles.histTable}>
+              <div className={`${styles.histRow} ${styles.histHead}`}>
+                <span>Jogador</span>
+                <span>Pos</span>
+                <span>J</span>
+                <span>Min</span>
+                <span>G</span>
+                <span>A</span>
+                <span>CA</span>
+                <span>CV</span>
+              </div>
+              {historyRows.map(({ player: p, stats }) => (
+                <div key={p.id} className={styles.histRow}>
+                  <span className={styles.histName}>{p.name}</span>
+                  <span>{p.position}</span>
+                  <span>{stats.matches}</span>
+                  <span>{stats.minutes}'</span>
+                  <span>{stats.goals}</span>
+                  <span>{stats.assists}</span>
+                  <span>{stats.yellowCards}</span>
+                  <span>{stats.redCards}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
       <div className={styles.controls}>
         <div className={styles.filters}>
           {STATUS_FILTERS.map(f => (
@@ -325,6 +448,8 @@ export default function Squad() {
 
       {Object.keys(grouped).length === 0 && (
         <div className={styles.empty}>Nenhum jogador encontrado.</div>
+      )}
+        </>
       )}
     </div>
   );

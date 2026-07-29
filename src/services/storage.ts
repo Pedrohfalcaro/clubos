@@ -12,6 +12,7 @@ import type { BoardState } from '../types/Board';
 import { createDefaultBoardState } from '../types/Board';
 import type { TransferState } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
+import type { SeasonArchive } from '../types/SeasonHistory';
 
 const SAVE_KEY = 'clubos_save';
 
@@ -32,6 +33,7 @@ export interface GameSave {
   finance?: ClubFinance;
   board?: BoardState;
   transfers?: TransferState;
+  seasonHistory?: SeasonArchive[];
   savedAt: string;
 }
 
@@ -92,6 +94,14 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       yellowCards: p.stats?.yellowCards ?? 0,
       redCards: p.stats?.redCards ?? 0,
     },
+    careerStats: p.careerStats ?? {
+      matches: 0,
+      minutes: 0,
+      goals: 0,
+      assists: 0,
+      yellowCards: 0,
+      redCards: 0,
+    },
   }));
 
   const team = save.team
@@ -130,6 +140,8 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       }
     : createDefaultTransferState();
 
+  const seasonHistory: SeasonArchive[] = save.seasonHistory ?? [];
+
   const base: GameSave = {
     ...save,
     version: '0.5.0',
@@ -145,6 +157,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     finance,
     board,
     transfers,
+    seasonHistory,
   };
 
   if (careerMode === 'coach' && save.teamId && team) {
@@ -162,7 +175,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       careerPlayer: {
         ...save.careerPlayer,
         seasonStats: save.careerPlayer.seasonStats ?? { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
-        overallHistory: save.careerPlayer.overallHistory ?? [{ season: save.season ?? 2025, overall: save.careerPlayer.overall }],
+        overallHistory: save.careerPlayer.overallHistory ?? [{ season: save.season ?? 2026, overall: save.careerPlayer.overall }],
         injuries: save.careerPlayer.injuries ?? [],
         careerHistory: save.careerPlayer.careerHistory ?? [],
       },
