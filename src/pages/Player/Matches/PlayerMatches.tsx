@@ -75,8 +75,12 @@ export default function PlayerMatches() {
       </header>
 
       <MatchScheduleModal
+        key={editingMatch?.id ?? 'new-match'}
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          setEditingMatch(null);
+        }}
         onSubmit={handleSubmit}
         competitions={competitionNames(state.seasonCompetitions)}
         title={modalTitle}

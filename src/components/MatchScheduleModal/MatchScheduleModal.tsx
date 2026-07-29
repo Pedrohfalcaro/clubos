@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MatchLocation } from '../../types/Match';
 import styles from './MatchScheduleModal.module.css';
 
@@ -32,25 +32,35 @@ export default function MatchScheduleModal({
   title = 'Agendar Partida',
 }: MatchScheduleModalProps) {
   const [opponent, setOpponent] = useState('');
-  const [date, setDate] = useState(initialDate ?? new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [location, setLocation] = useState<MatchLocation>('home');
-  const [competition, setCompetition] = useState(competitions[0] ?? '');
+  const [competition, setCompetition] = useState('');
+  const wasOpen = useRef(false);
 
+  // Só preenche o formulário ao abrir — evita resetar enquanto o usuário digita
+  // (pai re-renderiza com novos arrays/objetos e re-disparava o effect).
   useEffect(() => {
-    if (open) {
+    if (open && !wasOpen.current) {
       setOpponent(initialData?.opponent ?? '');
       setDate(initialData?.date ?? initialDate ?? new Date().toISOString().split('T')[0]);
       setLocation(initialData?.location ?? 'home');
       setCompetition(initialData?.competition ?? competitions[0] ?? '');
     }
+    if (!open && wasOpen.current) {
+      setOpponent('');
+      setLocation('home');
+      setCompetition('');
+    }
+    wasOpen.current = open;
   }, [open, initialData, initialDate, competitions]);
 
   if (!open) return null;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!opponent.trim() || !competition) return;
-    onSubmit({ opponent: opponent.trim(), date, location, competition });
+    const name = opponent.trim();
+    if (!name || !competition) return;
+    onSubmit({ opponent: name, date, location, competition });
     onClose();
   }
 
@@ -66,6 +76,7 @@ export default function MatchScheduleModal({
               onChange={e => setOpponent(e.target.value)}
               placeholder="Nome do adversário"
               required
+              autoFocus
             />
           </div>
           <div className={styles.field}>
