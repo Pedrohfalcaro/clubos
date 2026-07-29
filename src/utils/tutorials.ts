@@ -41,7 +41,12 @@ export const SECTION_TUTORIALS: Record<string, TutorialStep[]> = {
     {
       section: 'Tática',
       title: 'Montagem tática',
-      body: 'Escolha a formação, arraste ou toque nos jogadores para preencher posições e configure o banco de reservas.',
+      body: 'Escolha entre 15 formações, defina o estilo de jogo e arraste ou toque nos jogadores para preencher as posições e o banco.',
+    },
+    {
+      section: 'Atalhos',
+      title: 'Escalação rápida',
+      body: 'Use "Escalação automática" para montar o melhor time por posição e overall. Trocar de formação mantém os mesmos jogadores, reposicionados por função.',
     },
   ],
   '/matches': [

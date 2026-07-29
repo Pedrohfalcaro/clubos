@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import FormationField from '../../components/FormationField/FormationField';
 import FormationPicker from '../../components/FormationPicker/FormationPicker';
+import StylePicker from '../../components/StylePicker/StylePicker';
 import { useGame } from '../../context/GameContext';
 import type {
   SubstitutionEvent,
@@ -10,11 +11,18 @@ import type {
   OpponentGoalEntry,
   TeamInjuryEntry,
 } from '../../types/Match';
+import type {
+  FormationKey,
+  FormationSlot,
+  TacticalStyleKey,
+  TacticsDraft,
+} from '../../types/Tactics';
 import { getHomeAway } from '../../utils/matchStats';
 import {
   getFormationPreset,
-  detectFormationKey,
-  type FormationKey,
+  isLineupComplete,
+  remapFormation,
+  resolveTactics,
 } from '../../utils/formations';
 import { defaultMinute, uid } from '../../utils/matchEvents';
 import {
@@ -57,15 +65,6 @@ const STEP_ORDER: Step[] = [
   'recap',
 ];
 
-function initialFormationKey(
-  tactics: ReturnType<typeof useGame>['state']['tactics'],
-  matchFormation?: { x: number; y: number }[],
-): FormationKey {
-  if (matchFormation?.length) return detectFormationKey(matchFormation) ?? '433';
-  if (tactics?.formation?.length) return detectFormationKey(tactics.formation) ?? '433';
-  return '433';
-}
-
 function stepLabel(step: Step): string {
   switch (step) {
     case 'lineup':
@@ -98,17 +97,13 @@ export default function MatchPlay() {
   const teamName = state.team?.name ?? '';
 
   const [step, setStep] = useState<Step>('lineup');
-  const [formationKey, setFormationKey] = useState<FormationKey>(() =>
-    initialFormationKey(state.tactics, match?.lineup?.formation),
-  );
-  const preset = getFormationPreset(formationKey);
 
-  const [formation, setFormation] = useState<{ playerId: string; x: number; y: number }[]>(() =>
-    match?.lineup?.formation ?? state.tactics?.formation ?? [],
+  // A escalação da partida parte do que já foi registrado nela, ou da tática salva
+  const [lineup, setLineup] = useState<TacticsDraft>(() =>
+    resolveTactics(match?.lineup ?? state.tactics, players),
   );
-  const [bench, setBench] = useState<string[]>(
-    () => match?.lineup?.bench ?? state.tactics?.bench ?? [],
-  );
+  const { formationKey, style, formation, bench } = lineup;
+  const preset = getFormationPreset(formationKey);
 
   const [goalsFor, setGoalsFor] = useState(match?.goalsFor ?? 0);
   const [goalsAgainst, setGoalsAgainst] = useState(match?.goalsAgainst ?? 0);
@@ -152,7 +147,7 @@ export default function MatchPlay() {
 
   const homeAway = match ? getHomeAway(teamName, { ...match, goalsFor, goalsAgainst }) : null;
   const starters = formation.map(f => f.playerId);
-  const lineupValid = formation.length === 11 && bench.length <= 9;
+  const lineupValid = isLineupComplete(formation, formationKey, players) && bench.length <= 9;
 
   const homeGoals = homeAway?.homeTeam === teamName ? goalsFor : goalsAgainst;
   const awayGoals = homeAway?.awayTeam === teamName ? goalsFor : goalsAgainst;
@@ -194,6 +189,33 @@ export default function MatchPlay() {
     );
   }
 
+  function setFormation(next: FormationSlot[]) {
+    setLineup(current => ({ ...current, formation: next }));
+  }
+
+  function setBench(next: string[]) {
+    setLineup(current => ({ ...current, bench: next }));
+  }
+
+  function setStyle(next: TacticalStyleKey) {
+    setLineup(current => ({ ...current, style: next }));
+  }
+
+  function handleFormationChange(key: FormationKey) {
+    setLineup(current => {
+      if (current.formationKey === key) return current;
+      return {
+        ...current,
+        formationKey: key,
+        formation: remapFormation(current.formation, current.formationKey, key, players),
+      };
+    });
+  }
+
+  function applySavedTactics() {
+    setLineup(resolveTactics(state.tactics, players));
+  }
+
   function setHomeScore(v: number) {
     if (homeAway!.homeTeam === teamName) setGoalsFor(v);
     else setGoalsAgainst(v);
@@ -229,7 +251,7 @@ export default function MatchPlay() {
       assists: buildAssistEvents(teamGoals, players),
       cards: buildCardEvents(teamCards),
       playerMatches,
-      lineup: { formation, bench },
+      lineup: { formation, bench, formationKey, style },
       substitutions: teamSubs,
       injuries,
       opponentGoalScorers: opponentGoalsText(opponentGoals) || undefined,
@@ -306,14 +328,20 @@ export default function MatchPlay() {
 
       {step === 'lineup' && (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Escalação titular</h2>
+          <div className={styles.lineupHead}>
+            <h2 className={styles.sectionTitle}>Escalação titular</h2>
+            {state.tactics && (
+              <button type="button" className={styles.tacticsBtn} onClick={applySavedTactics}>
+                Usar tática salva
+              </button>
+            )}
+          </div>
           <FormationPicker
             value={formationKey}
-            onChange={key => {
-              setFormationKey(key);
-              setFormation([]);
-            }}
+            onChange={handleFormationChange}
+            showDescription={false}
           />
+          <StylePicker value={style} onChange={setStyle} formationKey={formationKey} compact />
           <div className={styles.lineupCard}>
             <FormationField
               players={players}

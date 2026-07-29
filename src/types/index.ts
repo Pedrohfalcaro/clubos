@@ -14,4 +14,11 @@ export type {
 } from './Match';
 export type { Competition, StandingsEntry } from './Competition';
 export type { Manager } from './Manager';
-export type { FormationSlot, SavedTactics } from './Tactics';
+export type {
+  FormationSlot,
+  SavedTactics,
+  TacticsDraft,
+  FormationKey,
+  TacticalStyleKey,
+  SlotRole,
+} from './Tactics';

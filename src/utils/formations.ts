@@ -1,3 +1,14 @@
+import type { MatchLineup } from '../types/Match';
+import type { Player, PlayerPosition } from '../types/Player';
+import type {
+  FormationKey,
+  FormationSlot,
+  SavedTactics,
+  SlotRole,
+  TacticsDraft,
+} from '../types/Tactics';
+import { DEFAULT_STYLE_KEY, isTacticalStyleKey } from './tacticalStyles';
+
 export const AVAILABLE_COMPETITIONS = [
   'Campeonato Brasileiro',
   'Copa do Brasil',
@@ -7,35 +18,138 @@ export const AVAILABLE_COMPETITIONS = [
   'Amistoso',
 ] as const;
 
-export type FormationKey = '442' | '433' | '352' | '451' | '541';
+export type { FormationKey } from '../types/Tactics';
+
+export type FormationNature = 'defensiva' | 'equilibrada' | 'ofensiva' | 'muito-ofensiva';
 
 export interface FormationPreset {
   key: FormationKey;
   label: string;
-  slots: { x: number; y: number; role: string }[];
+  defenders: 3 | 4 | 5;
+  nature: FormationNature;
+  description: string;
+  slots: { x: number; y: number; role: SlotRole }[];
 }
 
+export const DEFAULT_FORMATION_KEY: FormationKey = '433';
+
+export const NATURE_LABELS: Record<FormationNature, string> = {
+  defensiva: 'Defensiva',
+  equilibrada: 'Equilibrada',
+  ofensiva: 'Ofensiva',
+  'muito-ofensiva': 'Muito ofensiva',
+};
+
+export const ROLE_NAMES: Record<SlotRole, string> = {
+  GOL: 'Goleiro',
+  ZAG: 'Zagueiro',
+  LE: 'Lateral esquerdo',
+  LD: 'Lateral direito',
+  ALE: 'Ala esquerdo',
+  ALD: 'Ala direito',
+  VOL: 'Volante',
+  MC: 'Meio-campista',
+  MEI: 'Meia atacante',
+  ME: 'Meia esquerda',
+  MD: 'Meia direita',
+  PE: 'Ponta esquerda',
+  PD: 'Ponta direita',
+  SA: 'Segundo atacante',
+  ATA: 'Atacante',
+};
+
+/** Posições do elenco que atendem cada função, da mais natural para a menos. */
+const ROLE_POSITIONS: Record<SlotRole, PlayerPosition[]> = {
+  GOL: ['GK'],
+  ZAG: ['CB'],
+  LE: ['LB', 'CB'],
+  LD: ['RB', 'CB'],
+  ALE: ['LB', 'LW', 'CM'],
+  ALD: ['RB', 'RW', 'CM'],
+  VOL: ['CDM', 'CM'],
+  MC: ['CM', 'CDM', 'CAM'],
+  MEI: ['CAM', 'CM', 'CF'],
+  ME: ['LW', 'CM', 'LB'],
+  MD: ['RW', 'CM', 'RB'],
+  PE: ['LW', 'CF', 'ST'],
+  PD: ['RW', 'CF', 'ST'],
+  SA: ['CF', 'CAM', 'ST'],
+  ATA: ['ST', 'CF'],
+};
+
+const FIT_BY_RANK = [1, 0.72, 0.5];
+
+/**
+ * Coordinates of the five original formations are kept byte-for-byte so saves
+ * created before formations carried an explicit key still resolve correctly.
+ */
 export const FORMATION_PRESETS: FormationPreset[] = [
   {
     key: '442',
     label: '4-4-2',
+    defenders: 4,
+    nature: 'equilibrada',
+    description: 'Duas linhas de quatro. Simples de organizar e sólido em qualquer cenário.',
     slots: [
       { x: 50, y: 88, role: 'GOL' },
       { x: 15, y: 72, role: 'LE' },
       { x: 38, y: 72, role: 'ZAG' },
       { x: 62, y: 72, role: 'ZAG' },
       { x: 85, y: 72, role: 'LD' },
-      { x: 15, y: 48, role: 'MEI' },
-      { x: 38, y: 48, role: 'MEI' },
-      { x: 62, y: 48, role: 'MEI' },
-      { x: 85, y: 48, role: 'MEI' },
+      { x: 15, y: 48, role: 'ME' },
+      { x: 38, y: 48, role: 'MC' },
+      { x: 62, y: 48, role: 'MC' },
+      { x: 85, y: 48, role: 'MD' },
       { x: 35, y: 22, role: 'ATA' },
       { x: 65, y: 22, role: 'ATA' },
     ],
   },
   {
+    key: '442-losango',
+    label: '4-4-2 Losango',
+    defenders: 4,
+    nature: 'equilibrada',
+    description: 'Meio-campo em diamante: volante fixo, dois meias por dentro e um armador.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 72, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 72, role: 'LD' },
+      { x: 50, y: 58, role: 'VOL' },
+      { x: 18, y: 46, role: 'ME' },
+      { x: 82, y: 46, role: 'MD' },
+      { x: 50, y: 34, role: 'MEI' },
+      { x: 38, y: 18, role: 'ATA' },
+      { x: 62, y: 18, role: 'ATA' },
+    ],
+  },
+  {
+    key: '4412',
+    label: '4-4-1-1',
+    defenders: 4,
+    nature: 'defensiva',
+    description: 'Bloco de oito atrás com um segundo atacante ligando o meio ao homem de área.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 72, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 72, role: 'LD' },
+      { x: 14, y: 50, role: 'ME' },
+      { x: 38, y: 50, role: 'MC' },
+      { x: 62, y: 50, role: 'MC' },
+      { x: 86, y: 50, role: 'MD' },
+      { x: 50, y: 32, role: 'SA' },
+      { x: 50, y: 16, role: 'ATA' },
+    ],
+  },
+  {
     key: '433',
     label: '4-3-3',
+    defenders: 4,
+    nature: 'ofensiva',
+    description: 'Trio de ataque aberto e três no meio. Boa amplitude com pressão alta.',
     slots: [
       { x: 50, y: 88, role: 'GOL' },
       { x: 15, y: 68, role: 'LE' },
@@ -43,50 +157,219 @@ export const FORMATION_PRESETS: FormationPreset[] = [
       { x: 62, y: 72, role: 'ZAG' },
       { x: 85, y: 68, role: 'LD' },
       { x: 25, y: 48, role: 'VOL' },
-      { x: 50, y: 52, role: 'MEI' },
-      { x: 75, y: 48, role: 'MEI' },
+      { x: 50, y: 52, role: 'MC' },
+      { x: 75, y: 48, role: 'MC' },
       { x: 20, y: 22, role: 'PE' },
       { x: 50, y: 18, role: 'ATA' },
       { x: 80, y: 22, role: 'PD' },
     ],
   },
   {
-    key: '352',
-    label: '3-5-2',
-    slots: [
-      { x: 50, y: 88, role: 'GOL' },
-      { x: 25, y: 72, role: 'ZAG' },
-      { x: 50, y: 72, role: 'ZAG' },
-      { x: 75, y: 72, role: 'ZAG' },
-      { x: 12, y: 48, role: 'ALA' },
-      { x: 30, y: 48, role: 'VOL' },
-      { x: 50, y: 48, role: 'MEI' },
-      { x: 70, y: 48, role: 'VOL' },
-      { x: 88, y: 48, role: 'ALA' },
-      { x: 35, y: 22, role: 'ATA' },
-      { x: 65, y: 22, role: 'ATA' },
-    ],
-  },
-  {
-    key: '451',
-    label: '4-5-1',
+    key: '4231',
+    label: '4-2-3-1',
+    defenders: 4,
+    nature: 'ofensiva',
+    description: 'Dois volantes protegem a defesa e três meias municiam o atacante.',
     slots: [
       { x: 50, y: 88, role: 'GOL' },
       { x: 15, y: 72, role: 'LE' },
       { x: 38, y: 72, role: 'ZAG' },
       { x: 62, y: 72, role: 'ZAG' },
       { x: 85, y: 72, role: 'LD' },
-      { x: 12, y: 48, role: 'ALA' },
-      { x: 30, y: 48, role: 'MEI' },
-      { x: 50, y: 48, role: 'MEI' },
-      { x: 70, y: 48, role: 'MEI' },
-      { x: 88, y: 48, role: 'ALA' },
+      { x: 35, y: 56, role: 'VOL' },
+      { x: 65, y: 56, role: 'VOL' },
+      { x: 18, y: 34, role: 'PE' },
+      { x: 50, y: 34, role: 'MEI' },
+      { x: 82, y: 34, role: 'PD' },
+      { x: 50, y: 16, role: 'ATA' },
+    ],
+  },
+  {
+    key: '4141',
+    label: '4-1-4-1',
+    defenders: 4,
+    nature: 'defensiva',
+    description: 'Um volante isolado na frente da zaga e quatro meias em linha.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 72, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 72, role: 'LD' },
+      { x: 50, y: 60, role: 'VOL' },
+      { x: 14, y: 44, role: 'ME' },
+      { x: 38, y: 44, role: 'MC' },
+      { x: 62, y: 44, role: 'MC' },
+      { x: 86, y: 44, role: 'MD' },
+      { x: 50, y: 17, role: 'ATA' },
+    ],
+  },
+  {
+    key: '4222',
+    label: '4-2-2-2',
+    defenders: 4,
+    nature: 'ofensiva',
+    description: 'O quadrado mágico: dois volantes, dois meias por dentro e dupla de ataque.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 72, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 72, role: 'LD' },
+      { x: 35, y: 56, role: 'VOL' },
+      { x: 65, y: 56, role: 'VOL' },
+      { x: 22, y: 34, role: 'MEI' },
+      { x: 78, y: 34, role: 'MEI' },
+      { x: 38, y: 17, role: 'ATA' },
+      { x: 62, y: 17, role: 'ATA' },
+    ],
+  },
+  {
+    key: '4312',
+    label: '4-3-1-2',
+    defenders: 4,
+    nature: 'ofensiva',
+    description: 'Meio-campo fechado por dentro, sem pontas, com dupla de atacantes próxima.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 72, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 72, role: 'LD' },
+      { x: 50, y: 58, role: 'VOL' },
+      { x: 26, y: 50, role: 'MC' },
+      { x: 74, y: 50, role: 'MC' },
+      { x: 50, y: 36, role: 'MEI' },
+      { x: 38, y: 17, role: 'ATA' },
+      { x: 62, y: 17, role: 'ATA' },
+    ],
+  },
+  {
+    key: '451',
+    label: '4-5-1',
+    defenders: 4,
+    nature: 'defensiva',
+    description: 'Cinco no meio para dominar a posse e sufocar o adversário por dentro.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 72, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 72, role: 'LD' },
+      { x: 12, y: 48, role: 'ALE' },
+      { x: 30, y: 48, role: 'MC' },
+      { x: 50, y: 48, role: 'MC' },
+      { x: 70, y: 48, role: 'MC' },
+      { x: 88, y: 48, role: 'ALD' },
       { x: 50, y: 18, role: 'ATA' },
+    ],
+  },
+  {
+    key: '424',
+    label: '4-2-4',
+    defenders: 4,
+    nature: 'muito-ofensiva',
+    description: 'Quatro homens de frente. Devastador com a bola, frágil sem ela.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 72, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 72, role: 'LD' },
+      { x: 35, y: 50, role: 'MC' },
+      { x: 65, y: 50, role: 'MC' },
+      { x: 14, y: 26, role: 'PE' },
+      { x: 38, y: 17, role: 'ATA' },
+      { x: 62, y: 17, role: 'ATA' },
+      { x: 86, y: 26, role: 'PD' },
+    ],
+  },
+  {
+    key: '352',
+    label: '3-5-2',
+    defenders: 3,
+    nature: 'equilibrada',
+    description: 'Três zagueiros com alas cobrindo toda a lateral e dupla de ataque.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 25, y: 72, role: 'ZAG' },
+      { x: 50, y: 72, role: 'ZAG' },
+      { x: 75, y: 72, role: 'ZAG' },
+      { x: 12, y: 48, role: 'ALE' },
+      { x: 30, y: 48, role: 'VOL' },
+      { x: 50, y: 48, role: 'MC' },
+      { x: 70, y: 48, role: 'VOL' },
+      { x: 88, y: 48, role: 'ALD' },
+      { x: 35, y: 22, role: 'ATA' },
+      { x: 65, y: 22, role: 'ATA' },
+    ],
+  },
+  {
+    key: '343',
+    label: '3-4-3',
+    defenders: 3,
+    nature: 'muito-ofensiva',
+    description: 'Alas na linha lateral e três atacantes. Muito volume ofensivo pelos lados.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 27, y: 72, role: 'ZAG' },
+      { x: 50, y: 73, role: 'ZAG' },
+      { x: 73, y: 72, role: 'ZAG' },
+      { x: 12, y: 48, role: 'ALE' },
+      { x: 38, y: 50, role: 'MC' },
+      { x: 62, y: 50, role: 'MC' },
+      { x: 88, y: 48, role: 'ALD' },
+      { x: 20, y: 22, role: 'PE' },
+      { x: 50, y: 17, role: 'ATA' },
+      { x: 80, y: 22, role: 'PD' },
+    ],
+  },
+  {
+    key: '3421',
+    label: '3-4-2-1',
+    defenders: 3,
+    nature: 'ofensiva',
+    description: 'Dois meias entre as linhas atrás do atacante, com alas dando a largura.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 27, y: 72, role: 'ZAG' },
+      { x: 50, y: 73, role: 'ZAG' },
+      { x: 73, y: 72, role: 'ZAG' },
+      { x: 12, y: 50, role: 'ALE' },
+      { x: 38, y: 52, role: 'MC' },
+      { x: 62, y: 52, role: 'MC' },
+      { x: 88, y: 50, role: 'ALD' },
+      { x: 30, y: 32, role: 'MEI' },
+      { x: 70, y: 32, role: 'MEI' },
+      { x: 50, y: 16, role: 'ATA' },
+    ],
+  },
+  {
+    key: '532',
+    label: '5-3-2',
+    defenders: 5,
+    nature: 'defensiva',
+    description: 'Cinco atrás com três zagueiros de ofício. Fecha o meio e sai em contra-ataque.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 10, y: 68, role: 'LE' },
+      { x: 28, y: 73, role: 'ZAG' },
+      { x: 50, y: 74, role: 'ZAG' },
+      { x: 72, y: 73, role: 'ZAG' },
+      { x: 90, y: 68, role: 'LD' },
+      { x: 28, y: 48, role: 'MC' },
+      { x: 50, y: 50, role: 'MC' },
+      { x: 72, y: 48, role: 'MC' },
+      { x: 38, y: 20, role: 'ATA' },
+      { x: 62, y: 20, role: 'ATA' },
     ],
   },
   {
     key: '541',
     label: '5-4-1',
+    defenders: 5,
+    nature: 'defensiva',
+    description: 'Nove jogadores atrás da linha da bola. Extremamente difícil de furar.',
     slots: [
       { x: 50, y: 88, role: 'GOL' },
       { x: 10, y: 72, role: 'LE' },
@@ -94,40 +377,399 @@ export const FORMATION_PRESETS: FormationPreset[] = [
       { x: 50, y: 72, role: 'ZAG' },
       { x: 73, y: 72, role: 'ZAG' },
       { x: 90, y: 72, role: 'LD' },
-      { x: 15, y: 48, role: 'MEI' },
-      { x: 38, y: 48, role: 'MEI' },
-      { x: 62, y: 48, role: 'MEI' },
-      { x: 85, y: 48, role: 'MEI' },
+      { x: 15, y: 48, role: 'ME' },
+      { x: 38, y: 48, role: 'MC' },
+      { x: 62, y: 48, role: 'MC' },
+      { x: 85, y: 48, role: 'MD' },
       { x: 50, y: 18, role: 'ATA' },
     ],
   },
 ];
 
-export const DEFAULT_FORMATION_433 = FORMATION_PRESETS.find(p => p.key === '433')!.slots.map(
-  ({ x, y }) => ({ x, y }),
-);
+export const FORMATION_GROUPS: { label: string; presets: FormationPreset[] }[] = (
+  [4, 3, 5] as const
+).map(defenders => ({
+  label: `${defenders} defensores`,
+  presets: FORMATION_PRESETS.filter(p => p.defenders === defenders),
+}));
 
-export function getFormationPreset(key: FormationKey): FormationPreset {
-  return FORMATION_PRESETS.find(p => p.key === key)!;
+export function isFormationKey(value: unknown): value is FormationKey {
+  return FORMATION_PRESETS.some(p => p.key === value);
 }
 
-export function createDefaultFormation(playerIds: string[]): { playerId: string; x: number; y: number }[] {
-  return DEFAULT_FORMATION_433.map((slot, i) => ({
-    ...slot,
-    playerId: playerIds[i] ?? '',
-  })).filter(s => s.playerId);
+export function getFormationPreset(key: FormationKey | string | null | undefined): FormationPreset {
+  return (
+    FORMATION_PRESETS.find(p => p.key === key) ??
+    FORMATION_PRESETS.find(p => p.key === DEFAULT_FORMATION_KEY)!
+  );
 }
 
-export function detectFormationKey(
-  formation: { x: number; y: number }[],
-): FormationKey | null {
-  if (formation.length === 0) return null;
-  for (const preset of FORMATION_PRESETS) {
-    const match = preset.slots.every((slot, i) => {
-      const f = formation[i];
-      return f && Math.abs(f.x - slot.x) < 3 && Math.abs(f.y - slot.y) < 3;
+export function formationLabel(key: FormationKey | string | null | undefined): string {
+  return getFormationPreset(key).label;
+}
+
+/** Quão bem uma posição do elenco atende a função do slot (0 a 1). */
+export function roleFit(role: SlotRole, position: PlayerPosition | undefined): number {
+  if (!position) return 0.2;
+  if (role === 'GOL') return position === 'GK' ? 1 : 0;
+  if (position === 'GK') return 0;
+  const rank = ROLE_POSITIONS[role].indexOf(position);
+  if (rank >= 0) return FIT_BY_RANK[rank] ?? 0.4;
+  return 0.25;
+}
+
+interface PresetMatch {
+  /** índice na lista de entradas -> índice do slot no preset */
+  slotByEntry: Map<number, number>;
+  distance: number;
+}
+
+/**
+ * Casa entradas com slots do preset pelo par mais próximo primeiro, sem depender
+ * da ordem do array — foi exatamente essa dependência de ordem que fazia a
+ * formação salva ser identificada errado.
+ */
+function matchEntriesToPreset(
+  entries: { x: number; y: number }[],
+  preset: FormationPreset,
+  tolerance: number,
+  blockedSlots?: Set<number>,
+): PresetMatch {
+  const pairs: { entry: number; slot: number; d: number }[] = [];
+  entries.forEach((entry, ei) => {
+    preset.slots.forEach((slot, si) => {
+      if (blockedSlots?.has(si)) return;
+      const d = Math.hypot(entry.x - slot.x, entry.y - slot.y);
+      if (d <= tolerance) pairs.push({ entry: ei, slot: si, d });
     });
-    if (match && formation.length === preset.slots.length) return preset.key;
+  });
+  pairs.sort((a, b) => a.d - b.d);
+
+  const slotByEntry = new Map<number, number>();
+  const usedSlots = new Set<number>();
+  let distance = 0;
+  for (const pair of pairs) {
+    if (slotByEntry.has(pair.entry) || usedSlots.has(pair.slot)) continue;
+    slotByEntry.set(pair.entry, pair.slot);
+    usedSlots.add(pair.slot);
+    distance += pair.d;
   }
-  return null;
+  return { slotByEntry, distance };
+}
+
+/** Identifica a formação de uma escalação completa. Retorna null se não houver certeza. */
+export function detectFormationKey(
+  formation: { x: number; y: number }[] | null | undefined,
+  tolerance = 3,
+): FormationKey | null {
+  if (!formation?.length) return null;
+  let best: { key: FormationKey; distance: number } | null = null;
+  for (const preset of FORMATION_PRESETS) {
+    if (formation.length !== preset.slots.length) continue;
+    const match = matchEntriesToPreset(formation, preset, tolerance);
+    if (match.slotByEntry.size !== formation.length) continue;
+    if (!best || match.distance < best.distance) best = { key: preset.key, distance: match.distance };
+  }
+  return best?.key ?? null;
+}
+
+/** Melhor palpite para escalações incompletas ou salvas por versões antigas. */
+export function guessFormationKey(
+  formation: { x: number; y: number }[] | null | undefined,
+): FormationKey | null {
+  if (!formation?.length) return null;
+  const exact = detectFormationKey(formation);
+  if (exact) return exact;
+
+  let best: { key: FormationKey; matched: number; distance: number } | null = null;
+  for (const preset of FORMATION_PRESETS) {
+    const match = matchEntriesToPreset(formation, preset, 6);
+    const matched = match.slotByEntry.size;
+    if (matched === 0) continue;
+    const better =
+      !best ||
+      matched > best.matched ||
+      (matched === best.matched && match.distance < best.distance);
+    if (better) best = { key: preset.key, matched, distance: match.distance };
+  }
+  return best?.key ?? null;
+}
+
+/**
+ * Deixa a escalação consistente com a formação: cada jogador ocupa um slot real,
+ * sem duplicatas e sem entradas órfãs de outra formação.
+ */
+export function normalizeFormation(
+  formation: FormationSlot[] | null | undefined,
+  key: FormationKey,
+  players?: Player[],
+): FormationSlot[] {
+  const preset = getFormationPreset(key);
+  const roster = players ? new Set(players.map(p => p.id)) : null;
+  const entries = (formation ?? []).filter(
+    (f): f is FormationSlot =>
+      !!f &&
+      typeof f.playerId === 'string' &&
+      f.playerId.length > 0 &&
+      Number.isFinite(f.x) &&
+      Number.isFinite(f.y) &&
+      (!roster || roster.has(f.playerId)),
+  );
+
+  const playerBySlot = new Map<number, string>();
+  const placed = new Set<string>();
+
+  // Entradas que já sabem o próprio slot têm prioridade
+  for (const entry of entries) {
+    const slot = entry.slot;
+    if (typeof slot !== 'number' || !Number.isInteger(slot)) continue;
+    if (slot < 0 || slot >= preset.slots.length) continue;
+    if (playerBySlot.has(slot) || placed.has(entry.playerId)) continue;
+    playerBySlot.set(slot, entry.playerId);
+    placed.add(entry.playerId);
+  }
+
+  // O resto é reencaixado pelas coordenadas
+  const pending = entries.filter(e => !placed.has(e.playerId));
+  if (pending.length) {
+    const match = matchEntriesToPreset(pending, preset, 6, new Set(playerBySlot.keys()));
+    for (const [entryIndex, slot] of match.slotByEntry) {
+      const entry = pending[entryIndex];
+      if (playerBySlot.has(slot) || placed.has(entry.playerId)) continue;
+      playerBySlot.set(slot, entry.playerId);
+      placed.add(entry.playerId);
+    }
+  }
+
+  return [...playerBySlot.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([slot, playerId]) => ({
+      playerId,
+      slot,
+      x: preset.slots[slot].x,
+      y: preset.slots[slot].y,
+    }));
+}
+
+/** Lê uma tática salva (de qualquer versão) e devolve algo sempre coerente. */
+export function resolveTactics(
+  saved: SavedTactics | null | undefined,
+  players?: Player[],
+): TacticsDraft {
+  const formationKey = isFormationKey(saved?.formationKey)
+    ? saved.formationKey
+    : guessFormationKey(saved?.formation) ?? DEFAULT_FORMATION_KEY;
+
+  const formation = normalizeFormation(saved?.formation, formationKey, players);
+  const onField = new Set(formation.map(f => f.playerId));
+  const roster = players ? new Set(players.map(p => p.id)) : null;
+
+  const bench: string[] = [];
+  for (const id of saved?.bench ?? []) {
+    if (typeof id !== 'string' || !id) continue;
+    if (onField.has(id) || bench.includes(id)) continue;
+    if (roster && !roster.has(id)) continue;
+    bench.push(id);
+  }
+
+  return {
+    formationKey,
+    style: isTacticalStyleKey(saved?.style) ? saved.style : DEFAULT_STYLE_KEY,
+    formation,
+    bench,
+  };
+}
+
+/** Versão para persistência: normaliza e mantém o carimbo de tempo. */
+export function normalizeSavedTactics(
+  saved: SavedTactics | null | undefined,
+): SavedTactics | null {
+  if (!saved) return null;
+  const draft = resolveTactics(saved);
+  if (!draft.formation.length && !draft.bench.length) return null;
+  return { ...draft, updatedAt: saved.updatedAt };
+}
+
+/**
+ * Mesma normalização para escalações de partidas já registradas, mas conservadora:
+ * se o reparo perderia algum jogador, o registro original é mantido intacto.
+ */
+export function normalizeMatchLineup(lineup: MatchLineup): MatchLineup {
+  const draft = resolveTactics(lineup);
+  const original = new Set((lineup.formation ?? []).filter(f => f?.playerId).map(f => f.playerId));
+  if (draft.formation.length !== original.size) return lineup;
+  return { ...lineup, ...draft };
+}
+
+export function countFilledSlots(
+  formation: FormationSlot[] | null | undefined,
+  key: FormationKey,
+  players?: Player[],
+): number {
+  return normalizeFormation(formation, key, players).length;
+}
+
+export function isLineupComplete(
+  formation: FormationSlot[] | null | undefined,
+  key: FormationKey,
+  players?: Player[],
+): boolean {
+  return countFilledSlots(formation, key, players) === getFormationPreset(key).slots.length;
+}
+
+/** Mantém os mesmos jogadores ao trocar de formação, reposicionando por função. */
+export function remapFormation(
+  formation: FormationSlot[] | null | undefined,
+  fromKey: FormationKey,
+  toKey: FormationKey,
+  players: Player[],
+): FormationSlot[] {
+  if (fromKey === toKey) return normalizeFormation(formation, toKey, players);
+
+  const from = getFormationPreset(fromKey);
+  const to = getFormationPreset(toKey);
+  const current = normalizeFormation(formation, fromKey, players);
+  if (!current.length) return [];
+
+  const byId = new Map(players.map(p => [p.id, p]));
+  const pairs: { entry: number; slot: number; score: number }[] = [];
+
+  current.forEach((entry, ei) => {
+    const player = byId.get(entry.playerId);
+    const previousRole = from.slots[entry.slot ?? -1]?.role;
+    to.slots.forEach((slot, si) => {
+      const fit = roleFit(slot.role, player?.position);
+      const sameRole = previousRole === slot.role ? 40 : 0;
+      const drift = Math.hypot(entry.x - slot.x, entry.y - slot.y);
+      pairs.push({ entry: ei, slot: si, score: fit * 100 + sameRole - drift });
+    });
+  });
+  pairs.sort((a, b) => b.score - a.score);
+
+  const playerBySlot = new Map<number, string>();
+  const placed = new Set<number>();
+  for (const pair of pairs) {
+    if (placed.has(pair.entry) || playerBySlot.has(pair.slot)) continue;
+    playerBySlot.set(pair.slot, current[pair.entry].playerId);
+    placed.add(pair.entry);
+  }
+
+  return [...playerBySlot.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([slot, playerId]) => ({
+      playerId,
+      slot,
+      x: to.slots[slot].x,
+      y: to.slots[slot].y,
+    }));
+}
+
+function isAvailable(player: Player): boolean {
+  return (player.availability ?? 'disponivel') === 'disponivel';
+}
+
+/** Monta a melhor escalação possível para a formação, por posição e overall. */
+export function buildBestLineup(
+  key: FormationKey,
+  players: Player[],
+  benchSize = 7,
+): { formation: FormationSlot[]; bench: string[] } {
+  const preset = getFormationPreset(key);
+  const available = players.filter(isAvailable);
+  const pool = available.length >= preset.slots.length ? available : players;
+
+  const pairs: { player: Player; slot: number; score: number }[] = [];
+  pool.forEach(player => {
+    preset.slots.forEach((slot, si) => {
+      const fit = roleFit(slot.role, player.position);
+      if (fit <= 0) return;
+      pairs.push({ player, slot: si, score: fit * 1000 + player.overall });
+    });
+  });
+  pairs.sort((a, b) => b.score - a.score);
+
+  const playerBySlot = new Map<number, string>();
+  const used = new Set<string>();
+  for (const pair of pairs) {
+    if (playerBySlot.has(pair.slot) || used.has(pair.player.id)) continue;
+    playerBySlot.set(pair.slot, pair.player.id);
+    used.add(pair.player.id);
+  }
+
+  const formation = [...playerBySlot.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([slot, playerId]) => ({
+      playerId,
+      slot,
+      x: preset.slots[slot].x,
+      y: preset.slots[slot].y,
+    }));
+
+  const rest = pool
+    .filter(p => !used.has(p.id))
+    .sort((a, b) => b.overall - a.overall);
+  const backupKeeper = rest.find(p => p.position === 'GK');
+  const bench: string[] = [];
+  if (backupKeeper && benchSize > 0) bench.push(backupKeeper.id);
+  for (const player of rest) {
+    if (bench.length >= benchSize) break;
+    if (bench.includes(player.id)) continue;
+    bench.push(player.id);
+  }
+
+  return { formation, bench };
+}
+
+export interface LineupWarning {
+  kind: 'availability' | 'position' | 'bench';
+  message: string;
+}
+
+export function lineupWarnings(
+  formation: FormationSlot[] | null | undefined,
+  key: FormationKey,
+  players: Player[],
+  bench: string[] = [],
+): LineupWarning[] {
+  const preset = getFormationPreset(key);
+  const byId = new Map(players.map(p => [p.id, p]));
+  const normalized = normalizeFormation(formation, key, players);
+  const warnings: LineupWarning[] = [];
+
+  for (const entry of normalized) {
+    const player = byId.get(entry.playerId);
+    const slot = preset.slots[entry.slot ?? -1];
+    if (!player || !slot) continue;
+
+    if (player.availability === 'lesionado') {
+      warnings.push({ kind: 'availability', message: `${player.name} está lesionado.` });
+    } else if (player.availability === 'indisponivel') {
+      warnings.push({ kind: 'availability', message: `${player.name} está indisponível.` });
+    }
+
+    if (roleFit(slot.role, player.position) <= 0.25) {
+      warnings.push({
+        kind: 'position',
+        message: `${player.name} (${player.position}) escalado como ${ROLE_NAMES[slot.role]}.`,
+      });
+    }
+  }
+
+  if (bench.length > 0 && !bench.some(id => byId.get(id)?.position === 'GK')) {
+    warnings.push({ kind: 'bench', message: 'Nenhum goleiro reserva no banco.' });
+  }
+
+  return warnings;
+}
+
+export function lineupAverageOverall(
+  formation: FormationSlot[] | null | undefined,
+  players: Player[],
+): number {
+  const byId = new Map(players.map(p => [p.id, p]));
+  const values = (formation ?? [])
+    .map(f => byId.get(f.playerId)?.overall)
+    .filter((v): v is number => typeof v === 'number');
+  if (!values.length) return 0;
+  return Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
 }

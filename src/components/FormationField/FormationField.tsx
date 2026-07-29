@@ -1,15 +1,12 @@
 import { useState } from 'react';
 import type { Player } from '../../types/Player';
+import type { FormationSlot } from '../../types/Tactics';
 import PlayerJersey from '../PlayerJersey/PlayerJersey';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import type { FormationPreset } from '../../utils/formations';
+import { ROLE_NAMES, type FormationPreset } from '../../utils/formations';
 import styles from './FormationField.module.css';
 
-export interface FieldSlot {
-  playerId: string;
-  x: number;
-  y: number;
-}
+export type FieldSlot = FormationSlot;
 
 interface FormationFieldProps {
   players: Player[];
@@ -63,22 +60,58 @@ export default function FormationField({
     return players.find(p => p.id === id);
   }
 
+  function roleName(slotIndex: number | null): string {
+    const role = slotIndex === null ? undefined : preset?.slots[slotIndex]?.role;
+    return role ? ROLE_NAMES[role] : 'Posição';
+  }
+
+  /** Slot occupied by an entry: the stored index wins, coordinates are the fallback. */
+  function slotIndexOf(entry: FieldSlot): number | null {
+    if (!preset) return null;
+    if (typeof entry.slot === 'number' && preset.slots[entry.slot]) return entry.slot;
+    const found = preset.slots.findIndex(
+      s => Math.abs(entry.x - s.x) < 2 && Math.abs(entry.y - s.y) < 2,
+    );
+    return found >= 0 ? found : null;
+  }
+
   function findPlayerAtSlot(slotIndex: number): FieldSlot | undefined {
     if (!preset) return undefined;
-    const slot = preset.slots[slotIndex];
-    return formation.find(f =>
-      Math.abs(f.x - slot.x) < 2 && Math.abs(f.y - slot.y) < 2,
-    );
+    return formation.find(f => slotIndexOf(f) === slotIndex);
+  }
+
+  function place(entries: FieldSlot[]): FieldSlot[] {
+    return [...entries].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
   }
 
   function assignToSlot(slotIndex: number, playerId: string) {
     if (!preset) return;
     const slot = preset.slots[slotIndex];
-    const withoutPlayer = formation.filter(f => f.playerId !== playerId);
-    const withoutSlot = withoutPlayer.filter(f =>
-      !(Math.abs(f.x - slot.x) < 2 && Math.abs(f.y - slot.y) < 2),
+    if (!slot) return;
+
+    const occupant = findPlayerAtSlot(slotIndex);
+    if (occupant?.playerId === playerId) {
+      setSelectedSlot(null);
+      setSelectedBench(false);
+      setDragOverSlot(null);
+      return;
+    }
+
+    const origin = formation.find(f => f.playerId === playerId);
+    const originSlot = origin ? slotIndexOf(origin) : null;
+
+    const next = formation.filter(
+      f => f.playerId !== playerId && f.playerId !== occupant?.playerId,
     );
-    onFormationChange([...withoutSlot, { playerId, x: slot.x, y: slot.y }]);
+    next.push({ playerId, slot: slotIndex, x: slot.x, y: slot.y });
+
+    // Dois jogadores em campo trocam de posição em vez de um sair
+    if (occupant && originSlot !== null) {
+      const freed = preset.slots[originSlot];
+      next.push({ playerId: occupant.playerId, slot: originSlot, x: freed.x, y: freed.y });
+    }
+
+    onFormationChange(place(next));
     if (bench.includes(playerId) && onBenchChange) {
       onBenchChange(bench.filter(id => id !== playerId));
     }
@@ -248,6 +281,7 @@ export default function FormationField({
                 {player ? (
                   <div
                     draggable={allowDrag}
+                    title={`${player.name} — ${ROLE_NAMES[slot.role]}`}
                     onDragStart={e => {
                       if (!allowDrag) return;
                       const fi = formation.findIndex(f => f.playerId === player.id);
@@ -271,7 +305,7 @@ export default function FormationField({
                     />
                   </div>
                 ) : (
-                  <div className={styles.emptySlot}>
+                  <div className={styles.emptySlot} title={ROLE_NAMES[slot.role]}>
                     <span className={styles.slotRole}>{slot.role}</span>
                   </div>
                 )}
@@ -312,14 +346,12 @@ export default function FormationField({
           <div className={styles.dropHint}>
             {selectedBench
               ? 'Toque em um jogador para o banco'
-              : `Posição ${preset?.slots[selectedSlot!]?.role} — selecione um jogador`}
+              : `${roleName(selectedSlot)} — selecione um jogador`}
           </div>
         )}
 
         {slotMode && allowDrag && dragOverSlot !== null && (
-          <div className={styles.dropHint}>
-            {`Solte em ${preset?.slots[dragOverSlot]?.role}`}
-          </div>
+          <div className={styles.dropHint}>{`Solte em ${roleName(dragOverSlot)}`}</div>
         )}
       </div>
 

@@ -19,7 +19,7 @@ Este documento lista as seções e funcionalidades planejadas para o ClubOS, inc
 
 ### Clube
 - **Elenco** — gestão de jogadores, números, idade, overall e status
-- **Tática** — formações 4-4-2, 4-3-3, 3-5-2, 4-5-1, 5-4-1 com arraste para posições e banco
+- **Tática** — 15 formações e 10 estilos de jogo, com arraste para posições e banco, escalação automática e troca de formação preservando o time
 
 ### Jogos
 - **Registro de partida** — agendar e registrar resultados
@@ -100,7 +100,6 @@ Este documento lista as seções e funcionalidades planejadas para o ClubOS, inc
 ## Melhorias técnicas planejadas
 
 - Múltiplos slots de save
-- Detecção automática de formação salva ao trocar preset
 - Modo escuro/claro configurável
 - Exportação de estatísticas da temporada
 - Integração com mais clubes e divisões do futebol brasileiro

@@ -1,0 +1,180 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text);
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.card:hover {
+  border-color: var(--accent-border);
+}
+
+.cardActive {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--success);
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 20px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.cardTagline {
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.compactText {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.detailsText {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.traits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px 20px;
+}
+
+.trait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.traitLabel {
+  font-size: 11px;
+  color: var(--text);
+  width: 96px;
+  flex-shrink: 0;
+}
+
+.traitBar {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.traitStep {
+  height: 6px;
+  flex: 1;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.traitStepOn {
+  background: var(--accent);
+}
+
+.traitValue {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-h);
+  width: 26px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.instructions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.instructions li {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .traitLabel {
+    width: 80px;
+  }
+}

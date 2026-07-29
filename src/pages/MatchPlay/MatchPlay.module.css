@@ -305,6 +305,30 @@
   padding: 16px;
 }
 
+.lineupHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tacticsBtn {
+  padding: 7px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.tacticsBtn:hover {
+  border-color: var(--accent-border);
+}
+
 @media (max-width: 900px) {
   .page {
     padding: 16px;

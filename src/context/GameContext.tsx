@@ -10,6 +10,7 @@ import { createDefaultCareerPlayer, emptyPlayerStats } from '../types/CareerPlay
 import type { CompletePlayerMatchInput } from '../types/PlayerMatchPerformance';
 import { clearGame, type GameSave } from '../services/storage';
 import { calcResult, recalculateFromMatches } from '../utils/matchStats';
+import { normalizeSavedTactics } from '../utils/formations';
 import { applyPerformanceToStats, subtractPerformanceFromStats } from '../utils/playerStats';
 import { calcMoraleChanges, applyMoraleDelta } from '../utils/playerMorale';
 import type { MatchResult } from '../types/Match';
@@ -279,6 +280,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         careerPlayer: null,
         matches: [],
         season: 2026,
+        tactics: null,
         tutorialCompleted: false,
         pulse: createDefaultPulseState(),
         finance: createDefaultFinance(team.budget ?? 5_000_000),
@@ -700,7 +702,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'SAVE_TACTICS':
-      return { ...state, tactics: action.tactics };
+      return { ...state, tactics: normalizeSavedTactics(action.tactics) };
 
     case 'APPLY_PULSE': {
       if (!state.team) return state;
@@ -1123,7 +1125,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }
 
   function saveTactics(tactics: SavedTactics) {
-    dispatch({ type: 'SAVE_TACTICS', tactics });
+    dispatch({
+      type: 'SAVE_TACTICS',
+      tactics: { ...tactics, updatedAt: new Date().toISOString() },
+    });
   }
 
   function rollPulseForMatch(matchId: string) {
@@ -1178,7 +1183,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           players: recalculated.players,
           matches,
           season: save.season,
-          tactics: save.tactics ?? null,
+          tactics: normalizeSavedTactics(save.tactics),
           careerPlayer: null,
           tutorialCompleted: save.tutorialCompleted ?? false,
           pulse: save.pulse ?? createDefaultPulseState(),

@@ -64,10 +64,19 @@ Painel do clube:
 
 ### Tática
 
-- Escolha formação (4-3-3, 4-4-2, etc.)
-- Arraste / toque para escalar titulares e banco
+- **15 formações** agrupadas por linha defensiva:
+  - 4 defensores: 4-4-2, 4-4-2 Losango, 4-4-1-1, 4-3-3, 4-2-3-1, 4-1-4-1, 4-2-2-2, 4-3-1-2, 4-5-1, 4-2-4
+  - 3 defensores: 3-5-2, 3-4-3, 3-4-2-1
+  - 5 defensores: 5-3-2, 5-4-1
+- **10 estilos de jogo**: Padrão, Ofensivo, Ultra-ofensivo, Defensivo, Retranca, Contra-ataque, Posse de bola, Jogo direto, Pressão alta, Jogo aberto
+  - Cada estilo mostra mentalidade, ritmo, amplitude, pressão e linha defensiva
+  - Estilos que combinam com a formação escolhida recebem o selo **combina**
+- Arraste / toque para escalar titulares e banco. Arrastar um titular sobre outro **troca os dois de lugar**
+- **Trocar de formação mantém os mesmos jogadores**, reposicionados por função
+- **Escalação automática** monta o melhor XI por posição e overall, com goleiro reserva no banco
+- Avisos de lesionados escalados, jogadores fora de posição e banco sem goleiro
 - Tokens usam as cores do clube (ver tabela acima)
-- Escalações salvas ficam no save
+- A tática salva guarda formação, estilo, titulares e banco no save, com data da última alteração
 
 ---
 

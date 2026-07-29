@@ -98,9 +98,13 @@ export interface CardEvent {
   type: 'yellow' | 'red';
 }
 
+import type { FormationKey, FormationSlot, TacticalStyleKey } from './Tactics';
+
 export interface MatchLineup {
-  formation: { playerId: string; x: number; y: number }[];
+  formation: FormationSlot[];
   bench: string[];
+  formationKey?: FormationKey;
+  style?: TacticalStyleKey;
 }
 
 import type { PlayerMatchPerformance } from './PlayerMatchPerformance';

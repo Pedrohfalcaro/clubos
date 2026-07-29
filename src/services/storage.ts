@@ -13,6 +13,7 @@ import { createDefaultBoardState } from '../types/Board';
 import type { TransferState } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
 import type { SeasonArchive } from '../types/SeasonHistory';
+import { normalizeMatchLineup, normalizeSavedTactics } from '../utils/formations';
 
 const SAVE_KEY = 'clubos_save';
 
@@ -66,6 +67,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     assists: m.assists ?? [],
     cards: m.cards ?? [],
     playerMatches: m.playerMatches ?? [],
+    lineup: m.lineup ? normalizeMatchLineup(m.lineup) : m.lineup,
   }));
 
   const careerMode: CareerMode = save.careerMode ?? 'coach';
@@ -148,7 +150,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     careerMode,
     manager: save.manager ?? null,
     seasonCompetitions: save.seasonCompetitions ?? [],
-    tactics: save.tactics ?? null,
+    tactics: normalizeSavedTactics(save.tactics),
     tutorialCompleted: save.tutorialCompleted ?? false,
     matches,
     pulse,
