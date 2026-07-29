@@ -618,8 +618,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         matches: state.matches.map(m =>
-          m.id === action.matchId && m.status === 'scheduled'
-            ? { ...m, ...action.updates }
+          m.id === action.matchId
+            ? {
+                ...m,
+                opponent: action.updates.opponent,
+                date: action.updates.date,
+                location: action.updates.location,
+                competition: action.updates.competition,
+              }
             : m,
         ),
       };

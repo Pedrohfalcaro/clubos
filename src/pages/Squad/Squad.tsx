@@ -109,7 +109,9 @@ export default function Squad() {
         const s = byComp.get(comp.name);
         if (s && s.matches > 0) playersUsed += 1;
       }
-      const matchCount = state.matches.filter(m => m.competition === comp.name).length;
+      const matchCount = state.matches.filter(
+        m => m.competition === comp.name && m.status === 'completed',
+      ).length;
       return { ...comp, matchCount, playersUsed };
     });
   }, [state.seasonCompetitions, state.matches, statsByPlayerComp]);
@@ -324,7 +326,7 @@ export default function Squad() {
                 <span className={styles.compFilterDot} style={{ background: comp.color }} />
                 <span className={styles.compFilterLabel}>{comp.shortName || comp.name}</span>
                 <span className={styles.compFilterMeta}>
-                  {comp.matchCount}j · {comp.playersUsed}at
+                  {comp.matchCount}j
                 </span>
               </button>
             ))}

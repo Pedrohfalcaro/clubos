@@ -30,7 +30,7 @@ export default function MatchRegistration() {
     setModalOpen(true);
   }
 
-  function openEdit(match: Match) {
+  function openEditMeta(match: Match) {
     setEditingMatch(match);
     setModalOpen(true);
   }
@@ -47,6 +47,12 @@ export default function MatchRegistration() {
       scheduleMatch(data);
     }
   }
+
+  const modalTitle = !editingMatch
+    ? 'Agendar Partida'
+    : editingMatch.status === 'completed'
+      ? 'Editar dados da partida'
+      : 'Editar Partida Agendada';
 
   return (
     <div className={styles.page}>
@@ -65,7 +71,7 @@ export default function MatchRegistration() {
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
         competitions={competitionNames(state.seasonCompetitions)}
-        title={editingMatch ? 'Editar Partida Agendada' : 'Agendar Partida'}
+        title={modalTitle}
         initialData={editingMatch ? {
           opponent: editingMatch.opponent,
           date: editingMatch.date,
@@ -94,7 +100,7 @@ export default function MatchRegistration() {
                   <span className={styles.matchTeam}>{match.opponent}</span>
                 </div>
                 <div className={styles.matchActions}>
-                  <button type="button" className={styles.editBtn} onClick={() => openEdit(match)}>
+                  <button type="button" className={styles.editBtn} onClick={() => openEditMeta(match)}>
                     Editar
                   </button>
                   <button type="button" className={styles.playBtn} onClick={() => navigate(`/match/${match.id}/pulse`)}>
@@ -138,8 +144,11 @@ export default function MatchRegistration() {
                     )}
                   </div>
                   <div className={styles.matchActions}>
-                    <button type="button" className={styles.editBtn} onClick={() => navigate(`/match/${match.id}/play`)}>
-                      Editar
+                    <button type="button" className={styles.editBtn} onClick={() => openEditMeta(match)}>
+                      Dados
+                    </button>
+                    <button type="button" className={styles.playBtn} onClick={() => navigate(`/match/${match.id}/play`)}>
+                      Resultado
                     </button>
                   </div>
                 </div>
