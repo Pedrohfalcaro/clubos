@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      // Save legado (1 slot)
+      match /data/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      // Até 3 carreiras (slots 1, 2, 3)
+      match /saves/{slotId} {
+        allow read, write: if request.auth != null
+          && request.auth.uid == userId
+          && slotId in ['1', '2', '3'];
+      }
+    }
+  }
+}

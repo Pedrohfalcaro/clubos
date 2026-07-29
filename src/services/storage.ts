@@ -1,3 +1,5 @@
+import type { SeasonCompetition } from '../types/Competition';
+import { migrateSeasonCompetitions } from '../utils/competitions';
 import type { Team } from '../types/Team';
 import type { Player } from '../types/Player';
 import type { Match } from '../types/Match';
@@ -14,6 +16,15 @@ import type { TransferState } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
 import type { SeasonArchive } from '../types/SeasonHistory';
 import { normalizeMatchLineup, normalizeSavedTactics } from '../utils/formations';
+import {
+  getActiveSlotId,
+  loadLocalSlot,
+  migrateLegacyLocalSave,
+  mirrorActiveToLegacy,
+  saveLocalSlot,
+  SAVE_SLOT_IDS,
+  type SaveSlotId,
+} from './saveSlots';
 
 const SAVE_KEY = 'clubos_save';
 
@@ -26,7 +37,7 @@ export interface GameSave {
   matches: Match[];
   season: number;
   manager?: Manager | null;
-  seasonCompetitions: string[];
+  seasonCompetitions: SeasonCompetition[];
   tactics?: SavedTactics | null;
   careerPlayer?: CareerPlayer;
   tutorialCompleted?: boolean;
@@ -36,18 +47,31 @@ export interface GameSave {
   transfers?: TransferState;
   seasonHistory?: SeasonArchive[];
   savedAt: string;
+  /** Slot de carreira (1–3) quando multi-save. */
+  slotId?: SaveSlotId;
 }
 
-export function saveGame(data: Omit<GameSave, 'savedAt' | 'version'>): void {
+export function saveGame(
+  data: Omit<GameSave, 'savedAt' | 'version'>,
+  slotId: SaveSlotId = getActiveSlotId(),
+): void {
   const save: GameSave = {
     ...data,
-    version: '0.5.0',
+    slotId,
+    version: '0.6.0',
     savedAt: new Date().toISOString(),
   };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  saveLocalSlot(slotId, save);
+  mirrorActiveToLegacy(save);
 }
 
-export function loadGame(): GameSave | null {
+export function loadGame(slotId?: SaveSlotId): GameSave | null {
+  migrateLegacyLocalSave();
+  const id = slotId ?? getActiveSlotId();
+  const fromSlot = loadLocalSlot(id);
+  if (fromSlot) return fromSlot;
+
+  // Fallback legado
   const raw = localStorage.getItem(SAVE_KEY);
   if (!raw) return null;
   try {
@@ -146,10 +170,10 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
 
   const base: GameSave = {
     ...save,
-    version: '0.5.0',
+    version: '0.6.0',
     careerMode,
     manager: save.manager ?? null,
-    seasonCompetitions: save.seasonCompetitions ?? [],
+    seasonCompetitions: migrateSeasonCompetitions(save.seasonCompetitions),
     tactics: normalizeSavedTactics(save.tactics),
     tutorialCompleted: save.tutorialCompleted ?? false,
     matches,
@@ -198,6 +222,8 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
 }
 
 export function hasSave(): boolean {
+  migrateLegacyLocalSave();
+  if (SAVE_SLOT_IDS.some(id => localStorage.getItem(`clubos_save_slot_${id}`))) return true;
   return localStorage.getItem(SAVE_KEY) !== null;
 }
 
@@ -207,4 +233,7 @@ export function getSaveCareerMode(): CareerMode | null {
 
 export function clearGame(): void {
   localStorage.removeItem(SAVE_KEY);
+  for (const id of SAVE_SLOT_IDS) {
+    localStorage.removeItem(`clubos_save_slot_${id}`);
+  }
 }

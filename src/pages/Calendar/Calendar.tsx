@@ -1,13 +1,8 @@
 import { useMemo, useState } from 'react';
 import MatchScheduleModal from '../../components/MatchScheduleModal/MatchScheduleModal';
 import { useGame } from '../../context/GameContext';
-import {
-  COMPETITION_COLORS,
-  COMPETITION_LABELS,
-  getCompetitionColor,
-  locationIcon,
-} from '../../utils/calendarHelpers';
-import type { CompetitionCategory } from '../../utils/calendarHelpers';
+import { locationIcon } from '../../utils/calendarHelpers';
+import { competitionNames, resolveCompetitionColor } from '../../utils/competitions';
 import styles from './Calendar.module.css';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -15,8 +10,6 @@ const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
-
-const LEGEND_CATEGORIES: CompetitionCategory[] = ['national', 'national_cup', 'continental', 'state'];
 
 function toDateKey(d: Date): string {
   const y = d.getFullYear();
@@ -33,6 +26,7 @@ export default function Calendar() {
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
+  const comps = state.seasonCompetitions;
 
   const matchesByDate = useMemo(() => {
     const map = new Map<string, typeof state.matches>();
@@ -57,6 +51,13 @@ export default function Calendar() {
     }
     return days;
   }, [year, month]);
+
+  const legendComps = useMemo(() => {
+    const used = new Set(state.matches.map(m => m.competition));
+    const fromSeason = comps.filter(c => used.has(c.name) || comps.length <= 8);
+    if (fromSeason.length) return fromSeason;
+    return comps;
+  }, [comps, state.matches]);
 
   function prevMonth() {
     setViewDate(new Date(year, month - 1, 1));
@@ -122,7 +123,7 @@ export default function Calendar() {
                     <span
                       key={m.id}
                       className={styles.matchMarker}
-                      style={{ background: getCompetitionColor(m.competition) }}
+                      style={{ background: resolveCompetitionColor(comps, m.competition) }}
                       title={`${m.opponent} · ${m.competition}${m.status === 'completed' ? ' (realizada)' : ''}`}
                     />
                   ))}
@@ -139,12 +140,15 @@ export default function Calendar() {
       <div className={styles.legend}>
         <div className={styles.legendGroup}>
           <span className={styles.legendTitle}>Competições</span>
-          {LEGEND_CATEGORIES.map(cat => (
-            <span key={cat} className={styles.legendItem}>
-              <span className={styles.legendMarker} style={{ background: COMPETITION_COLORS[cat] }} />
-              {COMPETITION_LABELS[cat]}
+          {legendComps.map(comp => (
+            <span key={comp.id} className={styles.legendItem}>
+              <span className={styles.legendMarker} style={{ background: comp.color }} />
+              {comp.shortName || comp.name}
             </span>
           ))}
+          {legendComps.length === 0 && (
+            <span className={styles.legendItem}>Nenhuma competição cadastrada</span>
+          )}
         </div>
         <div className={styles.legendGroup}>
           <span className={styles.legendTitle}>Local</span>
@@ -158,7 +162,7 @@ export default function Calendar() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSubmit={data => scheduleMatch(data)}
-        competitions={state.seasonCompetitions}
+        competitions={competitionNames(comps)}
         initialDate={selectedDate}
         title="Agendar Partida"
       />

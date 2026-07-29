@@ -9,15 +9,6 @@ import type {
 } from '../types/Tactics';
 import { DEFAULT_STYLE_KEY, isTacticalStyleKey } from './tacticalStyles';
 
-export const AVAILABLE_COMPETITIONS = [
-  'Campeonato Brasileiro',
-  'Copa do Brasil',
-  'Libertadores',
-  'Sul-Americana',
-  'Estadual',
-  'Amistoso',
-] as const;
-
 export type { FormationKey } from '../types/Tactics';
 
 export type FormationNature = 'defensiva' | 'equilibrada' | 'ofensiva' | 'muito-ofensiva';
@@ -25,10 +16,22 @@ export type FormationNature = 'defensiva' | 'equilibrada' | 'ofensiva' | 'muito-
 export interface FormationPreset {
   key: FormationKey;
   label: string;
+  /** Rótulo curto da variante (ex.: Losango, Aberto). */
+  variantLabel: string;
+  /** Família tática (ex.: 4-4-2) — agrupa variantes no picker. */
+  family: string;
+  familyLabel: string;
   defenders: 3 | 4 | 5;
   nature: FormationNature;
   description: string;
   slots: { x: number; y: number; role: SlotRole }[];
+}
+
+export interface FormationFamily {
+  id: string;
+  label: string;
+  defenders: 3 | 4 | 5;
+  variants: FormationPreset[];
 }
 
 export const DEFAULT_FORMATION_KEY: FormationKey = '433';
@@ -86,7 +89,10 @@ const FIT_BY_RANK = [1, 0.72, 0.5];
 export const FORMATION_PRESETS: FormationPreset[] = [
   {
     key: '442',
-    label: '4-4-2',
+    label: '4-4-2 Plano',
+    variantLabel: 'Plano',
+    family: '442',
+    familyLabel: '4-4-2',
     defenders: 4,
     nature: 'equilibrada',
     description: 'Duas linhas de quatro. Simples de organizar e sólido em qualquer cenário.',
@@ -107,6 +113,9 @@ export const FORMATION_PRESETS: FormationPreset[] = [
   {
     key: '442-losango',
     label: '4-4-2 Losango',
+    variantLabel: 'Losango',
+    family: '442',
+    familyLabel: '4-4-2',
     defenders: 4,
     nature: 'equilibrada',
     description: 'Meio-campo em diamante: volante fixo, dois meias por dentro e um armador.',
@@ -125,8 +134,34 @@ export const FORMATION_PRESETS: FormationPreset[] = [
     ],
   },
   {
+    key: '442-aberto',
+    label: '4-4-2 Aberto',
+    variantLabel: 'Aberto',
+    family: '442',
+    familyLabel: '4-4-2',
+    defenders: 4,
+    nature: 'ofensiva',
+    description: 'Meias abertos colados na linha, prontos para cruzar e esticar a defesa rival.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 12, y: 72, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 88, y: 72, role: 'LD' },
+      { x: 8, y: 42, role: 'ME' },
+      { x: 38, y: 50, role: 'MC' },
+      { x: 62, y: 50, role: 'MC' },
+      { x: 92, y: 42, role: 'MD' },
+      { x: 35, y: 20, role: 'ATA' },
+      { x: 65, y: 20, role: 'ATA' },
+    ],
+  },
+  {
     key: '4412',
     label: '4-4-1-1',
+    variantLabel: '4-4-1-1',
+    family: '442',
+    familyLabel: '4-4-2',
     defenders: 4,
     nature: 'defensiva',
     description: 'Bloco de oito atrás com um segundo atacante ligando o meio ao homem de área.',
@@ -146,7 +181,10 @@ export const FORMATION_PRESETS: FormationPreset[] = [
   },
   {
     key: '433',
-    label: '4-3-3',
+    label: '4-3-3 Clássico',
+    variantLabel: 'Clássico',
+    family: '433',
+    familyLabel: '4-3-3',
     defenders: 4,
     nature: 'ofensiva',
     description: 'Trio de ataque aberto e três no meio. Boa amplitude com pressão alta.',
@@ -165,8 +203,57 @@ export const FORMATION_PRESETS: FormationPreset[] = [
     ],
   },
   {
+    key: '433-holding',
+    label: '4-3-3 Holding',
+    variantLabel: 'Holding',
+    family: '433',
+    familyLabel: '4-3-3',
+    defenders: 4,
+    nature: 'equilibrada',
+    description: 'Um volante fixo na frente da zaga e dois meias mais adiantados.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 68, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 68, role: 'LD' },
+      { x: 50, y: 58, role: 'VOL' },
+      { x: 28, y: 44, role: 'MC' },
+      { x: 72, y: 44, role: 'MC' },
+      { x: 18, y: 22, role: 'PE' },
+      { x: 50, y: 18, role: 'ATA' },
+      { x: 82, y: 22, role: 'PD' },
+    ],
+  },
+  {
+    key: '433-falso9',
+    label: '4-3-3 Falso 9',
+    variantLabel: 'Falso 9',
+    family: '433',
+    familyLabel: '4-3-3',
+    defenders: 4,
+    nature: 'ofensiva',
+    description: 'Centroavante recua para armar; as pontas atacam o espaço nas costas.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 68, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 68, role: 'LD' },
+      { x: 28, y: 50, role: 'MC' },
+      { x: 50, y: 52, role: 'MC' },
+      { x: 72, y: 50, role: 'MC' },
+      { x: 16, y: 20, role: 'PE' },
+      { x: 50, y: 28, role: 'SA' },
+      { x: 84, y: 20, role: 'PD' },
+    ],
+  },
+  {
     key: '4231',
-    label: '4-2-3-1',
+    label: '4-2-3-1 Clássico',
+    variantLabel: 'Clássico',
+    family: '4231',
+    familyLabel: '4-2-3-1',
     defenders: 4,
     nature: 'ofensiva',
     description: 'Dois volantes protegem a defesa e três meias municiam o atacante.',
@@ -185,8 +272,34 @@ export const FORMATION_PRESETS: FormationPreset[] = [
     ],
   },
   {
+    key: '4231-estreito',
+    label: '4-2-3-1 Estreito',
+    variantLabel: 'Estreito',
+    family: '4231',
+    familyLabel: '4-2-3-1',
+    defenders: 4,
+    nature: 'ofensiva',
+    description: 'Três meias por dentro, sem pontas abertas — troca de posição e combinação.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 72, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 72, role: 'LD' },
+      { x: 35, y: 56, role: 'VOL' },
+      { x: 65, y: 56, role: 'VOL' },
+      { x: 28, y: 34, role: 'MEI' },
+      { x: 50, y: 32, role: 'MEI' },
+      { x: 72, y: 34, role: 'MEI' },
+      { x: 50, y: 16, role: 'ATA' },
+    ],
+  },
+  {
     key: '4141',
     label: '4-1-4-1',
+    variantLabel: 'Padrão',
+    family: '4141',
+    familyLabel: '4-1-4-1',
     defenders: 4,
     nature: 'defensiva',
     description: 'Um volante isolado na frente da zaga e quatro meias em linha.',
@@ -207,6 +320,9 @@ export const FORMATION_PRESETS: FormationPreset[] = [
   {
     key: '4222',
     label: '4-2-2-2',
+    variantLabel: 'Padrão',
+    family: '4222',
+    familyLabel: '4-2-2-2',
     defenders: 4,
     nature: 'ofensiva',
     description: 'O quadrado mágico: dois volantes, dois meias por dentro e dupla de ataque.',
@@ -227,6 +343,9 @@ export const FORMATION_PRESETS: FormationPreset[] = [
   {
     key: '4312',
     label: '4-3-1-2',
+    variantLabel: 'Padrão',
+    family: '4312',
+    familyLabel: '4-3-1-2',
     defenders: 4,
     nature: 'ofensiva',
     description: 'Meio-campo fechado por dentro, sem pontas, com dupla de atacantes próxima.',
@@ -246,10 +365,13 @@ export const FORMATION_PRESETS: FormationPreset[] = [
   },
   {
     key: '451',
-    label: '4-5-1',
+    label: '4-5-1 Aberto',
+    variantLabel: 'Aberto',
+    family: '451',
+    familyLabel: '4-5-1',
     defenders: 4,
     nature: 'defensiva',
-    description: 'Cinco no meio para dominar a posse e sufocar o adversário por dentro.',
+    description: 'Cinco no meio com alas abertos para dominar a posse e esticar o campo.',
     slots: [
       { x: 50, y: 88, role: 'GOL' },
       { x: 15, y: 72, role: 'LE' },
@@ -265,8 +387,34 @@ export const FORMATION_PRESETS: FormationPreset[] = [
     ],
   },
   {
+    key: '451-fechado',
+    label: '4-5-1 Fechado',
+    variantLabel: 'Fechado',
+    family: '451',
+    familyLabel: '4-5-1',
+    defenders: 4,
+    nature: 'defensiva',
+    description: 'Meio-campo compacto por dentro, sem alas — sufoca o adversário no miolo.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 72, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 72, role: 'LD' },
+      { x: 22, y: 50, role: 'MC' },
+      { x: 36, y: 46, role: 'MC' },
+      { x: 50, y: 52, role: 'VOL' },
+      { x: 64, y: 46, role: 'MC' },
+      { x: 78, y: 50, role: 'MC' },
+      { x: 50, y: 18, role: 'ATA' },
+    ],
+  },
+  {
     key: '424',
     label: '4-2-4',
+    variantLabel: 'Padrão',
+    family: '424',
+    familyLabel: '4-2-4',
     defenders: 4,
     nature: 'muito-ofensiva',
     description: 'Quatro homens de frente. Devastador com a bola, frágil sem ela.',
@@ -286,7 +434,10 @@ export const FORMATION_PRESETS: FormationPreset[] = [
   },
   {
     key: '352',
-    label: '3-5-2',
+    label: '3-5-2 Clássico',
+    variantLabel: 'Clássico',
+    family: '352',
+    familyLabel: '3-5-2',
     defenders: 3,
     nature: 'equilibrada',
     description: 'Três zagueiros com alas cobrindo toda a lateral e dupla de ataque.',
@@ -305,8 +456,34 @@ export const FORMATION_PRESETS: FormationPreset[] = [
     ],
   },
   {
+    key: '352-ofensivo',
+    label: '3-5-2 Ofensivo',
+    variantLabel: 'Ofensivo',
+    family: '352',
+    familyLabel: '3-5-2',
+    defenders: 3,
+    nature: 'ofensiva',
+    description: 'Alas altos e um armador entre as linhas atrás da dupla de ataque.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 25, y: 72, role: 'ZAG' },
+      { x: 50, y: 72, role: 'ZAG' },
+      { x: 75, y: 72, role: 'ZAG' },
+      { x: 10, y: 42, role: 'ALE' },
+      { x: 35, y: 52, role: 'VOL' },
+      { x: 50, y: 36, role: 'MEI' },
+      { x: 65, y: 52, role: 'MC' },
+      { x: 90, y: 42, role: 'ALD' },
+      { x: 35, y: 18, role: 'ATA' },
+      { x: 65, y: 18, role: 'ATA' },
+    ],
+  },
+  {
     key: '343',
     label: '3-4-3',
+    variantLabel: 'Padrão',
+    family: '343',
+    familyLabel: '3-4-3',
     defenders: 3,
     nature: 'muito-ofensiva',
     description: 'Alas na linha lateral e três atacantes. Muito volume ofensivo pelos lados.',
@@ -327,6 +504,9 @@ export const FORMATION_PRESETS: FormationPreset[] = [
   {
     key: '3421',
     label: '3-4-2-1',
+    variantLabel: 'Padrão',
+    family: '3421',
+    familyLabel: '3-4-2-1',
     defenders: 3,
     nature: 'ofensiva',
     description: 'Dois meias entre as linhas atrás do atacante, com alas dando a largura.',
@@ -347,6 +527,9 @@ export const FORMATION_PRESETS: FormationPreset[] = [
   {
     key: '532',
     label: '5-3-2',
+    variantLabel: 'Padrão',
+    family: '532',
+    familyLabel: '5-3-2',
     defenders: 5,
     nature: 'defensiva',
     description: 'Cinco atrás com três zagueiros de ofício. Fecha o meio e sai em contra-ataque.',
@@ -367,6 +550,9 @@ export const FORMATION_PRESETS: FormationPreset[] = [
   {
     key: '541',
     label: '5-4-1',
+    variantLabel: 'Padrão',
+    family: '541',
+    familyLabel: '5-4-1',
     defenders: 5,
     nature: 'defensiva',
     description: 'Nove jogadores atrás da linha da bola. Extremamente difícil de furar.',
@@ -386,11 +572,25 @@ export const FORMATION_PRESETS: FormationPreset[] = [
   },
 ];
 
+const FAMILY_ORDER = [
+  '442', '433', '4231', '4141', '4222', '4312', '451', '424', '352', '343', '3421', '532', '541',
+];
+
+export const FORMATION_FAMILIES: FormationFamily[] = FAMILY_ORDER.map(id => {
+  const variants = FORMATION_PRESETS.filter(p => p.family === id);
+  return {
+    id,
+    label: variants[0]?.familyLabel ?? id,
+    defenders: variants[0]?.defenders ?? 4,
+    variants,
+  };
+});
+
 export const FORMATION_GROUPS: { label: string; presets: FormationPreset[] }[] = (
   [4, 3, 5] as const
 ).map(defenders => ({
   label: `${defenders} defensores`,
-  presets: FORMATION_PRESETS.filter(p => p.defenders === defenders),
+  presets: FORMATION_FAMILIES.filter(f => f.defenders === defenders).map(f => f.variants[0]),
 }));
 
 export function isFormationKey(value: unknown): value is FormationKey {
@@ -406,6 +606,49 @@ export function getFormationPreset(key: FormationKey | string | null | undefined
 
 export function formationLabel(key: FormationKey | string | null | undefined): string {
   return getFormationPreset(key).label;
+}
+
+export function getFormationFamily(key: FormationKey | string | null | undefined): FormationFamily {
+  const preset = getFormationPreset(key);
+  return FORMATION_FAMILIES.find(f => f.id === preset.family) ?? FORMATION_FAMILIES[0];
+}
+
+/** Ordem de posições para listar o elenco disponível na tática. */
+export const TACTICS_POSITION_ORDER: PlayerPosition[] = [
+  'GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'CF', 'ST',
+];
+
+export const TACTICS_POSITION_LABELS: Record<PlayerPosition, string> = {
+  GK: 'Goleiros',
+  CB: 'Zagueiros',
+  LB: 'Laterais E',
+  RB: 'Laterais D',
+  CDM: 'Volantes',
+  CM: 'Meias',
+  CAM: 'Armadores',
+  LW: 'Pontas E',
+  RW: 'Pontas D',
+  CF: 'Segundos atacantes',
+  ST: 'Atacantes',
+};
+
+export function sortPlayersForTactics(players: Player[]): Player[] {
+  return [...players].sort((a, b) => {
+    const pa = TACTICS_POSITION_ORDER.indexOf(a.position);
+    const pb = TACTICS_POSITION_ORDER.indexOf(b.position);
+    if (pa !== pb) return (pa < 0 ? 99 : pa) - (pb < 0 ? 99 : pb);
+    return b.overall - a.overall || a.name.localeCompare(b.name, 'pt-BR');
+  });
+}
+
+export function groupPlayersByPosition(players: Player[]): { position: PlayerPosition; label: string; players: Player[] }[] {
+  const sorted = sortPlayersForTactics(players);
+  const groups: { position: PlayerPosition; label: string; players: Player[] }[] = [];
+  for (const pos of TACTICS_POSITION_ORDER) {
+    const list = sorted.filter(p => p.position === pos);
+    if (list.length) groups.push({ position: pos, label: TACTICS_POSITION_LABELS[pos], players: list });
+  }
+  return groups;
 }
 
 /** Quão bem uma posição do elenco atende a função do slot (0 a 1). */

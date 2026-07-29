@@ -1,17 +1,26 @@
 export type FormationKey =
-  // 4 defensores
+  // 4-4-2 e variantes
   | '442'
   | '442-losango'
+  | '442-aberto'
   | '4412'
+  // 4-3-3 e variantes
   | '433'
+  | '433-holding'
+  | '433-falso9'
+  // 4-2-3-1 e variantes
   | '4231'
+  | '4231-estreito'
+  // outras com 4 defensores
   | '4141'
   | '4222'
   | '4312'
   | '451'
+  | '451-fechado'
   | '424'
   // 3 defensores
   | '352'
+  | '352-ofensivo'
   | '343'
   | '3421'
   // 5 defensores

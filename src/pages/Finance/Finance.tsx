@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useGame } from '../../context/GameContext';
 import { formatMoney, wageBill, runwayMonths, newLedgerEntry, ledgerEntryTypeLabel } from '../../utils/finance';
+import { competitionNames } from '../../utils/competitions';
 import type { Currency, LedgerEntryType } from '../../types/Finance';
 import { CURRENCIES, currencyLabel } from '../../types/Finance';
 import { POSITION_LABELS } from '../../utils/matchEvents';
@@ -197,7 +198,7 @@ export default function Finance() {
 
       {tab === 'prizes' && (
         <PrizesTab
-          competitions={seasonCompetitions}
+          competitions={competitionNames(seasonCompetitions)}
           prizeTable={finance.prizeTable}
           currency={finance.currency}
           onSet={setPrizeTable}

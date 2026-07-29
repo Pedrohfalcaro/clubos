@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import FormationField from '../../components/FormationField/FormationField';
 import FormationPicker from '../../components/FormationPicker/FormationPicker';
-import StylePicker from '../../components/StylePicker/StylePicker';
 import { useGame } from '../../context/GameContext';
-import type { FormationKey, TacticalStyleKey, TacticsDraft } from '../../types/Tactics';
+import type { FormationKey, TacticsDraft } from '../../types/Tactics';
 import {
   buildBestLineup,
   countFilledSlots,
@@ -14,7 +13,7 @@ import {
   remapFormation,
   resolveTactics,
 } from '../../utils/formations';
-import { getTacticalStyle } from '../../utils/tacticalStyles';
+import { DEFAULT_STYLE_KEY } from '../../utils/tacticalStyles';
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
 import styles from './Tactics.module.css';
 
@@ -23,7 +22,6 @@ const BENCH_MAX = 9;
 function signature(tactics: TacticsDraft): string {
   return JSON.stringify([
     tactics.formationKey,
-    tactics.style,
     tactics.formation.map(f => `${f.slot}:${f.playerId}`),
     tactics.bench,
   ]);
@@ -39,7 +37,6 @@ export default function Tactics() {
   const [draft, setDraft] = useState<TacticsDraft>(saved);
   const [justSaved, setJustSaved] = useState(false);
 
-  // Reflete uma tática que mudou fora da página (carregar save, outra aba)
   const syncedFrom = useRef(state.tactics);
   useEffect(() => {
     if (syncedFrom.current === state.tactics) return;
@@ -64,10 +61,6 @@ export default function Tactics() {
     }));
   }
 
-  function handleStyleChange(style: TacticalStyleKey) {
-    setDraft(current => ({ ...current, style }));
-  }
-
   function handleAutoFill() {
     const best = buildBestLineup(draft.formationKey, players, 7);
     setDraft(current => ({ ...current, ...best }));
@@ -80,7 +73,7 @@ export default function Tactics() {
   function handleSave() {
     saveTactics({
       formationKey: draft.formationKey,
-      style: draft.style,
+      style: draft.style || DEFAULT_STYLE_KEY,
       formation: normalizeFormation(draft.formation, draft.formationKey, players),
       bench: draft.bench,
     });
@@ -103,7 +96,7 @@ export default function Tactics() {
         <div>
           <h1 className={styles.title}>Táticas</h1>
           <p className={styles.sub}>
-            Escolha a formação, defina o estilo de jogo e monte os titulares e o banco.
+            Escolha a formação e a variante, depois monte titulares e banco.
           </p>
         </div>
         <div className={styles.headerActions}>
@@ -127,12 +120,6 @@ export default function Tactics() {
 
       <section className={styles.setupCard}>
         <FormationPicker value={draft.formationKey} onChange={handleFormationChange} />
-        <div className={styles.divider} />
-        <StylePicker
-          value={draft.style}
-          onChange={handleStyleChange}
-          formationKey={draft.formationKey}
-        />
       </section>
 
       <div className={styles.toolbar}>
@@ -154,9 +141,7 @@ export default function Tactics() {
               <strong>{average}</strong> overall médio
             </span>
           )}
-          <span className={styles.stat}>
-            {preset.label} · {getTacticalStyle(draft.style).label}
-          </span>
+          <span className={styles.stat}>{preset.label}</span>
         </div>
         <div className={styles.tools}>
           <button type="button" className={styles.toolBtn} onClick={handleAutoFill}>
@@ -211,9 +196,8 @@ export default function Tactics() {
       )}
 
       <p className={styles.hint}>
-        Arraste jogadores do elenco para as posições ou para o banco. Arrastar um titular sobre
-        outro troca os dois de lugar, e clicar em um jogador em campo o remove. Trocar de formação
-        mantém os mesmos jogadores, reposicionados por função.
+        Use XI / B na lista, arraste para o campo ou banco, ou toque num slot e depois no jogador.
+        Trocar de formação ou variante mantém os mesmos jogadores, reposicionados por função.
       </p>
     </div>
   );

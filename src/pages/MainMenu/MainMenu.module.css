@@ -162,3 +162,122 @@
   font-size: 12px;
   color: var(--accent);
 }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.slotModal {
+  width: min(420px, 100%);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slotTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-h);
+}
+
+.slotSub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.slotList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slotCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-h);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.slotCard:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.slotCard:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.slotEmpty {
+  min-height: 64px;
+  justify-content: center;
+}
+
+.slotIndex {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text);
+}
+
+.slotEmptyLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.slotName {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.slotMeta {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.slotDate {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.slotWarn {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--warning);
+}
+
+.slotCancel {
+  margin-top: 4px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  font-weight: 600;
+  cursor: pointer;
+}

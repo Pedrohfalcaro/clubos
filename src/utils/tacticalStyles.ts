@@ -48,7 +48,7 @@ export const TACTICAL_STYLES: TacticalStyle[] = [
       'Marcação começa no meio-campo',
       'Laterais sobem um de cada vez',
     ],
-    bestWith: ['442', '433', '4231', '451', '352', '4412'],
+    bestWith: ['442', '442-aberto', '433', '4231', '451', '352', '4412'],
   },
   {
     key: 'ofensivo',
@@ -62,7 +62,7 @@ export const TACTICAL_STYLES: TacticalStyle[] = [
       'Laterais apoiam pelos dois lados',
       'Recuperar a bola o mais alto possível',
     ],
-    bestWith: ['433', '4231', '343', '4222', '3421', '442-losango'],
+    bestWith: ['433', '433-holding', '4231', '343', '4222', '3421', '442-losango'],
   },
   {
     key: 'ultra-ofensivo',
@@ -76,7 +76,7 @@ export const TACTICAL_STYLES: TacticalStyle[] = [
       'Cruzamentos e finalizações a qualquer momento',
       'Risco alto de contra-ataque sofrido',
     ],
-    bestWith: ['424', '343', '4222', '433', '3421'],
+    bestWith: ['424', '343', '4222', '433', '433-falso9', '3421'],
   },
   {
     key: 'defensivo',
@@ -90,7 +90,7 @@ export const TACTICAL_STYLES: TacticalStyle[] = [
       'Laterais não abandonam a defesa',
       'Só um homem de referência no ataque',
     ],
-    bestWith: ['4141', '451', '532', '4412', '442', '541'],
+    bestWith: ['4141', '451', '451-fechado', '532', '4412', '442', '541'],
   },
   {
     key: 'retranca',
@@ -104,7 +104,7 @@ export const TACTICAL_STYLES: TacticalStyle[] = [
       'Bola longa para aliviar a marcação',
       'Perder tempo nas reposições',
     ],
-    bestWith: ['541', '532', '4141', '451', '4412'],
+    bestWith: ['541', '532', '4141', '451', '451-fechado', '4412'],
   },
   {
     key: 'contra-ataque',
@@ -132,7 +132,7 @@ export const TACTICAL_STYLES: TacticalStyle[] = [
       'Meio-campo sempre com opção de passe curto',
       'Reação imediata à perda da bola',
     ],
-    bestWith: ['433', '4312', '442-losango', '3421', '4231', '451'],
+    bestWith: ['433', '433-holding', '4312', '442-losango', '3421', '4231', '451'],
   },
   {
     key: 'direto',
@@ -160,7 +160,7 @@ export const TACTICAL_STYLES: TacticalStyle[] = [
       'Linha defensiva adiantada, apostando no impedimento',
       'Desgaste físico alto — rodar o elenco',
     ],
-    bestWith: ['433', '4231', '343', '4222', '352', '3421'],
+    bestWith: ['433', '4231', '343', '4222', '352', '352-ofensivo', '3421'],
   },
   {
     key: 'aberto',
@@ -174,7 +174,7 @@ export const TACTICAL_STYLES: TacticalStyle[] = [
       'Buscar o cruzamento na área',
       'Trocar de lado até achar o espaço',
     ],
-    bestWith: ['442', '343', '352', '424', '451', '433', '541'],
+    bestWith: ['442', '442-aberto', '343', '352', '424', '451', '433', '541'],
   },
 ];
 

@@ -211,18 +211,49 @@
 .playerGrid {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
   flex: 1;
-  min-height: 120px;
-  max-height: 240px;
+  min-height: 160px;
+  max-height: min(52vh, 420px);
   overflow-y: auto;
-  padding-right: 2px;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 @media (min-width: 768px) {
   .playerGrid {
-    max-height: 300px;
+    max-height: none;
+    flex: 1;
   }
+}
+
+.posGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.posGroupLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  opacity: 0.75;
+  padding: 2px 4px;
+  position: sticky;
+  top: 0;
+  background: var(--card-bg, var(--bg));
+  z-index: 1;
+}
+
+.posGroupLabel em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
 }
 
 .playerChip {
@@ -246,8 +277,21 @@
   border-color: var(--border);
 }
 
+.playerChipPick {
+  border-color: var(--accent-border);
+  background: rgba(124, 58, 237, 0.08);
+}
+
 .playerChipDraggable:active {
   cursor: grabbing;
+}
+
+.chipMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
 }
 
 .playerChipName {
@@ -257,8 +301,42 @@
   line-height: 1.25;
   text-align: left;
   word-break: break-word;
-  flex: 1;
   min-width: 0;
+}
+
+.chipSub {
+  font-size: 10px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.chipActions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.chipAction {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-h);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.chipAction:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pickingHint {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .benchDropZone {
@@ -290,7 +368,7 @@
   flex-direction: column;
   gap: 4px;
   width: 100%;
-  max-height: 160px;
+  max-height: 180px;
   overflow-y: auto;
 }
 
@@ -315,7 +393,6 @@
   color: var(--text-h);
   line-height: 1.25;
   word-break: break-word;
-  flex: 1;
   min-width: 0;
 }
 
@@ -335,8 +412,8 @@
 }
 
 .benchSection {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;

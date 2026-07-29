@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../context/GameContext';
 import type { PlayerStatus } from '../../types/Player';
-import { formatMoney } from '../../utils/finance';
 import {
   scopeOptions,
   playerStatsForScope,
+  teamStatsForScope,
   type HistoryScope,
 } from '../../utils/historyScope';
 import styles from './Squad.module.css';
@@ -33,11 +33,21 @@ function overallColor(ovr: number): string {
   return 'var(--text)';
 }
 
+type CompFilter = 'all' | string;
+
+interface PlayerCompStats {
+  matches: number;
+  goals: number;
+  assists: number;
+  minutes: number;
+}
+
 export default function Squad() {
   const { state, updatePlayer } = useGame();
   const [view, setView] = useState<'roster' | 'history'>('roster');
   const [histScope, setHistScope] = useState<HistoryScope>('current');
   const [filter, setFilter] = useState<PlayerStatus | 'Todos'>('Todos');
+  const [compFilter, setCompFilter] = useState<CompFilter>('all');
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
@@ -48,16 +58,69 @@ export default function Squad() {
     salary: 0,
     marketValue: 0,
   });
-  const currency = state.finance?.currency ?? 'BRL';
   const scopes = useMemo(
     () => scopeOptions(state.season, state.seasonHistory),
     [state.season, state.seasonHistory],
   );
 
+  const statsByPlayerComp = useMemo(() => {
+    const map = new Map<string, Map<string, PlayerCompStats>>();
+
+    function bump(playerId: string, competition: string, patch: Partial<PlayerCompStats>) {
+      let byComp = map.get(playerId);
+      if (!byComp) {
+        byComp = new Map();
+        map.set(playerId, byComp);
+      }
+      const prev = byComp.get(competition) ?? { matches: 0, goals: 0, assists: 0, minutes: 0 };
+      byComp.set(competition, {
+        matches: prev.matches + (patch.matches ?? 0),
+        goals: prev.goals + (patch.goals ?? 0),
+        assists: prev.assists + (patch.assists ?? 0),
+        minutes: prev.minutes + (patch.minutes ?? 0),
+      });
+    }
+
+    for (const match of state.matches.filter(m => m.status === 'completed')) {
+      const played = new Set(match.playerMatches ?? []);
+      // Titulares da escalação também contam se playerMatches estiver vazio (saves antigos)
+      if (played.size === 0 && match.lineup?.formation) {
+        for (const slot of match.lineup.formation) played.add(slot.playerId);
+      }
+      for (const playerId of played) {
+        bump(playerId, match.competition, { matches: 1 });
+      }
+      for (const goal of match.goals ?? []) {
+        if (!goal.isOwnGoal && goal.playerId) {
+          bump(goal.playerId, match.competition, { goals: 1 });
+        }
+      }
+      for (const assist of match.assists ?? []) {
+        if (assist.playerId) bump(assist.playerId, match.competition, { assists: 1 });
+      }
+    }
+    return map;
+  }, [state.matches]);
+
+  const compSummaries = useMemo(() => {
+    return state.seasonCompetitions.map(comp => {
+      let playersUsed = 0;
+      for (const [, byComp] of statsByPlayerComp) {
+        const s = byComp.get(comp.name);
+        if (s && s.matches > 0) playersUsed += 1;
+      }
+      const matchCount = state.matches.filter(m => m.competition === comp.name).length;
+      return { ...comp, matchCount, playersUsed };
+    });
+  }, [state.seasonCompetitions, state.matches, statsByPlayerComp]);
+
   const players = state.players.filter(p => {
     const matchStatus = filter === 'Todos' || p.status === filter;
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchSearch;
+    if (!matchStatus || !matchSearch) return false;
+    if (compFilter === 'all') return true;
+    const stats = statsByPlayerComp.get(p.id)?.get(compFilter);
+    return !!stats && stats.matches > 0;
   });
 
   const historyRows = useMemo(() => {
@@ -74,18 +137,24 @@ export default function Squad() {
   }, [state.players, histScope, state.seasonHistory, state.season, search]);
 
   const historyTotals = useMemo(() => {
+    const teamGames = teamStatsForScope(
+      state.team?.statistics,
+      histScope,
+      state.seasonHistory,
+      state.season,
+    ).matches;
+
     return historyRows.reduce(
       (acc, r) => ({
-        matches: acc.matches + r.stats.matches,
-        minutes: acc.minutes + r.stats.minutes,
+        matches: teamGames,
         goals: acc.goals + r.stats.goals,
         assists: acc.assists + r.stats.assists,
         yellowCards: acc.yellowCards + r.stats.yellowCards,
         redCards: acc.redCards + r.stats.redCards,
       }),
-      { matches: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+      { matches: teamGames, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
     );
-  }, [historyRows]);
+  }, [historyRows, histScope, state.team?.statistics, state.seasonHistory, state.season]);
 
   const grouped = POSITION_ORDER.reduce<Record<string, typeof players>>((acc, pos) => {
     const group = players.filter(p => p.position === pos);
@@ -122,6 +191,23 @@ export default function Squad() {
 
   function cancelEdit() {
     setEditingId(null);
+  }
+
+  function displayStats(playerId: string) {
+    if (compFilter === 'all') {
+      const p = state.players.find(x => x.id === playerId);
+      return {
+        matches: p?.stats.matches ?? 0,
+        goals: p?.stats.goals ?? 0,
+        assists: p?.stats.assists ?? 0,
+      };
+    }
+    const s = statsByPlayerComp.get(playerId)?.get(compFilter);
+    return {
+      matches: s?.matches ?? 0,
+      goals: s?.goals ?? 0,
+      assists: s?.assists ?? 0,
+    };
   }
 
   return (
@@ -180,7 +266,6 @@ export default function Squad() {
 
           <div className={styles.histTotals}>
             <div><strong>{historyTotals.matches}</strong><span>Jogos</span></div>
-            <div><strong>{historyTotals.minutes}'</strong><span>Minutos</span></div>
             <div><strong>{historyTotals.goals}</strong><span>Gols</span></div>
             <div><strong>{historyTotals.assists}</strong><span>Assist.</span></div>
             <div><strong>{historyTotals.yellowCards}</strong><span>CA</span></div>
@@ -217,239 +302,174 @@ export default function Squad() {
           )}
         </>
       ) : (
-        <>
-      <div className={styles.controls}>
-        <div className={styles.filters}>
-          {STATUS_FILTERS.map(f => (
+        <div className={styles.rosterLayout}>
+          <aside className={styles.compSidebar}>
+            <p className={styles.compSidebarTitle}>Competições</p>
             <button
-              key={f}
-              className={`${styles.filterBtn} ${filter === f ? styles.filterBtnActive : ''}`}
-              onClick={() => setFilter(f)}
+              type="button"
+              className={`${styles.compFilterBtn} ${compFilter === 'all' ? styles.compFilterActive : ''}`}
+              onClick={() => setCompFilter('all')}
             >
-              {f}
+              <span className={styles.compFilterDot} style={{ background: 'var(--text)' }} />
+              <span className={styles.compFilterLabel}>Todas</span>
+              <span className={styles.compFilterMeta}>{state.players.length}</span>
             </button>
-          ))}
-        </div>
-        <input
-          className={styles.search}
-          type="text"
-          placeholder="Buscar jogador..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
+            {compSummaries.map(comp => (
+              <button
+                key={comp.id}
+                type="button"
+                className={`${styles.compFilterBtn} ${compFilter === comp.name ? styles.compFilterActive : ''}`}
+                onClick={() => setCompFilter(comp.name)}
+              >
+                <span className={styles.compFilterDot} style={{ background: comp.color }} />
+                <span className={styles.compFilterLabel}>{comp.shortName || comp.name}</span>
+                <span className={styles.compFilterMeta}>
+                  {comp.matchCount}j · {comp.playersUsed}at
+                </span>
+              </button>
+            ))}
+            {compSummaries.length === 0 && (
+              <p className={styles.compSidebarEmpty}>Nenhuma competição cadastrada</p>
+            )}
+          </aside>
 
-      {Object.entries(grouped).map(([pos, group]) => (
-        <section key={pos} className={styles.group}>
-          <h2 className={styles.groupTitle}>{POSITION_LABELS[pos] ?? pos}</h2>
-
-          <div className={styles.table}>
-            <div className={styles.tableHead}>
-              <span className={styles.colNum}>#</span>
-              <span className={styles.colName}>Nome</span>
-              <span className={styles.colAge}>Idade</span>
-              <span className={styles.colOvr}>OVR</span>
-              <span className={styles.colMatches}>J</span>
-              <span className={styles.colStat}>G</span>
-              <span className={styles.colStat}>A</span>
-              <span className={styles.colStatus}>Status</span>
-              <span className={styles.colAction} />
+          <div className={styles.rosterMain}>
+            <div className={styles.controls}>
+              <div className={styles.filters}>
+                {STATUS_FILTERS.map(f => (
+                  <button
+                    key={f}
+                    className={`${styles.filterBtn} ${filter === f ? styles.filterBtnActive : ''}`}
+                    onClick={() => setFilter(f)}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <input
+                className={styles.search}
+                type="text"
+                placeholder="Buscar jogador..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
             </div>
-            {group.map(p => (
-              <div key={p.id}>
-                {editingId === p.id ? (
-                  <div className={styles.editRow}>
-                    <input
-                      className={styles.editInputSm}
-                      type="number"
-                      min={1}
-                      max={99}
-                      placeholder="#"
-                      value={editForm.number}
-                      onChange={e => setEditForm(f => ({ ...f, number: e.target.value }))}
-                    />
-                    <span className={styles.colName}>{p.name}</span>
-                    <input
-                      className={styles.editInputSm}
-                      type="number"
-                      min={15}
-                      max={45}
-                      value={editForm.age}
-                      onChange={e => setEditForm(f => ({ ...f, age: Number(e.target.value) }))}
-                    />
-                    <input
-                      className={styles.editInputSm}
-                      type="number"
-                      min={40}
-                      max={99}
-                      value={editForm.overall}
-                      onChange={e => setEditForm(f => ({ ...f, overall: Number(e.target.value) }))}
-                    />
-                    <span className={styles.colMatches}>
-                      <span>{p.stats.matches}</span>
-                      <span className={styles.minutes} title="Minutos jogados">
-                        <span className={styles.minutesIcon} aria-hidden>⏱</span>
-                        {p.stats.minutes ?? 0}'
-                      </span>
-                    </span>
-                    <span className={styles.colStat}>{p.stats.goals}</span>
-                    <span className={styles.colStat}>{p.stats.assists}</span>
-                    <select
-                      className={styles.editSelect}
-                      value={editForm.status}
-                      onChange={e => setEditForm(f => ({ ...f, status: e.target.value as PlayerStatus }))}
-                    >
-                      {STATUS_OPTIONS.map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                    <div className={styles.editActions}>
-                      <button type="button" className={styles.saveBtn} onClick={saveEdit}>Salvar</button>
-                      <button type="button" className={styles.cancelBtn} onClick={cancelEdit}>×</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className={styles.tableRow}>
-                    <span className={styles.colNum}>{p.number ?? '—'}</span>
-                    <span className={styles.colName}>{p.name}</span>
-                    <span className={styles.colAge}>{p.age}</span>
-                    <span className={styles.colOvr} style={{ color: overallColor(p.overall) }}>
-                      {p.overall}
-                    </span>
-                    <span className={styles.colMatches}>
-                      <span>{p.stats.matches}</span>
-                      <span className={styles.minutes} title="Minutos jogados">
-                        <span className={styles.minutesIcon} aria-hidden>⏱</span>
-                        {p.stats.minutes ?? 0}'
-                      </span>
-                    </span>
-                    <span className={styles.colStat}>{p.stats.goals}</span>
-                    <span className={styles.colStat}>{p.stats.assists}</span>
-                    <span className={styles.colStatus} style={{ color: STATUS_COLOR[p.status] }}>
-                      {p.status}
-                    </span>
-                    <button type="button" className={styles.editBtn} onClick={() => startEdit(p.id)}>
-                      Editar
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
 
-          <div className={styles.mobileList}>
-            {group.map(p => (
-              <div key={`m-${p.id}`} className={styles.mobileCard}>
-                {editingId === p.id ? (
-                  <div className={styles.mobileEdit}>
-                    <p className={styles.mobileName}>{p.name}</p>
-                    <div className={styles.mobileEditGrid}>
-                      <label>
-                        <span>#</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={99}
-                          value={editForm.number}
-                          onChange={e => setEditForm(f => ({ ...f, number: e.target.value }))}
-                        />
-                      </label>
-                      <label>
-                        <span>Idade</span>
-                        <input
-                          type="number"
-                          min={15}
-                          max={45}
-                          value={editForm.age}
-                          onChange={e => setEditForm(f => ({ ...f, age: Number(e.target.value) }))}
-                        />
-                      </label>
-                      <label>
-                        <span>OVR</span>
-                        <input
-                          type="number"
-                          min={40}
-                          max={99}
-                          value={editForm.overall}
-                          onChange={e => setEditForm(f => ({ ...f, overall: Number(e.target.value) }))}
-                        />
-                      </label>
-                      <label>
-                        <span>Status</span>
-                        <select
-                          value={editForm.status}
-                          onChange={e => setEditForm(f => ({ ...f, status: e.target.value as PlayerStatus }))}
-                        >
-                          {STATUS_OPTIONS.map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        <span>Salário</span>
-                        <input
-                          type="number"
-                          min={0}
-                          value={editForm.salary}
-                          onChange={e => setEditForm(f => ({ ...f, salary: Number(e.target.value) }))}
-                        />
-                      </label>
-                      <label>
-                        <span>Valor mercado</span>
-                        <input
-                          type="number"
-                          min={0}
-                          value={editForm.marketValue}
-                          onChange={e => setEditForm(f => ({ ...f, marketValue: Number(e.target.value) }))}
-                        />
-                      </label>
-                    </div>
-                    <div className={styles.mobileEditActions}>
-                      <button type="button" className={styles.saveBtn} onClick={saveEdit}>Salvar</button>
-                      <button type="button" className={styles.cancelBtn} onClick={cancelEdit}>Cancelar</button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className={styles.mobileCardTop}>
-                      <span className={styles.mobileNum}>{p.number ?? '—'}</span>
-                      <span className={styles.mobileName}>{p.name}</span>
-                      <span className={styles.mobileOvr} style={{ color: overallColor(p.overall) }}>
-                        {p.overall}
-                      </span>
-                    </div>
-                    <div className={styles.mobileCardMeta}>
-                      <span>{p.age} anos</span>
-                      <span>J {p.stats.matches}</span>
-                      <span className={styles.minutes} title="Minutos jogados">
-                        <span className={styles.minutesIcon} aria-hidden>⏱</span>
-                        {p.stats.minutes ?? 0}'
-                      </span>
-                      <span>G {p.stats.goals}</span>
-                      <span>A {p.stats.assists}</span>
-                      <span style={{ color: STATUS_COLOR[p.status] }}>{p.status}</span>
-                    </div>
-                    {(p.salary > 0 || p.marketValue > 0) && (
-                      <div className={styles.mobileCardMeta} style={{ marginTop: 2, fontSize: 11 }}>
-                        {p.salary > 0 && <span title="Salário">💰 {formatMoney(p.salary, currency)}/mês</span>}
-                        {p.marketValue > 0 && <span title="Valor de mercado">🏷 {formatMoney(p.marketValue, currency)}</span>}
-                      </div>
-                    )}
-                    <button type="button" className={styles.mobileEditBtn} onClick={() => startEdit(p.id)}>
-                      Editar
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+            {compFilter !== 'all' && (
+              <p className={styles.compBanner}>
+                Filtrando por <strong>{compFilter}</strong> — números de J/G/A desta competição
+              </p>
+            )}
 
-      {Object.keys(grouped).length === 0 && (
-        <div className={styles.empty}>Nenhum jogador encontrado.</div>
-      )}
-        </>
+            {Object.keys(grouped).length === 0 ? (
+              <div className={styles.empty}>
+                {compFilter === 'all'
+                  ? 'Nenhum jogador encontrado.'
+                  : 'Nenhum atleta com jogos nesta competição.'}
+              </div>
+            ) : (
+              Object.entries(grouped).map(([pos, group]) => (
+                <section key={pos} className={styles.group}>
+                  <h2 className={styles.groupTitle}>{POSITION_LABELS[pos] ?? pos}</h2>
+
+                  <div className={styles.table}>
+                    <div className={styles.tableHead}>
+                      <span className={styles.colNum}>#</span>
+                      <span className={styles.colName}>Nome</span>
+                      <span className={styles.colAge}>Idade</span>
+                      <span className={styles.colOvr}>OVR</span>
+                      <span className={styles.colMatches}>J</span>
+                      <span className={styles.colStat}>G</span>
+                      <span className={styles.colStat}>A</span>
+                      <span className={styles.colStatus}>Status</span>
+                      <span className={styles.colAction} />
+                    </div>
+                    {group.map(p => {
+                      const stats = displayStats(p.id);
+                      return (
+                        <div key={p.id}>
+                          {editingId === p.id ? (
+                            <div className={styles.editRow}>
+                              <input
+                                className={styles.editInputSm}
+                                type="number"
+                                min={1}
+                                max={99}
+                                placeholder="#"
+                                value={editForm.number}
+                                onChange={e => setEditForm(f => ({ ...f, number: e.target.value }))}
+                              />
+                              <span className={styles.editName}>{p.name}</span>
+                              <input
+                                className={styles.editInputSm}
+                                type="number"
+                                min={15}
+                                max={45}
+                                value={editForm.age}
+                                onChange={e => setEditForm(f => ({ ...f, age: Number(e.target.value) }))}
+                              />
+                              <input
+                                className={styles.editInputSm}
+                                type="number"
+                                min={1}
+                                max={99}
+                                value={editForm.overall}
+                                onChange={e => setEditForm(f => ({ ...f, overall: Number(e.target.value) }))}
+                              />
+                              <select
+                                className={styles.editSelect}
+                                value={editForm.status}
+                                onChange={e => setEditForm(f => ({ ...f, status: e.target.value as PlayerStatus }))}
+                              >
+                                {STATUS_OPTIONS.map(s => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                              <input
+                                className={styles.editInputMd}
+                                type="number"
+                                min={0}
+                                placeholder="Salário"
+                                value={editForm.salary}
+                                onChange={e => setEditForm(f => ({ ...f, salary: Number(e.target.value) }))}
+                              />
+                              <input
+                                className={styles.editInputMd}
+                                type="number"
+                                min={0}
+                                placeholder="Valor"
+                                value={editForm.marketValue}
+                                onChange={e => setEditForm(f => ({ ...f, marketValue: Number(e.target.value) }))}
+                              />
+                              <div className={styles.editActions}>
+                                <button type="button" className={styles.saveBtn} onClick={saveEdit}>Salvar</button>
+                                <button type="button" className={styles.cancelBtn} onClick={cancelEdit}>Cancelar</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className={styles.tableRow}>
+                              <span className={styles.colNum}>{p.number ?? '—'}</span>
+                              <span className={styles.colName}>{p.name}</span>
+                              <span className={styles.colAge}>{p.age}</span>
+                              <span className={styles.colOvr} style={{ color: overallColor(p.overall) }}>{p.overall}</span>
+                              <span className={styles.colMatches}>{stats.matches}</span>
+                              <span className={styles.colStat}>{stats.goals}</span>
+                              <span className={styles.colStat}>{stats.assists}</span>
+                              <span className={styles.colStatus} style={{ color: STATUS_COLOR[p.status] }}>{p.status}</span>
+                              <span className={styles.colAction}>
+                                <button type="button" className={styles.editBtn} onClick={() => startEdit(p.id)}>Editar</button>
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

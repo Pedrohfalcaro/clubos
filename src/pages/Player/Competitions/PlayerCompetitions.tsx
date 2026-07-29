@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../../context/GameContext';
+import { competitionNames } from '../../../utils/competitions';
 import styles from '../../Competitions/Competitions.module.css';
 import extra from './PlayerCompetitions.module.css';
 
@@ -52,7 +53,7 @@ export default function PlayerCompetitions() {
   if (!player) return null;
 
   const competitions = state.seasonCompetitions.length > 0
-    ? state.seasonCompetitions
+    ? competitionNames(state.seasonCompetitions)
     : [...byCompetition.keys()];
 
   function openModal() {

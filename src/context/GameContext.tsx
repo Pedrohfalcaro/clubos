@@ -1,4 +1,10 @@
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
+import type { SeasonCompetition } from '../types/Competition';
+import {
+  competitionNames,
+  createSeasonCompetition,
+  migrateSeasonCompetitions,
+} from '../utils/competitions';
 import type { Team } from '../types/Team';
 import type { Player } from '../types/Player';
 import type { Match, ScheduleMatchInput, CompleteMatchInput } from '../types/Match';
@@ -32,6 +38,7 @@ import { emptyTeamStats } from '../types/SeasonHistory';
 import { newLedgerEntry, wageBill } from '../utils/finance';
 import { useAuth } from './AuthContext';
 import { emptyPlayerStats as emptySquadStats } from '../types/Player';
+import type { SaveSlotId } from '../services/saveSlots';
 
 const PLAYER_TEAM_ID = 'player-career';
 
@@ -46,7 +53,7 @@ export interface GameState {
   teamId: string | null;
   team: Team | null;
   manager: Manager | null;
-  seasonCompetitions: string[];
+  seasonCompetitions: SeasonCompetition[];
   players: Player[];
   careerPlayer: CareerPlayer | null;
   matches: Match[];
@@ -58,6 +65,8 @@ export interface GameState {
   board: BoardState;
   transfers: TransferState;
   seasonHistory: SeasonArchive[];
+  /** Slot de save ativo desta carreira (1–3). */
+  saveSlotId: SaveSlotId;
 }
 
 type GameAction =
@@ -65,11 +74,14 @@ type GameAction =
   | { type: 'SET_COACH_COUNTRY'; country: string }
   | { type: 'SET_CUSTOM_CLUB'; team: Team; players: Player[] }
   | { type: 'SET_MANAGER'; manager: Manager }
-  | { type: 'START_CAREER'; manager: Manager; seasonCompetitions: string[] }
+  | { type: 'START_CAREER'; manager: Manager; seasonCompetitions: SeasonCompetition[] }
   | { type: 'SET_CAREER_PLAYER'; player: Partial<CareerPlayer> }
   | { type: 'SET_PLAYER_CLUB'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number }
   | { type: 'FINISH_PLAYER_SETUP'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number; mainCompetition: string }
-  | { type: 'ADD_COMPETITION'; name: string }
+  | { type: 'ADD_COMPETITION'; competition: SeasonCompetition }
+  | { type: 'UPDATE_COMPETITION'; id: string; updates: Partial<Pick<SeasonCompetition, 'name' | 'color' | 'shortName' | 'type'>> }
+  | { type: 'REMOVE_COMPETITION'; id: string }
+  | { type: 'SET_SAVE_SLOT'; slotId: SaveSlotId }
   | { type: 'UPDATE_CAREER_PLAYER'; updates: Partial<CareerPlayer> }
   | { type: 'TRANSFER_PLAYER'; club: ClubInfo; salary: number; contractYears: number }
   | { type: 'ADD_INJURY'; injury: Omit<InjuryEntry, 'id'> }
@@ -113,7 +125,7 @@ interface GameContextValue {
   setCoachCountry: (country: string) => void;
   setCustomClub: (team: Team, players: Player[]) => void;
   setManager: (manager: Manager) => void;
-  startCareer: (seasonCompetitions: string[]) => void;
+  startCareer: (seasonCompetitions: string[] | SeasonCompetition[], slotId?: SaveSlotId) => void;
   setCareerPlayer: (data: Partial<CareerPlayer>) => void;
   setPlayerClub: (data: {
     club: ClubInfo;
@@ -128,7 +140,15 @@ interface GameContextValue {
     contractYearsLeft: number;
     mainCompetition: string;
   }) => void;
-  addCompetition: (name: string) => void;
+  addCompetition: (input: string | Partial<SeasonCompetition> & { name: string }) => void;
+  updateCompetition: (
+    id: string,
+    updates: Partial<Pick<SeasonCompetition, 'name' | 'color' | 'shortName' | 'type'>>,
+  ) => void;
+  removeCompetition: (id: string) => void;
+  competitionNameList: () => string[];
+  loadSavedGame: (slotId?: SaveSlotId) => Promise<CareerMode | null>;
+  setSaveSlot: (slotId: SaveSlotId) => void;
   updateCareerPlayer: (updates: Partial<CareerPlayer>) => void;
   transferPlayer: (club: ClubInfo, salary: number, contractYears: number) => void;
   addInjury: (injury: Omit<InjuryEntry, 'id'>) => void;
@@ -150,7 +170,6 @@ interface GameContextValue {
   saveTactics: (tactics: SavedTactics) => void;
   rollPulseForMatch: (matchId: string) => void;
   updatePulseSettings: (settings: Partial<PulseSettings>) => void;
-  loadSavedGame: () => Promise<CareerMode | null>;
   completeTutorial: () => void;
   resetGame: () => void;
   getTeamPlayers: () => Player[];
@@ -197,6 +216,7 @@ const initialState: GameState = {
   board: createDefaultBoardState(),
   transfers: createDefaultTransferState(),
   seasonHistory: [],
+  saveSlotId: '1',
 };
 
 function updatePlayerFromMatch(
@@ -359,17 +379,62 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         manager: null,
         players: [],
         tactics: null,
-        seasonCompetitions: [action.mainCompetition],
+        seasonCompetitions: [createSeasonCompetition(action.mainCompetition)],
         matches: [],
         tutorialCompleted: false,
       };
     }
 
     case 'ADD_COMPETITION': {
-      const name = action.name.trim();
-      if (!name || state.seasonCompetitions.includes(name)) return state;
-      return { ...state, seasonCompetitions: [...state.seasonCompetitions, name] };
+      const name = action.competition.name.trim();
+      if (!name) return state;
+      if (state.seasonCompetitions.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+        return state;
+      }
+      return {
+        ...state,
+        seasonCompetitions: [...state.seasonCompetitions, action.competition],
+      };
     }
+
+    case 'UPDATE_COMPETITION': {
+      const current = state.seasonCompetitions.find(c => c.id === action.id);
+      if (!current) return state;
+      const nextName = action.updates.name?.trim();
+      if (nextName) {
+        const clash = state.seasonCompetitions.some(
+          c => c.id !== action.id && c.name.toLowerCase() === nextName.toLowerCase(),
+        );
+        if (clash) return state;
+      }
+      const updated: SeasonCompetition = {
+        ...current,
+        ...action.updates,
+        name: nextName || current.name,
+      };
+      const matches =
+        updated.name !== current.name
+          ? state.matches.map(m =>
+              m.competition === current.name ? { ...m, competition: updated.name } : m,
+            )
+          : state.matches;
+      return {
+        ...state,
+        seasonCompetitions: state.seasonCompetitions.map(c => (c.id === action.id ? updated : c)),
+        matches,
+      };
+    }
+
+    case 'REMOVE_COMPETITION': {
+      if (state.seasonCompetitions.length <= 1) return state;
+      return {
+        ...state,
+        seasonCompetitions: state.seasonCompetitions.filter(c => c.id !== action.id),
+      };
+    }
+
+    case 'SET_SAVE_SLOT':
+      return { ...state, saveSlotId: action.slotId };
 
     case 'UPDATE_CAREER_PLAYER':
       if (!state.careerPlayer) return state;
@@ -758,6 +823,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         pendingCoachCountry: null,
         pendingCareerPlayer: null,
         ...action.state,
+        seasonCompetitions: migrateSeasonCompetitions(action.state.seasonCompetitions),
+        saveSlotId: action.state.saveSlotId ?? '1',
         pulse: action.state.pulse ?? createDefaultPulseState(),
         finance: action.state.finance ?? createDefaultFinance(),
         board: action.state.board ?? createDefaultBoardState(),
@@ -920,7 +987,7 @@ const GameContext = createContext<GameContextValue | null>(null);
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
-  const { persistSave, fetchCloudSave } = useAuth();
+  const { persistSave, fetchCloudSave, setActiveSlot, activeSlotId } = useAuth();
 
   useEffect(() => {
     if (!state.started) return;
@@ -929,33 +996,42 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     async function sync() {
       try {
+        const slotId = state.saveSlotId || activeSlotId;
         if (state.careerMode === 'coach' && state.team && state.teamId) {
-          await persistSave({
-            careerMode: 'coach',
-            teamId: state.teamId,
-            team: state.team,
-            players: state.players,
-            matches: state.matches,
-            season: state.season,
-            manager: state.manager,
-            seasonCompetitions: state.seasonCompetitions,
-            tactics: state.tactics,
-            tutorialCompleted: state.tutorialCompleted,
-            pulse: state.pulse,
-            finance: state.finance,
-            board: state.board,
-            transfers: state.transfers,
-            seasonHistory: state.seasonHistory,
-          });
+          await persistSave(
+            {
+              careerMode: 'coach',
+              teamId: state.teamId,
+              team: state.team,
+              players: state.players,
+              matches: state.matches,
+              season: state.season,
+              manager: state.manager,
+              seasonCompetitions: state.seasonCompetitions,
+              tactics: state.tactics,
+              tutorialCompleted: state.tutorialCompleted,
+              pulse: state.pulse,
+              finance: state.finance,
+              board: state.board,
+              transfers: state.transfers,
+              seasonHistory: state.seasonHistory,
+              slotId,
+            },
+            slotId,
+          );
         } else if (state.careerMode === 'player' && state.careerPlayer) {
-          await persistSave({
-            careerMode: 'player',
-            careerPlayer: state.careerPlayer,
-            matches: state.matches,
-            season: state.season,
-            seasonCompetitions: state.seasonCompetitions,
-            tutorialCompleted: state.tutorialCompleted,
-          });
+          await persistSave(
+            {
+              careerMode: 'player',
+              careerPlayer: state.careerPlayer,
+              matches: state.matches,
+              season: state.season,
+              seasonCompetitions: state.seasonCompetitions,
+              tutorialCompleted: state.tutorialCompleted,
+              slotId,
+            },
+            slotId,
+          );
         }
       } catch (err) {
         if (!cancelled) console.error('Falha ao salvar na nuvem', err);
@@ -968,7 +1044,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [state, persistSave]);
+  }, [state, persistSave, activeSlotId]);
 
   function selectCareerMode(mode: CareerMode) {
     dispatch({ type: 'SELECT_CAREER_MODE', mode });
@@ -986,12 +1062,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_MANAGER', manager });
   }
 
-  function startCareer(seasonCompetitions: string[]) {
+  function startCareer(
+    seasonCompetitions: string[] | SeasonCompetition[],
+    slotId: SaveSlotId = activeSlotId,
+  ) {
     if (!state.pendingTeam || !state.manager || state.pendingPlayers.length === 0) return;
+    const comps = migrateSeasonCompetitions(seasonCompetitions);
+    setActiveSlot(slotId);
+    dispatch({ type: 'SET_SAVE_SLOT', slotId });
     dispatch({
       type: 'START_CAREER',
       manager: state.manager,
-      seasonCompetitions,
+      seasonCompetitions: comps,
     });
   }
 
@@ -1018,8 +1100,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'FINISH_PLAYER_SETUP', ...data });
   }
 
-  function addCompetition(name: string) {
-    dispatch({ type: 'ADD_COMPETITION', name });
+  function addCompetition(input: string | (Partial<SeasonCompetition> & { name: string })) {
+    const competition =
+      typeof input === 'string'
+        ? createSeasonCompetition(input)
+        : createSeasonCompetition(input.name, input);
+    dispatch({ type: 'ADD_COMPETITION', competition });
+  }
+
+  function updateCompetition(
+    id: string,
+    updates: Partial<Pick<SeasonCompetition, 'name' | 'color' | 'shortName' | 'type'>>,
+  ) {
+    dispatch({ type: 'UPDATE_COMPETITION', id, updates });
+  }
+
+  function removeCompetition(id: string) {
+    dispatch({ type: 'REMOVE_COMPETITION', id });
+  }
+
+  function competitionNameList() {
+    return competitionNames(state.seasonCompetitions);
+  }
+
+  function setSaveSlot(slotId: SaveSlotId) {
+    setActiveSlot(slotId);
+    dispatch({ type: 'SET_SAVE_SLOT', slotId });
   }
 
   function updateCareerPlayer(updates: Partial<CareerPlayer>) {
@@ -1139,9 +1245,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'UPDATE_PULSE_SETTINGS', settings });
   }
 
-  async function loadSavedGame(): Promise<CareerMode | null> {
-    const save = await fetchCloudSave();
+  async function loadSavedGame(slotId: SaveSlotId = activeSlotId): Promise<CareerMode | null> {
+    const save = await fetchCloudSave(slotId);
     if (!save) return null;
+    setActiveSlot(slotId);
 
     if (save.careerMode === 'player' && save.careerPlayer) {
       dispatch({
@@ -1152,7 +1259,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           teamId: null,
           team: null,
           manager: null,
-          seasonCompetitions: save.seasonCompetitions,
+          seasonCompetitions: migrateSeasonCompetitions(save.seasonCompetitions),
           players: [],
           matches: save.matches,
           season: save.season,
@@ -1163,6 +1270,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           board: createDefaultBoardState(),
           transfers: createDefaultTransferState(),
           seasonHistory: [],
+          saveSlotId: slotId,
         },
       });
       return 'player';
@@ -1179,7 +1287,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           teamId: save.teamId,
           team: recalculated.team,
           manager: save.manager ?? null,
-          seasonCompetitions: save.seasonCompetitions,
+          seasonCompetitions: migrateSeasonCompetitions(save.seasonCompetitions),
           players: recalculated.players,
           matches,
           season: save.season,
@@ -1191,6 +1299,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           board: save.board ?? createDefaultBoardState(),
           transfers: save.transfers ?? createDefaultTransferState(),
           seasonHistory: save.seasonHistory ?? [],
+          saveSlotId: slotId,
         },
       });
       return 'coach';
@@ -1203,7 +1312,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!state.started) return null;
     if (state.careerMode === 'coach' && state.team && state.teamId) {
       return {
-        version: '0.5.0',
+        version: '0.6.0',
         savedAt: new Date().toISOString(),
         careerMode: 'coach',
         teamId: state.teamId,
@@ -1220,11 +1329,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         board: state.board,
         transfers: state.transfers,
         seasonHistory: state.seasonHistory,
+        slotId: state.saveSlotId,
       };
     }
     if (state.careerMode === 'player' && state.careerPlayer) {
       return {
-        version: '0.5.0',
+        version: '0.6.0',
         savedAt: new Date().toISOString(),
         careerMode: 'player',
         careerPlayer: state.careerPlayer,
@@ -1232,6 +1342,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         season: state.season,
         seasonCompetitions: state.seasonCompetitions,
         tutorialCompleted: state.tutorialCompleted,
+        slotId: state.saveSlotId,
       };
     }
     return null;
@@ -1325,6 +1436,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setPlayerClub,
         finishPlayerSetup,
         addCompetition,
+        updateCompetition,
+        removeCompetition,
+        competitionNameList,
+        setSaveSlot,
         updateCareerPlayer,
         transferPlayer,
         addInjury,

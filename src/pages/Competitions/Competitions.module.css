@@ -6,8 +6,10 @@
 
 .header {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .title {
@@ -125,8 +127,208 @@
   grid-template-columns: 32px 1fr 40px 48px;
 }
 
+.addBtn {
+  padding: 10px 16px;
+  background: var(--accent);
+  border: none;
+  border-radius: 9px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.compList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.compDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.compInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 140px;
+}
+
+.compInfo strong {
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.compInfo span {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.compActions {
+  display: flex;
+  gap: 6px;
+}
+
+.editForm,
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.addForm {
+  margin-top: 8px;
+  padding: 14px;
+  background: var(--card-bg);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.addTitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.input {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.colorRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.swatchActive {
+  border-color: var(--text-h);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--text-h);
+}
+
+.colorPicker {
+  width: 32px;
+  height: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.editActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.ghostBtn,
+.primaryBtn,
+.dangerBtn {
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ghostBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-h);
+}
+
+.primaryBtn {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+}
+
+.dangerBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--danger);
+}
+
+.dangerBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.scorers {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.scorerRow {
+  display: grid;
+  grid-template-columns: 32px 1fr 48px 48px;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  font-size: 13px;
+}
+
+.scorerRow:last-child {
+  border-bottom: none;
+}
+
+.scorerPos {
+  color: var(--text);
+  text-align: center;
+}
+
+.scorerName {
+  color: var(--text-h);
+  font-weight: 500;
+}
+
+.scorerStat {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
 @media (max-width: 700px) {
   .twoCol { grid-template-columns: 1fr; }
   .tableHead,
   .tableRow { grid-template-columns: 32px 1fr 32px 32px 32px 32px 32px 32px 32px 40px; }
+  .header {
+    flex-direction: column;
+  }
 }

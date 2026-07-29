@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
-import { AVAILABLE_COMPETITIONS } from '../../utils/formations';
+import { AVAILABLE_COMPETITIONS } from '../../utils/competitions';
 import styles from './Setup.module.css';
 
 export default function CompetitionsSetup() {

@@ -1,23 +1,38 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
 import { useAuth } from '../../context/AuthContext';
+import {
+  formatSlotRecord,
+  formatSlotSavedAt,
+  type SaveSlotId,
+  type SaveSlotSummary,
+} from '../../services/saveSlots';
 import styles from './MainMenu.module.css';
 
 export default function MainMenu() {
   const navigate = useNavigate();
-  const { loadSavedGame } = useGame();
+  const { loadSavedGame, setSaveSlot } = useGame();
   const {
     user,
     loading,
     configured,
     hasCloudSave,
+    saveSlots,
+    maxSaveSlots,
     signInWithGoogle,
     signOut,
+    listSaveSlots,
   } = useAuth();
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [pickerMode, setPickerMode] = useState<'load' | 'new' | null>(null);
+  const [slots, setSlots] = useState<SaveSlotSummary[]>(saveSlots);
+
+  useEffect(() => {
+    setSlots(saveSlots);
+  }, [saveSlots]);
 
   async function handleGoogle() {
     setError('');
@@ -32,21 +47,61 @@ export default function MainMenu() {
     }
   }
 
-  async function handleLoad() {
-    if (!hasCloudSave) return;
+  async function openLoadPicker() {
     setBusy(true);
     setError('');
     try {
-      const mode = await loadSavedGame();
+      const list = await listSaveSlots();
+      setSlots(list);
+      if (!list.some(s => !s.empty)) {
+        setError('Nenhuma carreira salva encontrada.');
+        return;
+      }
+      setPickerMode('load');
+    } catch (err) {
+      console.error(err);
+      setError('Falha ao listar salvamentos.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openNewPicker() {
+    setBusy(true);
+    setError('');
+    try {
+      const list = await listSaveSlots();
+      setSlots(list);
+      setPickerMode('new');
+    } catch (err) {
+      console.error(err);
+      setError('Falha ao preparar nova carreira.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleLoadSlot(slotId: SaveSlotId) {
+    setBusy(true);
+    setError('');
+    try {
+      const mode = await loadSavedGame(slotId);
       if (mode === 'player') navigate('/player/dashboard');
       else if (mode === 'coach') navigate('/dashboard');
       else setError('Save encontrado, mas está incompleto.');
     } catch (err) {
       console.error(err);
-      setError('Falha ao carregar o save da nuvem.');
+      setError('Falha ao carregar o save.');
     } finally {
       setBusy(false);
+      setPickerMode(null);
     }
+  }
+
+  function handleNewSlot(slotId: SaveSlotId) {
+    setSaveSlot(slotId);
+    setPickerMode(null);
+    navigate('/new/mode');
   }
 
   async function handleSignOut() {
@@ -109,6 +164,9 @@ export default function MainMenu() {
     );
   }
 
+  const occupied = slots.filter(s => !s.empty).length;
+  const hasAnySave = occupied > 0 || hasCloudSave;
+
   return (
     <div className={styles.page}>
       <div className={styles.content}>
@@ -125,7 +183,7 @@ export default function MainMenu() {
           <button
             type="button"
             className={styles.primary}
-            onClick={() => navigate('/new/mode')}
+            onClick={openNewPicker}
             disabled={busy}
           >
             Começar
@@ -133,8 +191,8 @@ export default function MainMenu() {
           <button
             type="button"
             className={styles.secondary}
-            onClick={handleLoad}
-            disabled={!hasCloudSave || busy}
+            onClick={openLoadPicker}
+            disabled={!hasAnySave || busy}
           >
             {busy ? 'Carregando...' : 'Carregar'}
           </button>
@@ -148,11 +206,81 @@ export default function MainMenu() {
           </button>
         </div>
 
-        {!hasCloudSave && (
-          <p className={styles.hint}>Nenhuma carreira na nuvem. Inicie uma nova.</p>
+        <p className={styles.hint}>
+          Até {maxSaveSlots} carreiras por conta · {occupied}/{maxSaveSlots} em uso
+        </p>
+
+        {!hasAnySave && (
+          <p className={styles.hint}>Nenhuma carreira salva ainda. Clique em Começar.</p>
         )}
         {error && <p className={styles.error}>{error}</p>}
       </div>
+
+      {pickerMode && (
+        <div className={styles.overlay} onClick={() => !busy && setPickerMode(null)}>
+          <div className={styles.slotModal} onClick={e => e.stopPropagation()}>
+            <h2 className={styles.slotTitle}>
+              {pickerMode === 'load' ? 'Carregar carreira' : 'Escolher slot'}
+            </h2>
+            <p className={styles.slotSub}>
+              {pickerMode === 'load'
+                ? 'Selecione um salvamento para continuar'
+                : 'Escolha um slot vazio ou sobrescreva um existente'}
+            </p>
+            <div className={styles.slotList}>
+              {slots.map(slot => {
+                const disabled = pickerMode === 'load' && slot.empty;
+                return (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    className={`${styles.slotCard} ${slot.empty ? styles.slotEmpty : ''}`}
+                    disabled={disabled || busy}
+                    onClick={() =>
+                      pickerMode === 'load'
+                        ? handleLoadSlot(slot.id)
+                        : handleNewSlot(slot.id)
+                    }
+                  >
+                    <span className={styles.slotIndex}>Slot {slot.id}</span>
+                    {slot.empty ? (
+                      <span className={styles.slotEmptyLabel}>Vazio</span>
+                    ) : (
+                      <>
+                        <strong className={styles.slotName}>
+                          {slot.careerMode === 'player'
+                            ? `${slot.playerName ?? 'Jogador'} · ${slot.teamName ?? 'Sem clube'}`
+                            : slot.teamName ?? 'Clube'}
+                        </strong>
+                        <span className={styles.slotMeta}>
+                          Temporada {slot.season}
+                          {slot.careerMode === 'player' ? ' · Carreira jogador' : ' · Treinador'}
+                        </span>
+                        <span className={styles.slotMeta}>
+                          {formatSlotRecord(slot)}
+                          {slot.matchesPlayed != null ? ` · ${slot.matchesPlayed} jogos` : ''}
+                        </span>
+                        <span className={styles.slotDate}>{formatSlotSavedAt(slot.savedAt)}</span>
+                      </>
+                    )}
+                    {pickerMode === 'new' && !slot.empty && (
+                      <span className={styles.slotWarn}>Será sobrescrito</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              className={styles.slotCancel}
+              onClick={() => setPickerMode(null)}
+              disabled={busy}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

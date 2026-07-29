@@ -13,7 +13,13 @@ import {
   type User,
 } from 'firebase/auth';
 import { getFirebaseAuth, isFirebaseConfigured } from '../services/firebase';
-import { cloudHasSave, cloudLoadSave, cloudSaveGame } from '../services/cloudSave';
+import {
+  cloudHasAnySave,
+  cloudListSlots,
+  cloudLoadSlot,
+  cloudSaveSlot,
+  migrateLegacyCloudSave,
+} from '../services/cloudSave';
 import {
   clearGame,
   hasSave as hasLocalSave,
@@ -21,21 +27,52 @@ import {
   saveGame as saveLocalGame,
   type GameSave,
 } from '../services/storage';
+import {
+  getActiveSlotId,
+  listLocalSlotSummaries,
+  MAX_SAVE_SLOTS,
+  SAVE_SLOT_IDS,
+  setActiveSlotId,
+  type SaveSlotId,
+  type SaveSlotSummary,
+} from '../services/saveSlots';
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
   configured: boolean;
   cloudReady: boolean;
+  /** True se há ao menos um slot ocupado (nuvem ou local). */
   hasCloudSave: boolean;
+  activeSlotId: SaveSlotId;
+  saveSlots: SaveSlotSummary[];
+  maxSaveSlots: number;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
-  persistSave: (data: Omit<GameSave, 'savedAt' | 'version'>) => Promise<void>;
-  fetchCloudSave: () => Promise<GameSave | null>;
+  persistSave: (
+    data: Omit<GameSave, 'savedAt' | 'version'>,
+    slotId?: SaveSlotId,
+  ) => Promise<void>;
+  fetchCloudSave: (slotId?: SaveSlotId) => Promise<GameSave | null>;
+  listSaveSlots: () => Promise<SaveSlotSummary[]>;
   refreshCloudSaveFlag: () => Promise<void>;
+  setActiveSlot: (slotId: SaveSlotId) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function mergeSlotLists(
+  cloud: SaveSlotSummary[],
+  local: SaveSlotSummary[],
+): SaveSlotSummary[] {
+  return SAVE_SLOT_IDS.map(id => {
+    const c = cloud.find(s => s.id === id);
+    const l = local.find(s => s.id === id);
+    if (c && !c.empty) return c;
+    if (l && !l.empty) return l;
+    return c ?? l ?? { id, empty: true };
+  });
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const configured = isFirebaseConfigured();
@@ -43,10 +80,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(configured);
   const [hasCloudSave, setHasCloudSave] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
+  const [activeSlotId, setActiveSlotIdState] = useState<SaveSlotId>(() => getActiveSlotId());
+  const [saveSlots, setSaveSlots] = useState<SaveSlotSummary[]>(() => listLocalSlotSummaries());
+
+  function applySlots(slots: SaveSlotSummary[]) {
+    setSaveSlots(slots);
+    setHasCloudSave(slots.some(s => !s.empty));
+  }
+
+  async function refreshSlots(uid?: string | null) {
+    const local = listLocalSlotSummaries();
+    if (uid && configured) {
+      try {
+        const cloud = await cloudListSlots(uid);
+        applySlots(mergeSlotLists(cloud, local));
+        return;
+      } catch (err) {
+        console.error('Falha ao listar saves na nuvem', err);
+      }
+    }
+    applySlots(local);
+  }
 
   useEffect(() => {
     if (!configured) {
       setLoading(false);
+      applySlots(listLocalSlotSummaries());
       return;
     }
 
@@ -55,24 +114,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(next);
       if (next) {
         try {
-          // Migrate local save to cloud on first login if cloud is empty
-          const exists = await cloudHasSave(next.uid);
+          const exists = await cloudHasAnySave(next.uid);
           if (!exists && hasLocalSave()) {
             const local = loadGame();
             if (local) {
-              await cloudSaveGame(next.uid, local);
+              try {
+                await cloudSaveSlot(next.uid, '1', {
+                  ...local,
+                  version: local.version ?? '0.6.0',
+                  savedAt: local.savedAt ?? new Date().toISOString(),
+                  slotId: '1',
+                });
+              } catch (err) {
+                console.warn('Upload do save local para a nuvem falhou', err);
+              }
+              setActiveSlotId('1');
+              setActiveSlotIdState('1');
             }
           }
-          const after = await cloudHasSave(next.uid);
-          setHasCloudSave(after);
         } catch (err) {
           console.error('Falha ao sincronizar save na nuvem', err);
-          setHasCloudSave(false);
         }
+        await refreshSlots(next.uid);
         setCloudReady(true);
       } else {
-        setHasCloudSave(false);
         setCloudReady(false);
+        applySlots(listLocalSlotSummaries());
       }
       setLoading(false);
     });
@@ -94,42 +161,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!configured) return;
     await firebaseSignOut(getFirebaseAuth());
     clearGame();
+    applySlots(listLocalSlotSummaries());
   }
 
-  async function persistSave(data: Omit<GameSave, 'savedAt' | 'version'>) {
-    // Always keep a local cache for fast resume in the same browser
-    saveLocalGame(data);
+  function setActiveSlot(slotId: SaveSlotId) {
+    setActiveSlotId(slotId);
+    setActiveSlotIdState(slotId);
+  }
+
+  async function persistSave(
+    data: Omit<GameSave, 'savedAt' | 'version'>,
+    slotId: SaveSlotId = activeSlotId,
+  ) {
+    saveLocalGame(data, slotId);
+    setActiveSlot(slotId);
+    applySlots(listLocalSlotSummaries());
 
     if (!user || !configured) return;
 
     const save: GameSave = {
       ...data,
-      version: '0.5.0',
+      slotId,
+      version: '0.6.0',
       savedAt: new Date().toISOString(),
     };
-    await cloudSaveGame(user.uid, save);
-    setHasCloudSave(true);
+    try {
+      await cloudSaveSlot(user.uid, slotId, save);
+      await refreshSlots(user.uid);
+    } catch (err) {
+      console.error('Falha ao salvar na nuvem (mantido local)', err);
+    }
   }
 
-  async function fetchCloudSave(): Promise<GameSave | null> {
-    if (!user || !configured) return loadGame();
-    const cloud = await cloudLoadSave(user.uid);
-    if (cloud) {
-      // Mirror to local cache
-      const { savedAt: _s, version: _v, ...rest } = cloud;
-      saveLocalGame(rest);
-      setHasCloudSave(true);
-      return cloud;
+  async function fetchCloudSave(slotId: SaveSlotId = activeSlotId): Promise<GameSave | null> {
+    if (!user || !configured) {
+      const local = loadGame(slotId);
+      if (local) setActiveSlot(slotId);
+      return local;
     }
-    return loadGame();
+
+    try {
+      const cloud = await cloudLoadSlot(user.uid, slotId);
+      if (cloud) {
+        const { savedAt: _s, version: _v, ...rest } = cloud;
+        saveLocalGame(rest, slotId);
+        setActiveSlot(slotId);
+        await refreshSlots(user.uid);
+        return cloud;
+      }
+    } catch (err) {
+      console.warn('Falha ao carregar slot da nuvem, tentando local', err);
+    }
+
+    // Legado / local
+    try {
+      await migrateLegacyCloudSave(user.uid);
+      const again = await cloudLoadSlot(user.uid, slotId);
+      if (again) {
+        const { savedAt: _s, version: _v, ...rest } = again;
+        saveLocalGame(rest, slotId);
+        setActiveSlot(slotId);
+        return again;
+      }
+    } catch {
+      /* fall through */
+    }
+
+    const local = loadGame(slotId);
+    if (local) setActiveSlot(slotId);
+    return local;
+  }
+
+  async function listSaveSlots(): Promise<SaveSlotSummary[]> {
+    const local = listLocalSlotSummaries();
+    if (!user || !configured) {
+      applySlots(local);
+      return local;
+    }
+    try {
+      const cloud = await cloudListSlots(user.uid);
+      const merged = mergeSlotLists(cloud, local);
+      applySlots(merged);
+      return merged;
+    } catch (err) {
+      console.error('Falha ao listar saves; usando local', err);
+      applySlots(local);
+      return local;
+    }
   }
 
   async function refreshCloudSaveFlag() {
-    if (!user || !configured) {
-      setHasCloudSave(false);
-      return;
-    }
-    setHasCloudSave(await cloudHasSave(user.uid));
+    await refreshSlots(user?.uid);
   }
 
   return (
@@ -140,11 +262,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         configured,
         cloudReady,
         hasCloudSave,
+        activeSlotId,
+        saveSlots,
+        maxSaveSlots: MAX_SAVE_SLOTS,
         signInWithGoogle,
         signOut,
         persistSave,
         fetchCloudSave,
+        listSaveSlots,
         refreshCloudSaveFlag,
+        setActiveSlot,
       }}
     >
       {children}

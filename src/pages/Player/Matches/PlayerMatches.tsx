@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MatchScheduleModal from '../../../components/MatchScheduleModal/MatchScheduleModal';
 import { useGame } from '../../../context/GameContext';
 import type { Match } from '../../../types/Match';
+import { competitionNames } from '../../../utils/competitions';
 import { getHomeAway, locationLabel } from '../../../utils/matchStats';
 import { getPlayerMatchClubName } from '../../../utils/playerMatch';
 import styles from '../../Matches/Matches.module.css';
@@ -71,7 +72,7 @@ export default function PlayerMatches() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
-        competitions={state.seasonCompetitions}
+        competitions={competitionNames(state.seasonCompetitions)}
         title={editingMatch ? 'Editar Partida Agendada' : 'Agendar Partida'}
         initialData={editingMatch ? {
           opponent: editingMatch.opponent,

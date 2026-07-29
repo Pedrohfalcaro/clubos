@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import FormationField from '../../components/FormationField/FormationField';
 import FormationPicker from '../../components/FormationPicker/FormationPicker';
-import StylePicker from '../../components/StylePicker/StylePicker';
 import { useGame } from '../../context/GameContext';
 import type {
   SubstitutionEvent,
@@ -14,7 +13,6 @@ import type {
 import type {
   FormationKey,
   FormationSlot,
-  TacticalStyleKey,
   TacticsDraft,
 } from '../../types/Tactics';
 import { getHomeAway } from '../../utils/matchStats';
@@ -197,10 +195,6 @@ export default function MatchPlay() {
     setLineup(current => ({ ...current, bench: next }));
   }
 
-  function setStyle(next: TacticalStyleKey) {
-    setLineup(current => ({ ...current, style: next }));
-  }
-
   function handleFormationChange(key: FormationKey) {
     setLineup(current => {
       if (current.formationKey === key) return current;
@@ -341,7 +335,6 @@ export default function MatchPlay() {
             onChange={handleFormationChange}
             showDescription={false}
           />
-          <StylePicker value={style} onChange={setStyle} formationKey={formationKey} compact />
           <div className={styles.lineupCard}>
             <FormationField
               players={players}
