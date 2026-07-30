@@ -8,19 +8,37 @@
 ## 2. Ativar serviços
 - **Authentication** → Sign-in method → **Google** → Enable
 - **Firestore Database** → Create database (modo produção)
-  - Regras sugeridas (só o dono lê/escreve o próprio save):
+  - Regras (só o dono lê/escreve; inclui save em chunks):
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid}/data/{doc} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    match /users/{userId} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function validSlot(slotId) {
+        return slotId in ['1', '2', '3'];
+      }
+      match /data/{docId} {
+        allow read, write: if isOwner();
+      }
+      match /saves/{slotId} {
+        allow read, write: if isOwner() && validSlot(slotId);
+        match /data/{chunkId} {
+          allow read, write: if isOwner() && validSlot(slotId);
+        }
+      }
+      match /saveMeta/{slotId} {
+        allow read, write: if isOwner() && validSlot(slotId);
+      }
     }
   }
 }
 ```
 
+**Importante:** publique essas regras no Console (Firestore → Rules → Publish). Sem isso o save em partes (`saves/{slot}/data/*`) falha com permission-denied e outros aparelhos ficam desatualizados.
 ## 3. Domínios autorizados
 Authentication → Settings → Authorized domains  
 Adicione `localhost` (dev) e o domínio de produção (ex.: GitHub Pages).
@@ -63,6 +81,7 @@ Authentication → Settings → Authorized domains → adicione:
 
 ## Comportamento
 - Login Google obrigatório no menu
-- Save sincroniza na nuvem (`users/{uid}/data/save`) com debounce ~600ms
-- Cache local continua existindo como espelho rápido
-- No primeiro login, se existir save local e a nuvem estiver vazia, o local é enviado automaticamente
+- Save local imediato; nuvem em partes (`users/{uid}/saves/{slot}` + `data/players-*|matches-*|extras`) para não estourar o limite de 1 MiB
+- Mescla por progresso (jogos/temporada), não só por data — evita celular antigo sobrescrever o PC
+- No login, se o local tiver mais progresso, sobe automaticamente
+- Se a sync falhar, aparece aviso no menu e no layout da carreira

@@ -166,22 +166,39 @@ export function savedAtMs(save: { savedAt?: string } | null | undefined): number
 }
 
 /**
+ * Progresso jogável — evita que um aparelho “toque” o save (novo savedAt)
+ * e sobrescreva outro com mais jogos/temporadas.
+ */
+export function saveProgressScore(save: GameSave | null | undefined): number {
+  if (!save) return -1;
+  const season = typeof save.season === 'number' ? save.season : 0;
+  const completed = (save.matches ?? []).filter(m => m.status === 'completed').length;
+  const wins = save.team?.statistics?.wins ?? 0;
+  return season * 100_000 + completed * 100 + wins;
+}
+
+/** True se `a` deve substituir `b` na nuvem / ao mesclar. */
+export function isSavePreferable(a: GameSave | null, b: GameSave | null): boolean {
+  if (!a) return false;
+  if (!b) return isCompleteSave(a);
+  const aOk = isCompleteSave(a);
+  const bOk = isCompleteSave(b);
+  if (aOk !== bOk) return aOk;
+  const aProg = saveProgressScore(a);
+  const bProg = saveProgressScore(b);
+  if (aProg !== bProg) return aProg > bProg;
+  return savedAtMs(a) > savedAtMs(b);
+}
+
+/**
  * Escolhe o melhor entre nuvem e local: completo > incompleto;
- * em empate de completude, o mais recente (savedAt) vence.
+ * depois mais progresso (jogos/temporada); por último savedAt.
  */
 export function pickBestSave(
   cloud: GameSave | null,
   local: GameSave | null,
 ): GameSave | null {
-  const cloudOk = isCompleteSave(cloud);
-  const localOk = isCompleteSave(local);
-  if (cloudOk && localOk) {
-    return savedAtMs(local) > savedAtMs(cloud) ? local! : cloud!;
-  }
-  if (cloudOk) return cloud!;
-  if (localOk) return local!;
-  if (cloud && local) {
-    return savedAtMs(local) > savedAtMs(cloud) ? local : cloud;
-  }
+  if (isSavePreferable(local, cloud)) return local;
+  if (isSavePreferable(cloud, local)) return cloud;
   return cloud ?? local;
 }

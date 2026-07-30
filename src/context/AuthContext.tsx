@@ -29,6 +29,7 @@ import {
 import {
   getActiveSlotId,
   isCompleteSave,
+  isSavePreferable,
   listLocalSlotSummaries,
   MAX_SAVE_SLOTS,
   mirrorActiveToLegacy,
@@ -51,6 +52,9 @@ interface AuthContextValue {
   activeSlotId: SaveSlotId;
   saveSlots: SaveSlotSummary[];
   maxSaveSlots: number;
+  /** Último erro de sync com a nuvem (null se ok). */
+  cloudSyncError: string | null;
+  lastCloudSyncAt: string | null;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   /** Grava local imediatamente; nuvem opcional (default true). */
@@ -77,6 +81,8 @@ function mergeSlotLists(
     const cloudOk = c && !c.empty;
     const localOk = l && !l.empty;
     if (cloudOk && localOk) {
+      // Para a lista, preferir o savedAt mais recente no card;
+      // o progresso real é resolvido no fetchCloudSave.
       return savedAtMs(l) > savedAtMs(c) ? l! : c!;
     }
     if (cloudOk) return c!;
@@ -98,7 +104,7 @@ async function pushSaveToCloud(
   });
 }
 
-/** Sobe o local para a nuvem quando for mais novo ou a nuvem estiver incompleta/vazia. */
+/** Sobe o local para a nuvem quando tiver mais progresso (ou nuvem vazia/incompleta). */
 async function syncLocalSlotsToCloud(uid: string): Promise<void> {
   for (const id of SAVE_SLOT_IDS) {
     const local = loadGame(id);
@@ -111,12 +117,7 @@ async function syncLocalSlotsToCloud(uid: string): Promise<void> {
       cloud = null;
     }
 
-    const shouldUpload =
-      !cloud ||
-      !isCompleteSave(cloud) ||
-      savedAtMs(local) > savedAtMs(cloud);
-
-    if (!shouldUpload) continue;
+    if (!isSavePreferable(local, cloud)) continue;
 
     try {
       await pushSaveToCloud(uid, id, local!);
@@ -134,6 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [cloudReady, setCloudReady] = useState(false);
   const [activeSlotId, setActiveSlotIdState] = useState<SaveSlotId>(() => getActiveSlotId());
   const [saveSlots, setSaveSlots] = useState<SaveSlotSummary[]>(() => listLocalSlotSummaries());
+  const [cloudSyncError, setCloudSyncError] = useState<string | null>(null);
+  const [lastCloudSyncAt, setLastCloudSyncAt] = useState<string | null>(null);
 
   const userRef = useRef(user);
   userRef.current = user;
@@ -235,12 +238,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const currentUser = userRef.current;
       if (!writeCloud || !currentUser || !configured) return save;
 
+      // Evita subir um save “tocado” (novo savedAt) por cima de outro aparelho com mais jogos
+      try {
+        const cloud = await cloudLoadSlot(currentUser.uid, resolvedSlot);
+        if (cloud && !isSavePreferable(save, cloud)) {
+          return save;
+        }
+      } catch {
+        /* se não ler a nuvem, tenta subir mesmo assim */
+      }
+
       try {
         await pushSaveToCloud(currentUser.uid, resolvedSlot, save);
         await refreshSlots(currentUser.uid);
+        setCloudSyncError(null);
+        setLastCloudSyncAt(save.savedAt);
       } catch (err) {
         console.error('Falha ao salvar na nuvem (mantido local)', err);
         applySlots(listLocalSlotSummaries());
+        const msg =
+          err instanceof Error
+            ? err.message
+            : 'Falha ao salvar na nuvem';
+        setCloudSyncError(msg);
         // Propaga erro para o GameContext manter fila de retry
         throw err instanceof Error ? err : new Error('Falha ao salvar na nuvem');
       }
@@ -257,13 +277,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!currentUser || !configured) {
         if (local) setActiveSlot(resolvedSlot);
-        return local;
+        return isCompleteSave(local) ? local : null;
       }
 
       let cloud: GameSave | null = null;
+      let cloudError: string | null = null;
       try {
         cloud = await cloudLoadSlot(currentUser.uid, resolvedSlot);
       } catch (err) {
+        cloudError = err instanceof Error ? err.message : 'Falha ao ler nuvem';
         console.warn('Falha ao carregar slot da nuvem, tentando local', err);
       }
 
@@ -271,31 +293,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await migrateLegacyCloudSave(currentUser.uid);
           cloud = await cloudLoadSlot(currentUser.uid, resolvedSlot);
-        } catch {
-          /* fall through */
+          cloudError = null;
+        } catch (err) {
+          if (!cloudError) {
+            cloudError = err instanceof Error ? err.message : 'Falha ao ler nuvem';
+          }
         }
       }
 
-      const best = pickBestSave(cloud, local);
-      if (!best) return null;
+      const best = pickBestSave(
+        isCompleteSave(cloud) ? cloud : null,
+        isCompleteSave(local) ? local : null,
+      );
+
+      if (!best) {
+        if (cloudError) setCloudSyncError(cloudError);
+        return null;
+      }
 
       setActiveSlot(resolvedSlot);
 
-      const localIsBest = !!local && isCompleteSave(local) && best === local;
-      if (localIsBest) {
-        try {
-          await pushSaveToCloud(currentUser.uid, resolvedSlot, local!);
-          await refreshSlots(currentUser.uid);
-        } catch (err) {
-          console.warn('Falha ao subir save local mais novo', err);
+      if (best === local && isCompleteSave(local)) {
+        if (isSavePreferable(local, cloud)) {
+          try {
+            await pushSaveToCloud(currentUser.uid, resolvedSlot, local!);
+            await refreshSlots(currentUser.uid);
+            setCloudSyncError(null);
+            setLastCloudSyncAt(local!.savedAt);
+          } catch (err) {
+            console.warn('Falha ao subir save local preferível', err);
+            setCloudSyncError(err instanceof Error ? err.message : 'Falha ao subir save');
+          }
+        } else if (cloudError) {
+          setCloudSyncError(cloudError);
         }
         return local;
       }
 
-      saveLocalSlot(resolvedSlot, { ...best, slotId: resolvedSlot });
-      mirrorActiveToLegacy({ ...best, slotId: resolvedSlot });
-      await refreshSlots(currentUser.uid);
-      return best;
+      // Nuvem com mais progresso — espelha no local
+      if (isCompleteSave(best)) {
+        saveLocalSlot(resolvedSlot, { ...best, slotId: resolvedSlot });
+        mirrorActiveToLegacy({ ...best, slotId: resolvedSlot });
+        await refreshSlots(currentUser.uid);
+        setCloudSyncError(null);
+        return best;
+      }
+
+      if (cloudError) setCloudSyncError(cloudError);
+      return null;
     },
     [configured, setActiveSlot],
   );
@@ -334,6 +379,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         activeSlotId,
         saveSlots,
         maxSaveSlots: MAX_SAVE_SLOTS,
+        cloudSyncError,
+        lastCloudSyncAt,
         signInWithGoogle,
         signOut,
         persistSave,

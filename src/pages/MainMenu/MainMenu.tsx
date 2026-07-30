@@ -20,6 +20,7 @@ export default function MainMenu() {
     hasCloudSave,
     saveSlots,
     maxSaveSlots,
+    cloudSyncError,
     signInWithGoogle,
     signOut,
     listSaveSlots,
@@ -88,7 +89,11 @@ export default function MainMenu() {
       const mode = await loadSavedGame(slotId);
       if (mode === 'player') navigate('/player/dashboard');
       else if (mode === 'coach') navigate('/dashboard');
-      else setError('Save encontrado, mas está incompleto.');
+      else {
+        setError(
+          'Não foi possível carregar este slot. O save na nuvem pode estar incompleto ou desatualizado. No PC onde a carreira está ok: abra a carreira logado, espere sincronizar, e tente de novo aqui.',
+        );
+      }
     } catch (err) {
       console.error(err);
       setError('Falha ao carregar o save.');
@@ -209,6 +214,12 @@ export default function MainMenu() {
         <p className={styles.hint}>
           Até {maxSaveSlots} carreiras por conta · {occupied}/{maxSaveSlots} em uso
         </p>
+
+        {cloudSyncError && (
+          <p className={styles.error}>
+            Sync nuvem: {cloudSyncError}. O progresso local no PC pode não ter subido — mantenha o jogo aberto logado até sincronizar.
+          </p>
+        )}
 
         {!hasAnySave && (
           <p className={styles.hint}>Nenhuma carreira salva ainda. Clique em Começar.</p>

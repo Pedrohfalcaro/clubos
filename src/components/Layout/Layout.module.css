@@ -232,6 +232,17 @@
   overflow-x: hidden;
 }
 
+.syncError {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--danger, #c44) 45%, transparent);
+  background: color-mix(in srgb, var(--danger, #c44) 12%, transparent);
+  color: var(--text-h);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .mobileBar {
   display: none;
 }

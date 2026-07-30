@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
+import { useAuth } from '../../context/AuthContext';
 import Tutorial from '../Tutorial/Tutorial';
 import ClubCrest from '../ClubCrest/ClubCrest';
 import {
@@ -84,6 +85,7 @@ const WIP_ROUTES = new Set([
 
 export default function Layout() {
   const { state, resetGame } = useGame();
+  const { cloudSyncError, lastCloudSyncAt } = useAuth();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [sectionTutorial, setSectionTutorial] = useState<string | null>(null);
@@ -239,6 +241,14 @@ export default function Layout() {
       </aside>
 
       <main className={styles.content}>
+        {cloudSyncError && (
+          <p className={styles.syncError} role="status">
+            Nuvem: {cloudSyncError}
+            {lastCloudSyncAt
+              ? ` · Último sync ok: ${new Date(lastCloudSyncAt).toLocaleString('pt-BR')}`
+              : ' · Progresso pode estar só neste aparelho'}
+          </p>
+        )}
         <Outlet />
       </main>
 

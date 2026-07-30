@@ -2,21 +2,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function validSlot(slotId) {
+        return slotId in ['1', '2', '3'];
+      }
+
       // Save legado (1 slot)
       match /data/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner();
       }
-      // Até 3 carreiras (slots 1, 2, 3)
+
+      // Header do slot (1–3) + chunks em /data/{chunkId}
       match /saves/{slotId} {
-        allow read, write: if request.auth != null
-          && request.auth.uid == userId
-          && slotId in ['1', '2', '3'];
+        allow read, write: if isOwner() && validSlot(slotId);
+
+        match /data/{chunkId} {
+          allow read, write: if isOwner() && validSlot(slotId);
+        }
       }
-      // Metadados leves por slot (savedAt / progresso)
+
+      // Metadados leves por slot
       match /saveMeta/{slotId} {
-        allow read, write: if request.auth != null
-          && request.auth.uid == userId
-          && slotId in ['1', '2', '3'];
+        allow read, write: if isOwner() && validSlot(slotId);
       }
     }
   }
