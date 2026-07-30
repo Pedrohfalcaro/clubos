@@ -294,7 +294,7 @@ export async function cloudLoadSlot(
   }
 
   // Legado: documento monolítico
-  return migrateSave(data as GameSave);
+  return migrateSave(data as unknown as GameSave);
 }
 
 /**
@@ -350,7 +350,7 @@ export async function cloudSummarizeSlot(
       };
     }
 
-    const save = migrateSave(data as GameSave);
+    const save = migrateSave(data as unknown as GameSave);
     return summarizeSave(save, slotId);
   } catch (err) {
     console.warn(`Falha ao resumir slot ${slotId}`, err);
@@ -476,7 +476,7 @@ export async function cloudListSlots(uid: string): Promise<SaveSlotSummary[]> {
           const fromSlot = await cloudSummarizeSlot(uid, '1');
           if (!fromSlot.empty) return [fromSlot, emptySlotSummary('2'), emptySlotSummary('3')];
         } else {
-          const save = migrateSave(data as GameSave);
+          const save = migrateSave(data as unknown as GameSave);
           return [summarizeSave(save, '1'), emptySlotSummary('2'), emptySlotSummary('3')];
         }
       }
@@ -501,7 +501,7 @@ export async function migrateLegacyCloudSave(uid: string): Promise<void> {
       const data = existing.data() as Record<string, unknown>;
       if (data.format === CHUNKED_FORMAT) return;
       // Monólito antigo em saves/1 → regrava em chunks
-      const save = migrateSave(data as GameSave);
+      const save = migrateSave(data as unknown as GameSave);
       if (isCompleteSave(save)) {
         await cloudSaveSlot(uid, '1', save);
       }
@@ -517,7 +517,7 @@ export async function migrateLegacyCloudSave(uid: string): Promise<void> {
   const data = legacy.data() as Record<string, unknown>;
   if (data._migratedToChunks || data.format === CHUNKED_FORMAT) return;
 
-  const save = migrateSave(data as GameSave);
+  const save = migrateSave(data as unknown as GameSave);
   if (!isCompleteSave(save)) return;
 
   try {
