@@ -49,31 +49,39 @@ export default function MainMenu() {
   }
 
   async function openLoadPicker() {
-    setBusy(true);
     setError('');
+    // Abre na hora com o que já está em memória / local — não espera a nuvem
+    if (slots.some(s => !s.empty) || hasCloudSave) {
+      setPickerMode('load');
+    }
+    setBusy(true);
     try {
       const list = await listSaveSlots();
       setSlots(list);
       if (!list.some(s => !s.empty)) {
         setError('Nenhuma carreira salva encontrada.');
+        setPickerMode(null);
         return;
       }
       setPickerMode('load');
     } catch (err) {
       console.error(err);
-      setError('Falha ao listar salvamentos.');
+      if (!slots.some(s => !s.empty)) {
+        setError('Falha ao listar salvamentos.');
+        setPickerMode(null);
+      }
     } finally {
       setBusy(false);
     }
   }
 
   async function openNewPicker() {
-    setBusy(true);
     setError('');
+    setPickerMode('new');
+    setBusy(true);
     try {
       const list = await listSaveSlots();
       setSlots(list);
-      setPickerMode('new');
     } catch (err) {
       console.error(err);
       setError('Falha ao preparar nova carreira.');

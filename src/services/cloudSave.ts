@@ -52,11 +52,31 @@ function metaRef(uid: string, slotId: SaveSlotId) {
   return doc(getFirestoreDb(), 'users', uid, 'saveMeta', slotId);
 }
 
+const READ_TIMEOUT_MS = 8_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timeout Firestore (${label})`));
+    }, ms);
+    promise.then(
+      value => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      err => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 async function readDoc(ref: DocumentReference) {
   try {
-    return await getDocFromServer(ref);
+    return await withTimeout(getDocFromServer(ref), READ_TIMEOUT_MS, ref.path);
   } catch {
-    // Offline / server indisponível — fallback no cache do SDK
+    // Offline / lento / server indisponível — fallback no cache do SDK
     return await getDoc(ref);
   }
 }
@@ -748,11 +768,10 @@ export async function cloudDeleteSlot(uid: string, slotId: SaveSlotId): Promise<
 }
 
 export async function cloudListSlots(uid: string): Promise<SaveSlotSummary[]> {
-  try {
-    await migrateLegacyCloudSave(uid);
-  } catch (err) {
+  // Migração NÃO pode bloquear listagem (botão Carregar ficava em "Carregando..." infinito)
+  void migrateLegacyCloudSave(uid).catch(err => {
     console.warn('Migração de save legado falhou', err);
-  }
+  });
 
   const results = await Promise.all(
     SAVE_SLOT_IDS.map(id => cloudSummarizeSlot(uid, id)),
