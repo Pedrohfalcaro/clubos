@@ -200,6 +200,15 @@
   gap: 10px;
 }
 
+.matchCardClickable {
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.matchCardClickable:hover {
+  border-color: var(--accent);
+}
+
 .matchTop {
   display: flex;
   justify-content: space-between;

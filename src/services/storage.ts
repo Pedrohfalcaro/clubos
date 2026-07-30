@@ -4,7 +4,7 @@ import type { Team } from '../types/Team';
 import type { Player } from '../types/Player';
 import type { Match } from '../types/Match';
 import type { Manager } from '../types/Manager';
-import type { SavedTactics } from '../types/Tactics';
+import type { SavedTactics, TacticsPreset } from '../types/Tactics';
 import type { CareerMode } from '../types/CareerMode';
 import type { CareerPlayer } from '../types/CareerPlayer';
 import { createDefaultPulseState, type PulseState } from '../pulse';
@@ -15,7 +15,7 @@ import { createDefaultBoardState } from '../types/Board';
 import type { TransferState } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
 import type { SeasonArchive } from '../types/SeasonHistory';
-import { normalizeMatchLineup, normalizeSavedTactics } from '../utils/formations';
+import { migrateTacticsPresets, normalizeMatchLineup } from '../utils/formations';
 import {
   getActiveSlotId,
   loadLocalSlot,
@@ -38,7 +38,10 @@ export interface GameSave {
   season: number;
   manager?: Manager | null;
   seasonCompetitions: SeasonCompetition[];
+  /** @deprecated prefer tacticsPresets — espelho do preset ativo */
   tactics?: SavedTactics | null;
+  tacticsPresets?: TacticsPreset[];
+  activeTacticsId?: string | null;
   careerPlayer?: CareerPlayer;
   tutorialCompleted?: boolean;
   pulse?: PulseState;
@@ -167,6 +170,11 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     : createDefaultTransferState();
 
   const seasonHistory: SeasonArchive[] = save.seasonHistory ?? [];
+  const tacticsMigrated = migrateTacticsPresets(
+    save.tactics,
+    save.tacticsPresets,
+    save.activeTacticsId,
+  );
 
   const base: GameSave = {
     ...save,
@@ -174,7 +182,9 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     careerMode,
     manager: save.manager ?? null,
     seasonCompetitions: migrateSeasonCompetitions(save.seasonCompetitions),
-    tactics: normalizeSavedTactics(save.tactics),
+    tactics: tacticsMigrated.tactics,
+    tacticsPresets: tacticsMigrated.tacticsPresets,
+    activeTacticsId: tacticsMigrated.activeTacticsId,
     tutorialCompleted: save.tutorialCompleted ?? false,
     matches,
     pulse,

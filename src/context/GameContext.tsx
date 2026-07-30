@@ -9,14 +9,21 @@ import type { Team } from '../types/Team';
 import type { Player } from '../types/Player';
 import type { Match, ScheduleMatchInput, CompleteMatchInput } from '../types/Match';
 import type { Manager } from '../types/Manager';
-import type { SavedTactics } from '../types/Tactics';
+import type { SavedTactics, TacticsPreset } from '../types/Tactics';
+import { MAX_TACTICS_PRESETS } from '../types/Tactics';
 import type { CareerMode, SetupStep } from '../types/CareerMode';
 import type { CareerPlayer, ClubInfo, InjuryEntry } from '../types/CareerPlayer';
 import { createDefaultCareerPlayer, emptyPlayerStats } from '../types/CareerPlayer';
 import type { CompletePlayerMatchInput } from '../types/PlayerMatchPerformance';
 import { clearGame, type GameSave } from '../services/storage';
 import { calcResult, recalculateFromMatches } from '../utils/matchStats';
-import { normalizeSavedTactics } from '../utils/formations';
+import {
+  createTacticsPresetId,
+  migrateTacticsPresets,
+  normalizeSavedTactics,
+  normalizeTacticsPreset,
+  tacticsBodyFromPreset,
+} from '../utils/formations';
 import { applyPerformanceToStats, subtractPerformanceFromStats } from '../utils/playerStats';
 import { calcMoraleChanges, applyMoraleDelta } from '../utils/playerMorale';
 import type { MatchResult } from '../types/Match';
@@ -59,6 +66,8 @@ export interface GameState {
   matches: Match[];
   season: number;
   tactics: SavedTactics | null;
+  tacticsPresets: TacticsPreset[];
+  activeTacticsId: string | null;
   tutorialCompleted: boolean;
   pulse: PulseState;
   finance: ClubFinance;
@@ -97,6 +106,9 @@ type GameAction =
   | { type: 'COMPLETE_PLAYER_MATCH'; input: CompletePlayerMatchInput }
   | { type: 'UPDATE_PLAYER_MATCH'; input: CompletePlayerMatchInput }
   | { type: 'SAVE_TACTICS'; tactics: SavedTactics }
+  | { type: 'SAVE_TACTICS_PRESET'; preset: TacticsPreset }
+  | { type: 'DELETE_TACTICS_PRESET'; id: string }
+  | { type: 'SET_ACTIVE_TACTICS'; id: string }
   | { type: 'APPLY_PULSE'; matchId: string }
   | { type: 'UPDATE_PULSE_SETTINGS'; settings: Partial<PulseSettings> }
   | { type: 'LOAD_SAVE'; state: Omit<GameState, 'started' | 'setupStep' | 'pendingTeam' | 'pendingPlayers' | 'pendingCoachCountry' | 'pendingCareerPlayer'> }
@@ -168,6 +180,9 @@ interface GameContextValue {
   completePlayerMatch: (input: CompletePlayerMatchInput) => void;
   updatePlayerMatch: (input: CompletePlayerMatchInput) => void;
   saveTactics: (tactics: SavedTactics) => void;
+  saveTacticsPreset: (preset: Omit<TacticsPreset, 'updatedAt'> & { updatedAt?: string }) => void;
+  deleteTacticsPreset: (id: string) => void;
+  setActiveTactics: (id: string) => void;
   rollPulseForMatch: (matchId: string) => void;
   updatePulseSettings: (settings: Partial<PulseSettings>) => void;
   completeTutorial: () => void;
@@ -210,6 +225,8 @@ const initialState: GameState = {
   matches: [],
   season: 2026,
   tactics: null,
+  tacticsPresets: [],
+  activeTacticsId: null,
   tutorialCompleted: false,
   pulse: createDefaultPulseState(),
   finance: createDefaultFinance(),
@@ -301,6 +318,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         matches: [],
         season: 2026,
         tactics: null,
+        tacticsPresets: [],
+        activeTacticsId: null,
         tutorialCompleted: false,
         pulse: createDefaultPulseState(),
         finance: createDefaultFinance(team.budget ?? 5_000_000),
@@ -379,6 +398,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         manager: null,
         players: [],
         tactics: null,
+        tacticsPresets: [],
+        activeTacticsId: null,
         seasonCompetitions: [createSeasonCompetition(action.mainCompetition)],
         matches: [],
         tutorialCompleted: false,
@@ -772,8 +793,88 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, matches: updatedMatches, careerPlayer: updatedPlayer };
     }
 
-    case 'SAVE_TACTICS':
-      return { ...state, tactics: normalizeSavedTactics(action.tactics) };
+    case 'SAVE_TACTICS': {
+      const body = normalizeSavedTactics({
+        ...action.tactics,
+        updatedAt: action.tactics.updatedAt ?? new Date().toISOString(),
+      });
+      if (!body) return { ...state, tactics: null };
+
+      const activeId = state.activeTacticsId;
+      if (activeId && state.tacticsPresets.some(p => p.id === activeId)) {
+        const tacticsPresets = state.tacticsPresets.map(p =>
+          p.id === activeId
+            ? { ...body, id: p.id, name: p.name }
+            : p,
+        );
+        return { ...state, tactics: body, tacticsPresets };
+      }
+
+      // Sem preset ativo: cria o primeiro
+      if (state.tacticsPresets.length === 0) {
+        const preset: TacticsPreset = {
+          ...body,
+          id: createTacticsPresetId(),
+          name: 'Principal',
+        };
+        return {
+          ...state,
+          tactics: body,
+          tacticsPresets: [preset],
+          activeTacticsId: preset.id,
+        };
+      }
+
+      return { ...state, tactics: body };
+    }
+
+    case 'SAVE_TACTICS_PRESET': {
+      const normalized = normalizeTacticsPreset({
+        ...action.preset,
+        updatedAt: action.preset.updatedAt ?? new Date().toISOString(),
+      });
+      if (!normalized) return state;
+
+      const exists = state.tacticsPresets.some(p => p.id === normalized.id);
+      if (!exists && state.tacticsPresets.length >= MAX_TACTICS_PRESETS) return state;
+
+      const tacticsPresets = exists
+        ? state.tacticsPresets.map(p => (p.id === normalized.id ? normalized : p))
+        : [...state.tacticsPresets, normalized];
+
+      return {
+        ...state,
+        tacticsPresets,
+        activeTacticsId: normalized.id,
+        tactics: tacticsBodyFromPreset(normalized),
+      };
+    }
+
+    case 'DELETE_TACTICS_PRESET': {
+      const tacticsPresets = state.tacticsPresets.filter(p => p.id !== action.id);
+      if (tacticsPresets.length === state.tacticsPresets.length) return state;
+      const activeTacticsId =
+        state.activeTacticsId === action.id
+          ? tacticsPresets[0]?.id ?? null
+          : state.activeTacticsId;
+      const active = tacticsPresets.find(p => p.id === activeTacticsId);
+      return {
+        ...state,
+        tacticsPresets,
+        activeTacticsId,
+        tactics: active ? tacticsBodyFromPreset(active) : null,
+      };
+    }
+
+    case 'SET_ACTIVE_TACTICS': {
+      const active = state.tacticsPresets.find(p => p.id === action.id);
+      if (!active) return state;
+      return {
+        ...state,
+        activeTacticsId: action.id,
+        tactics: tacticsBodyFromPreset(active),
+      };
+    }
 
     case 'APPLY_PULSE': {
       if (!state.team) return state;
@@ -820,7 +921,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'COMPLETE_TUTORIAL':
       return { ...state, tutorialCompleted: true };
 
-    case 'LOAD_SAVE':
+    case 'LOAD_SAVE': {
+      const tacticsState = migrateTacticsPresets(
+        action.state.tactics,
+        action.state.tacticsPresets,
+        action.state.activeTacticsId,
+      );
       return {
         started: true,
         setupStep: 'done',
@@ -829,6 +935,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         pendingCoachCountry: null,
         pendingCareerPlayer: null,
         ...action.state,
+        tactics: tacticsState.tactics,
+        tacticsPresets: tacticsState.tacticsPresets,
+        activeTacticsId: tacticsState.activeTacticsId,
         seasonCompetitions: migrateSeasonCompetitions(action.state.seasonCompetitions),
         saveSlotId: action.state.saveSlotId ?? '1',
         pulse: action.state.pulse ?? createDefaultPulseState(),
@@ -837,6 +946,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         transfers: action.state.transfers ?? createDefaultTransferState(),
         seasonHistory: action.state.seasonHistory ?? [],
       };
+    }
 
     case 'RESET':
       return initialState;
@@ -998,73 +1108,95 @@ export function GameProvider({ children }: { children: ReactNode }) {
     data: Omit<GameSave, 'savedAt' | 'version'>;
     slotId: SaveSlotId;
   } | null>(null);
+  const forceCloudRef = useRef(false);
+  const cloudRetryTimerRef = useRef<number | null>(null);
+
+  function buildPersistPayload(
+    s: typeof state,
+    slotId: SaveSlotId,
+  ): Omit<GameSave, 'savedAt' | 'version'> | null {
+    if (s.careerMode === 'coach' && s.team && s.teamId) {
+      return {
+        careerMode: 'coach',
+        teamId: s.teamId,
+        team: s.team,
+        players: s.players,
+        matches: s.matches,
+        season: s.season,
+        manager: s.manager,
+        seasonCompetitions: s.seasonCompetitions,
+        tactics: s.tactics,
+        tacticsPresets: s.tacticsPresets,
+        activeTacticsId: s.activeTacticsId,
+        tutorialCompleted: s.tutorialCompleted,
+        pulse: s.pulse,
+        finance: s.finance,
+        board: s.board,
+        transfers: s.transfers,
+        seasonHistory: s.seasonHistory,
+        slotId,
+      };
+    }
+    if (s.careerMode === 'player' && s.careerPlayer) {
+      return {
+        careerMode: 'player',
+        careerPlayer: s.careerPlayer,
+        matches: s.matches,
+        season: s.season,
+        seasonCompetitions: s.seasonCompetitions,
+        tutorialCompleted: s.tutorialCompleted,
+        slotId,
+      };
+    }
+    return null;
+  }
+
+  async function pushPendingCloud() {
+    const pending = pendingCloudRef.current;
+    if (!pending) return;
+    try {
+      await persistSave(pending.data, pending.slotId, { cloud: true });
+      if (pendingCloudRef.current === pending) pendingCloudRef.current = null;
+      if (cloudRetryTimerRef.current != null) {
+        window.clearInterval(cloudRetryTimerRef.current);
+        cloudRetryTimerRef.current = null;
+      }
+    } catch (err) {
+      console.error('Falha ao salvar na nuvem — nova tentativa em breve', err);
+      if (cloudRetryTimerRef.current == null) {
+        cloudRetryTimerRef.current = window.setInterval(() => {
+          void pushPendingCloud();
+        }, 8000);
+      }
+    }
+  }
 
   useEffect(() => {
     if (!state.started) return;
 
     const slotId = state.saveSlotId || activeSlotId;
-    let payload: Omit<GameSave, 'savedAt' | 'version'> | null = null;
-
-    if (state.careerMode === 'coach' && state.team && state.teamId) {
-      payload = {
-        careerMode: 'coach',
-        teamId: state.teamId,
-        team: state.team,
-        players: state.players,
-        matches: state.matches,
-        season: state.season,
-        manager: state.manager,
-        seasonCompetitions: state.seasonCompetitions,
-        tactics: state.tactics,
-        tutorialCompleted: state.tutorialCompleted,
-        pulse: state.pulse,
-        finance: state.finance,
-        board: state.board,
-        transfers: state.transfers,
-        seasonHistory: state.seasonHistory,
-        slotId,
-      };
-    } else if (state.careerMode === 'player' && state.careerPlayer) {
-      payload = {
-        careerMode: 'player',
-        careerPlayer: state.careerPlayer,
-        matches: state.matches,
-        season: state.season,
-        seasonCompetitions: state.seasonCompetitions,
-        tutorialCompleted: state.tutorialCompleted,
-        slotId,
-      };
-    }
-
+    const payload = buildPersistPayload(state, slotId);
     if (!payload) return;
 
-    // Local imediato — não perde progresso se fechar a aba antes do debounce
-    void persistSave(payload, slotId, { cloud: false });
+    // Local imediato
+    void persistSave(payload, slotId, { cloud: false }).catch(() => {
+      /* local-only não deve falhar */
+    });
     pendingCloudRef.current = { data: payload, slotId };
 
+    const delay = forceCloudRef.current ? 0 : 250;
+    forceCloudRef.current = false;
     const timer = window.setTimeout(() => {
-      const pending = pendingCloudRef.current;
-      if (!pending) return;
-      void persistSave(pending.data, pending.slotId, { cloud: true })
-        .then(() => {
-          if (pendingCloudRef.current === pending) pendingCloudRef.current = null;
-        })
-        .catch(err => console.error('Falha ao salvar na nuvem', err));
-    }, 600);
+      void pushPendingCloud();
+    }, delay);
 
     return () => window.clearTimeout(timer);
   }, [state, persistSave, activeSlotId]);
 
-  // Flush nuvem ao sair/minimizar — cobre o debounce pendente
+  // Flush nuvem ao sair/minimizar + limpeza do retry
   useEffect(() => {
     function flushCloud() {
-      const pending = pendingCloudRef.current;
-      if (!pending) return;
-      void persistSave(pending.data, pending.slotId, { cloud: true })
-        .then(() => {
-          if (pendingCloudRef.current === pending) pendingCloudRef.current = null;
-        })
-        .catch(err => console.error('Falha ao salvar na nuvem', err));
+      void pushPendingCloud();
     }
 
     function onVisibility() {
@@ -1077,6 +1209,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', flushCloud);
       flushCloud();
+      if (cloudRetryTimerRef.current != null) {
+        window.clearInterval(cloudRetryTimerRef.current);
+        cloudRetryTimerRef.current = null;
+      }
     };
   }, [persistSave]);
 
@@ -1249,18 +1385,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }
 
   function completeMatch(input: CompleteMatchInput) {
+    forceCloudRef.current = true;
     dispatch({ type: 'COMPLETE_MATCH', input });
   }
 
   function updateCompletedMatch(input: CompleteMatchInput) {
+    forceCloudRef.current = true;
     dispatch({ type: 'UPDATE_COMPLETED_MATCH', input });
   }
 
   function completePlayerMatch(input: CompletePlayerMatchInput) {
+    forceCloudRef.current = true;
     dispatch({ type: 'COMPLETE_PLAYER_MATCH', input });
   }
 
   function updatePlayerMatch(input: CompletePlayerMatchInput) {
+    forceCloudRef.current = true;
     dispatch({ type: 'UPDATE_PLAYER_MATCH', input });
   }
 
@@ -1269,6 +1409,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
       type: 'SAVE_TACTICS',
       tactics: { ...tactics, updatedAt: new Date().toISOString() },
     });
+  }
+
+  function saveTacticsPreset(preset: Omit<TacticsPreset, 'updatedAt'> & { updatedAt?: string }) {
+    dispatch({
+      type: 'SAVE_TACTICS_PRESET',
+      preset: {
+        ...preset,
+        updatedAt: preset.updatedAt ?? new Date().toISOString(),
+      },
+    });
+  }
+
+  function deleteTacticsPreset(id: string) {
+    dispatch({ type: 'DELETE_TACTICS_PRESET', id });
+  }
+
+  function setActiveTactics(id: string) {
+    dispatch({ type: 'SET_ACTIVE_TACTICS', id });
   }
 
   function rollPulseForMatch(matchId: string) {
@@ -1298,6 +1456,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           matches: save.matches,
           season: save.season,
           tactics: null,
+          tacticsPresets: [],
+          activeTacticsId: null,
           tutorialCompleted: save.tutorialCompleted ?? false,
           pulse: createDefaultPulseState(),
           finance: createDefaultFinance(),
@@ -1314,6 +1474,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const players = save.players ?? [];
       const matches = save.matches;
       const recalculated = recalculateFromMatches(save.team, players, matches);
+      const tacticsState = migrateTacticsPresets(
+        save.tactics,
+        save.tacticsPresets,
+        save.activeTacticsId,
+      );
       dispatch({
         type: 'LOAD_SAVE',
         state: {
@@ -1325,7 +1490,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           players: recalculated.players,
           matches,
           season: save.season,
-          tactics: normalizeSavedTactics(save.tactics),
+          tactics: tacticsState.tactics,
+          tacticsPresets: tacticsState.tacticsPresets,
+          activeTacticsId: tacticsState.activeTacticsId,
           careerPlayer: null,
           tutorialCompleted: save.tutorialCompleted ?? false,
           pulse: save.pulse ?? createDefaultPulseState(),
@@ -1357,6 +1524,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         manager: state.manager,
         seasonCompetitions: state.seasonCompetitions,
         tactics: state.tactics,
+        tacticsPresets: state.tacticsPresets,
+        activeTacticsId: state.activeTacticsId,
         tutorialCompleted: state.tutorialCompleted,
         pulse: state.pulse,
         finance: state.finance,
@@ -1490,6 +1659,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         completePlayerMatch,
         updatePlayerMatch,
         saveTactics,
+        saveTacticsPreset,
+        deleteTacticsPreset,
+        setActiveTactics,
         rollPulseForMatch,
         updatePulseSettings,
         loadSavedGame,

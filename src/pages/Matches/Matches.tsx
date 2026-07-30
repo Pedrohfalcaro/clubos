@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import MatchRecapModal from '../../components/MatchRecapModal/MatchRecapModal';
 import MatchScheduleModal from '../../components/MatchScheduleModal/MatchScheduleModal';
 import { useGame } from '../../context/GameContext';
 import type { Match } from '../../types/Match';
@@ -21,6 +22,7 @@ export default function MatchRegistration() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
+  const [recapMatch, setRecapMatch] = useState<Match | null>(null);
 
   const scheduled = state.matches.filter(m => m.status === 'scheduled');
   const completed = state.matches.filter(m => m.status === 'completed');
@@ -84,6 +86,23 @@ export default function MatchRegistration() {
         } : undefined}
       />
 
+      <MatchRecapModal
+        open={!!recapMatch}
+        match={recapMatch}
+        players={state.players}
+        teamName={teamName}
+        onClose={() => setRecapMatch(null)}
+        onEdit={
+          recapMatch
+            ? () => {
+                const id = recapMatch.id;
+                setRecapMatch(null);
+                navigate(`/match/${id}/play`);
+              }
+            : undefined
+        }
+      />
+
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Agendadas ({scheduled.length})</h2>
         {scheduled.length === 0 ? (
@@ -127,7 +146,19 @@ export default function MatchRegistration() {
               const res = resultLabel(match.result);
               const ha = getHomeAway(teamName, match);
               return (
-                <div key={match.id} className={styles.matchCard}>
+                <div
+                  key={match.id}
+                  className={`${styles.matchCard} ${styles.matchCardClickable}`}
+                  onClick={() => setRecapMatch(match)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setRecapMatch(match);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
                   <div className={styles.matchTop}>
                     <span className={styles.matchComp}>{match.competition}</span>
                     <span className={styles.matchDate}>
@@ -147,12 +178,15 @@ export default function MatchRegistration() {
                       </span>
                     )}
                   </div>
-                  <div className={styles.matchActions}>
+                  <div className={styles.matchActions} onClick={e => e.stopPropagation()}>
                     <button type="button" className={styles.editBtn} onClick={() => openEditMeta(match)}>
                       Dados
                     </button>
-                    <button type="button" className={styles.playBtn} onClick={() => navigate(`/match/${match.id}/play`)}>
-                      Resultado
+                    <button type="button" className={styles.playBtn} onClick={() => setRecapMatch(match)}>
+                      Resumo
+                    </button>
+                    <button type="button" className={styles.editBtn} onClick={() => navigate(`/match/${match.id}/play`)}>
+                      Editar
                     </button>
                   </div>
                 </div>

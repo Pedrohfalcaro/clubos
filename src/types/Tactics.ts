@@ -72,6 +72,14 @@ export interface SavedTactics {
   updatedAt?: string;
 }
 
+/** Preset nomeado (até 5 por carreira). */
+export interface TacticsPreset extends SavedTactics {
+  id: string;
+  name: string;
+}
+
+export const MAX_TACTICS_PRESETS = 5;
+
 /** Tactics with every field resolved and consistent — what the UI works with. */
 export interface TacticsDraft {
   formationKey: FormationKey;

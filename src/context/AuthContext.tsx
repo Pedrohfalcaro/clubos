@@ -241,6 +241,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error('Falha ao salvar na nuvem (mantido local)', err);
         applySlots(listLocalSlotSummaries());
+        // Propaga erro para o GameContext manter fila de retry
+        throw err instanceof Error ? err : new Error('Falha ao salvar na nuvem');
       }
       return save;
     },

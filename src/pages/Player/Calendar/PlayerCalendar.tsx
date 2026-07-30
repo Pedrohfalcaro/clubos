@@ -11,6 +11,7 @@ import {
   shortLocation,
 } from '../../../utils/calendarHelpers';
 import { competitionNames, resolveCompetitionColor } from '../../../utils/competitions';
+import { resultLetter } from '../../../utils/matchTimeline';
 import styles from '../../Calendar/Calendar.module.css';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -26,10 +27,10 @@ function toDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function scoreResultClass(result: Match['result']): string {
-  if (result === 'win') return styles.scoreWin;
-  if (result === 'draw') return styles.scoreDraw;
-  if (result === 'loss') return styles.scoreLoss;
+function letterClass(result: Match['result']): string {
+  if (result === 'win') return styles.letterWin;
+  if (result === 'draw') return styles.letterDraw;
+  if (result === 'loss') return styles.letterLoss;
   return '';
 }
 
@@ -130,7 +131,7 @@ export default function PlayerCalendar() {
                 {dayMatches.map(m => {
                   const color = resolveCompetitionColor(comps, m.competition);
                   const done = m.status === 'completed';
-                  const playerRating = m.playerPerformance?.rating;
+                  const letter = resultLetter(m.result);
                   return (
                     <button
                       key={m.id}
@@ -148,9 +149,15 @@ export default function PlayerCalendar() {
                       </span>
                       <span className={styles.matchOpp}>{m.opponent}</span>
                       {done ? (
-                        <span className={`${styles.matchScore} ${scoreResultClass(m.result)}`}>
-                          {m.goalsFor}×{m.goalsAgainst}
-                          {playerRating != null ? ` · ${playerRating.toFixed(1)}` : ''}
+                        <span className={styles.matchScoreRow}>
+                          <span className={styles.matchScore}>
+                            {m.goalsFor}×{m.goalsAgainst}
+                          </span>
+                          {letter && (
+                            <span className={`${styles.resultLetter} ${letterClass(m.result)}`}>
+                              {letter}
+                            </span>
+                          )}
                         </span>
                       ) : (
                         <span className={styles.matchPlayHint}>Jogar</span>
@@ -170,18 +177,6 @@ export default function PlayerCalendar() {
             </div>
           );
         })}
-      </div>
-
-      <div className={styles.legend}>
-        <div className={styles.legendGroup}>
-          <span className={styles.legendTitle}>Competições</span>
-          {comps.map(comp => (
-            <span key={comp.id} className={styles.legendItem}>
-              <span className={styles.legendMarker} style={{ background: comp.color }} />
-              {comp.shortName || comp.name}
-            </span>
-          ))}
-        </div>
       </div>
 
       <MatchScheduleModal

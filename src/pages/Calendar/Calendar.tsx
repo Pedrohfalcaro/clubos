@@ -11,6 +11,7 @@ import {
   shortLocation,
 } from '../../utils/calendarHelpers';
 import { competitionNames, resolveCompetitionColor } from '../../utils/competitions';
+import { resultLetter } from '../../utils/matchTimeline';
 import styles from './Calendar.module.css';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -26,10 +27,10 @@ function toDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function scoreResultClass(result: Match['result']): string {
-  if (result === 'win') return styles.scoreWin;
-  if (result === 'draw') return styles.scoreDraw;
-  if (result === 'loss') return styles.scoreLoss;
+function letterClass(result: Match['result']): string {
+  if (result === 'win') return styles.letterWin;
+  if (result === 'draw') return styles.letterDraw;
+  if (result === 'loss') return styles.letterLoss;
   return '';
 }
 
@@ -60,7 +61,6 @@ export default function Calendar() {
     const lastDay = new Date(year, month + 1, 0);
     const startPad = firstDay.getDay();
     const days: Array<{ date: Date | null; key: string }> = [];
-
     for (let i = 0; i < startPad; i++) days.push({ date: null, key: `pad-${i}` });
     for (let d = 1; d <= lastDay.getDate(); d++) {
       const date = new Date(year, month, d);
@@ -97,13 +97,9 @@ export default function Calendar() {
       </header>
 
       <div className={styles.calendarNav}>
-        <button type="button" className={styles.navBtn} onClick={() => setViewDate(new Date(year, month - 1, 1))} aria-label="Mês anterior">
-          ←
-        </button>
+        <button type="button" className={styles.navBtn} onClick={() => setViewDate(new Date(year, month - 1, 1))} aria-label="Mês anterior">←</button>
         <h2 className={styles.monthLabel}>{MONTHS[month]} {year}</h2>
-        <button type="button" className={styles.navBtn} onClick={() => setViewDate(new Date(year, month + 1, 1))} aria-label="Próximo mês">
-          →
-        </button>
+        <button type="button" className={styles.navBtn} onClick={() => setViewDate(new Date(year, month + 1, 1))} aria-label="Próximo mês">→</button>
       </div>
 
       <div className={styles.calendar}>
@@ -144,6 +140,7 @@ export default function Calendar() {
                 {dayMatches.map(m => {
                   const color = resolveCompetitionColor(comps, m.competition);
                   const done = m.status === 'completed';
+                  const letter = resultLetter(m.result);
                   return (
                     <button
                       key={m.id}
@@ -161,8 +158,15 @@ export default function Calendar() {
                       </span>
                       <span className={styles.matchOpp}>{m.opponent}</span>
                       {done ? (
-                        <span className={`${styles.matchScore} ${scoreResultClass(m.result)}`}>
-                          {m.goalsFor}×{m.goalsAgainst}
+                        <span className={styles.matchScoreRow}>
+                          <span className={styles.matchScore}>
+                            {m.goalsFor}×{m.goalsAgainst}
+                          </span>
+                          {letter && (
+                            <span className={`${styles.resultLetter} ${letterClass(m.result)}`}>
+                              {letter}
+                            </span>
+                          )}
                         </span>
                       ) : (
                         <span className={styles.matchPlayHint}>Jogar</span>
@@ -193,24 +197,36 @@ export default function Calendar() {
               {comp.shortName || comp.name}
             </span>
           ))}
-          {legendComps.length === 0 && (
-            <span className={styles.legendItem}>Nenhuma competição cadastrada</span>
-          )}
         </div>
         <div className={styles.legendGroup}>
           <span className={styles.legendTitle}>Resultado</span>
           <span className={styles.legendItem}>
-            <span className={`${styles.legendScore} ${styles.scoreWin}`}>2×1</span>
+            <span className={styles.legendScore}>
+              <span className={styles.legendScoreNums}>2×1</span>
+              <span className={styles.letterWin}>V</span>
+            </span>
             Vitória
           </span>
           <span className={styles.legendItem}>
-            <span className={`${styles.legendScore} ${styles.scoreDraw}`}>1×1</span>
+            <span className={styles.legendScore}>
+              <span className={styles.legendScoreNums}>1×1</span>
+              <span className={styles.letterDraw}>E</span>
+            </span>
             Empate
           </span>
           <span className={styles.legendItem}>
-            <span className={`${styles.legendScore} ${styles.scoreLoss}`}>0×2</span>
+            <span className={styles.legendScore}>
+              <span className={styles.legendScoreNums}>0×2</span>
+              <span className={styles.letterLoss}>D</span>
+            </span>
             Derrota
           </span>
+        </div>
+        <div className={styles.legendGroup}>
+          <span className={styles.legendTitle}>Local</span>
+          <span className={styles.legendItem}>🏠 Casa</span>
+          <span className={styles.legendItem}>✈️ Fora</span>
+          <span className={styles.legendItem}>— Neutro</span>
         </div>
       </div>
 

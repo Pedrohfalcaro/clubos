@@ -6,7 +6,9 @@ import type {
   SavedTactics,
   SlotRole,
   TacticsDraft,
+  TacticsPreset,
 } from '../types/Tactics';
+import { MAX_TACTICS_PRESETS } from '../types/Tactics';
 import { DEFAULT_STYLE_KEY, isTacticalStyleKey } from './tacticalStyles';
 
 export type { FormationKey } from '../types/Tactics';
@@ -831,6 +833,70 @@ export function normalizeSavedTactics(
   const draft = resolveTactics(saved);
   if (!draft.formation.length && !draft.bench.length) return null;
   return { ...draft, updatedAt: saved.updatedAt };
+}
+
+export function createTacticsPresetId(): string {
+  return `tac-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+export function normalizeTacticsPreset(
+  preset: TacticsPreset | null | undefined,
+): TacticsPreset | null {
+  if (!preset?.id) return null;
+  const body = normalizeSavedTactics(preset);
+  if (!body) return null;
+  const name = (preset.name ?? '').trim() || 'Tática';
+  return { ...body, id: preset.id, name };
+}
+
+/** Migra tática única legada → lista de presets (máx. 5). */
+export function migrateTacticsPresets(
+  tactics: SavedTactics | null | undefined,
+  presets?: TacticsPreset[] | null,
+  activeId?: string | null,
+): {
+  tacticsPresets: TacticsPreset[];
+  activeTacticsId: string | null;
+  tactics: SavedTactics | null;
+} {
+  const fromList = (presets ?? [])
+    .map(p => normalizeTacticsPreset(p))
+    .filter((p): p is TacticsPreset => !!p)
+    .slice(0, MAX_TACTICS_PRESETS);
+
+  if (fromList.length > 0) {
+    const activeTacticsId =
+      activeId && fromList.some(p => p.id === activeId) ? activeId : fromList[0].id;
+    const active = fromList.find(p => p.id === activeTacticsId)!;
+    const { id: _i, name: _n, ...rest } = active;
+    return {
+      tacticsPresets: fromList,
+      activeTacticsId,
+      tactics: rest,
+    };
+  }
+
+  const one = normalizeSavedTactics(tactics);
+  if (!one) {
+    return { tacticsPresets: [], activeTacticsId: null, tactics: null };
+  }
+
+  const preset: TacticsPreset = {
+    ...one,
+    id: 'preset-principal',
+    name: 'Principal',
+  };
+  const { id: _i, name: _n, ...rest } = preset;
+  return {
+    tacticsPresets: [preset],
+    activeTacticsId: preset.id,
+    tactics: rest,
+  };
+}
+
+export function tacticsBodyFromPreset(preset: TacticsPreset): SavedTactics {
+  const { id: _i, name: _n, ...rest } = preset;
+  return rest;
 }
 
 /**

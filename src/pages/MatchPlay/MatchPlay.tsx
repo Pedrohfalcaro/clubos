@@ -8,6 +8,8 @@ import type {
   TeamGoalEntry,
   TeamCardEntry,
   OpponentGoalEntry,
+  OpponentCardEntry,
+  OpponentSubEntry,
   TeamInjuryEntry,
 } from '../../types/Match';
 import type {
@@ -34,6 +36,7 @@ import {
 } from '../../utils/matchPlayHelpers';
 import { kitColorForLocation, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
 import MatchSummaryStep, { buildRatingsArray } from './MatchSummaryStep';
+import MatchResultStep, { isResultStepValid } from './MatchResultStep';
 import ScoreStep from './steps/ScoreStep';
 import TeamGoalsStep from './steps/TeamGoalsStep';
 import OpponentGoalsStep from './steps/OpponentGoalsStep';
@@ -133,6 +136,9 @@ export default function MatchPlay() {
   );
   const [injuries, setInjuries] = useState<TeamInjuryEntry[]>(() => match?.injuries ?? []);
   const [opponentGoals, setOpponentGoals] = useState<OpponentGoalEntry[]>([]);
+  const [opponentCards, setOpponentCards] = useState<OpponentCardEntry[]>([]);
+  const [opponentSubs, setOpponentSubs] = useState<OpponentSubEntry[]>([]);
+  const [liveMode, setLiveMode] = useState(false);
 
   const [ratings, setRatings] = useState<Record<string, number | null>>(() => {
     const map: Record<string, number | null> = {};
@@ -206,10 +212,6 @@ export default function MatchPlay() {
     });
   }
 
-  function applySavedTactics() {
-    setLineup(resolveTactics(state.tactics, players));
-  }
-
   function setHomeScore(v: number) {
     if (homeAway!.homeTeam === teamName) setGoalsFor(v);
     else setGoalsAgainst(v);
@@ -262,6 +264,12 @@ export default function MatchPlay() {
 
   function canContinue(): boolean {
     if (step === 'lineup') return lineupValid;
+    if (step === 'score' && liveMode) {
+      return (
+        isResultStepValid(goalsFor, teamGoals) &&
+        isOpponentGoalsValid(goalsAgainst, opponentGoals)
+      );
+    }
     if (step === 'teamGoals') return isTeamGoalsValid(goalsFor, teamGoals);
     if (step === 'opponentGoals') return isOpponentGoalsValid(goalsAgainst, opponentGoals);
     return true;
@@ -269,7 +277,10 @@ export default function MatchPlay() {
 
   function handleNext() {
     if (step === 'lineup') setStep('score');
-    else if (step === 'score') goAfterScore();
+    else if (step === 'score') {
+      if (liveMode) setStep('ratings');
+      else goAfterScore();
+    }
     else if (step === 'teamGoals') goAfterTeamGoals();
     else if (step === 'opponentGoals') setStep('events');
     else if (step === 'events') setStep('ratings');
@@ -287,7 +298,7 @@ export default function MatchPlay() {
       if (goalsAgainst > 0) setStep('pathChoice');
       else if (goalsFor > 0) setStep('teamGoals');
       else setStep('score');
-    } else if (step === 'ratings') setStep('events');
+    } else if (step === 'ratings') setStep(liveMode ? 'score' : 'events');
     else if (step === 'recap') setStep('ratings');
   }
 
@@ -306,17 +317,33 @@ export default function MatchPlay() {
           <p className={styles.sub}>
             {match.competition} · {new Date(match.date).toLocaleDateString('pt-BR')}
             {' · '}
-            {stepLabel(step)}
+            {liveMode && step === 'score' ? 'Ao vivo' : stepLabel(step)}
           </p>
         </div>
-        <div className={styles.steps} aria-hidden>
-          {visibleDots.map(s => (
-            <span
-              key={s}
-              className={`${styles.stepDot} ${step === s ? styles.stepActive : ''}`}
-              title={stepLabel(s)}
-            />
-          ))}
+        <div className={styles.headerRight}>
+          {step === 'score' && (
+            <button
+              type="button"
+              className={`${styles.liveSwitch} ${liveMode ? styles.liveSwitchOn : ''}`}
+              onClick={() => setLiveMode(v => !v)}
+              aria-pressed={liveMode}
+              title={liveMode ? 'Desativar modo ao vivo' : 'Ativar modo ao vivo'}
+            >
+              <span className={styles.liveKnob} />
+              <span className={styles.liveLabel}>Ao Vivo</span>
+            </button>
+          )}
+          {!liveMode && (
+            <div className={styles.steps} aria-hidden>
+              {visibleDots.map(s => (
+                <span
+                  key={s}
+                  className={`${styles.stepDot} ${step === s ? styles.stepActive : ''}`}
+                  title={stepLabel(s)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </header>
 
@@ -324,10 +351,27 @@ export default function MatchPlay() {
         <section className={styles.section}>
           <div className={styles.lineupHead}>
             <h2 className={styles.sectionTitle}>Escalação titular</h2>
-            {state.tactics && (
-              <button type="button" className={styles.tacticsBtn} onClick={applySavedTactics}>
-                Usar tática salva
-              </button>
+            {state.tacticsPresets.length > 0 && (
+              <label className={styles.tacticsSelectWrap}>
+                <span className={styles.tacticsSelectLabel}>Tática</span>
+                <select
+                  className={styles.tacticsSelect}
+                  value=""
+                  onChange={e => {
+                    const id = e.target.value;
+                    if (!id) return;
+                    const preset = state.tacticsPresets.find(p => p.id === id);
+                    if (preset) setLineup(resolveTactics(preset, players));
+                  }}
+                >
+                  <option value="">Usar tática…</option>
+                  {state.tacticsPresets.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
           </div>
           <FormationPicker
@@ -357,15 +401,46 @@ export default function MatchPlay() {
 
       {step === 'score' && (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Placar</h2>
-          <ScoreStep
-            homeTeam={homeAway.homeTeam}
-            awayTeam={homeAway.awayTeam}
-            homeGoals={homeGoals}
-            awayGoals={awayGoals}
-            onHomeGoalsChange={setHomeScore}
-            onAwayGoalsChange={setAwayScore}
-          />
+          {!liveMode && <h2 className={styles.sectionTitle}>Placar</h2>}
+          {liveMode ? (
+            <MatchResultStep
+              teamName={teamName}
+              opponentName={match.opponent}
+              homeTeam={homeAway.homeTeam}
+              awayTeam={homeAway.awayTeam}
+              isTeamHome={ourPitchSide === 'home'}
+              goalsFor={goalsFor}
+              goalsAgainst={goalsAgainst}
+              onGoalsForChange={setGoalsFor}
+              onGoalsAgainstChange={setGoalsAgainst}
+              starters={starters}
+              bench={bench}
+              players={players}
+              teamGoals={teamGoals}
+              onTeamGoalsChange={setTeamGoals}
+              teamCards={teamCards}
+              onTeamCardsChange={setTeamCards}
+              teamSubs={teamSubs}
+              onTeamSubsChange={setTeamSubs}
+              injuries={injuries}
+              onInjuriesChange={setInjuries}
+              opponentGoals={opponentGoals}
+              onOpponentGoalsChange={setOpponentGoals}
+              opponentCards={opponentCards}
+              onOpponentCardsChange={setOpponentCards}
+              opponentSubs={opponentSubs}
+              onOpponentSubsChange={setOpponentSubs}
+            />
+          ) : (
+            <ScoreStep
+              homeTeam={homeAway.homeTeam}
+              awayTeam={homeAway.awayTeam}
+              homeGoals={homeGoals}
+              awayGoals={awayGoals}
+              onHomeGoalsChange={setHomeScore}
+              onAwayGoalsChange={setAwayScore}
+            />
+          )}
         </section>
       )}
 

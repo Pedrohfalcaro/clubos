@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import FormationField from '../../components/FormationField/FormationField';
 import FormationPicker from '../../components/FormationPicker/FormationPicker';
 import { useGame } from '../../context/GameContext';
-import type { FormationKey, TacticsDraft } from '../../types/Tactics';
+import type { FormationKey, TacticsDraft, TacticsPreset } from '../../types/Tactics';
+import { MAX_TACTICS_PRESETS } from '../../types/Tactics';
 import {
   buildBestLineup,
   countFilledSlots,
+  createTacticsPresetId,
   getFormationPreset,
   lineupAverageOverall,
   lineupWarnings,
@@ -28,29 +30,69 @@ function signature(tactics: TacticsDraft): string {
 }
 
 export default function Tactics() {
-  const { state, saveTactics } = useGame();
+  const {
+    state,
+    saveTacticsPreset,
+    deleteTacticsPreset,
+    setActiveTactics,
+  } = useGame();
   const players = state.players;
   const primaryColor = state.team?.primaryColor ?? DEFAULT_PRIMARY;
   const secondaryColor = state.team?.secondaryColor ?? DEFAULT_SECONDARY;
+  const presets = state.tacticsPresets;
 
-  const saved = useMemo(() => resolveTactics(state.tactics, players), [state.tactics, players]);
-  const [draft, setDraft] = useState<TacticsDraft>(saved);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => state.activeTacticsId ?? presets[0]?.id ?? null,
+  );
+  const [name, setName] = useState('');
+  const [draft, setDraft] = useState<TacticsDraft>(() =>
+    resolveTactics(
+      presets.find(p => p.id === (state.activeTacticsId ?? presets[0]?.id)) ?? null,
+      players,
+    ),
+  );
   const [justSaved, setJustSaved] = useState(false);
 
-  const syncedFrom = useRef(state.tactics);
+  const selected = useMemo(
+    () => presets.find(p => p.id === selectedId) ?? null,
+    [presets, selectedId],
+  );
+
+  const syncedKey = useRef(`${selectedId}:${presets.map(p => p.id + p.updatedAt).join('|')}`);
   useEffect(() => {
-    if (syncedFrom.current === state.tactics) return;
-    syncedFrom.current = state.tactics;
-    setDraft(resolveTactics(state.tactics, players));
-  }, [state.tactics, players]);
+    const key = `${selectedId}:${presets.map(p => p.id + p.updatedAt).join('|')}`;
+    if (syncedKey.current === key) return;
+    syncedKey.current = key;
+    const preset = presets.find(p => p.id === selectedId) ?? presets[0] ?? null;
+    const nextId = preset?.id ?? null;
+    if (nextId !== selectedId) setSelectedId(nextId);
+    setName(preset?.name ?? '');
+    setDraft(resolveTactics(preset, players));
+  }, [presets, selectedId, players]);
+
+  const savedDraft = useMemo(
+    () => resolveTactics(selected, players),
+    [selected, players],
+  );
 
   const preset = getFormationPreset(draft.formationKey);
   const total = preset.slots.length;
   const filled = countFilledSlots(draft.formation, draft.formationKey, players);
   const complete = filled === total;
-  const dirty = signature(draft) !== signature(saved);
+  const dirty =
+    signature(draft) !== signature(savedDraft) ||
+    (name.trim() || 'Tática') !== (selected?.name ?? '');
   const warnings = lineupWarnings(draft.formation, draft.formationKey, players, draft.bench);
   const average = lineupAverageOverall(draft.formation, players);
+  const canAdd = presets.length < MAX_TACTICS_PRESETS;
+
+  function selectPreset(id: string) {
+    setSelectedId(id);
+    setActiveTactics(id);
+    const p = presets.find(x => x.id === id);
+    setName(p?.name ?? '');
+    setDraft(resolveTactics(p ?? null, players));
+  }
 
   function handleFormationChange(key: FormationKey) {
     if (key === draft.formationKey) return;
@@ -71,18 +113,39 @@ export default function Tactics() {
   }
 
   function handleSave() {
-    saveTactics({
+    const id = selectedId ?? createTacticsPresetId();
+    const presetPayload: TacticsPreset = {
+      id,
+      name: name.trim() || `Tática ${presets.length + 1}`,
       formationKey: draft.formationKey,
       style: draft.style || DEFAULT_STYLE_KEY,
       formation: normalizeFormation(draft.formation, draft.formationKey, players),
       bench: draft.bench,
-    });
+      updatedAt: new Date().toISOString(),
+    };
+    saveTacticsPreset(presetPayload);
+    setSelectedId(id);
     setJustSaved(true);
     window.setTimeout(() => setJustSaved(false), 2000);
   }
 
-  const savedAt = state.tactics?.updatedAt
-    ? new Date(state.tactics.updatedAt).toLocaleString('pt-BR', {
+  function handleAdd() {
+    if (!canAdd) return;
+    const id = createTacticsPresetId();
+    const empty = resolveTactics(null, players);
+    setSelectedId(id);
+    setName(`Tática ${presets.length + 1}`);
+    setDraft(empty);
+  }
+
+  function handleDelete() {
+    if (!selectedId || presets.length === 0) return;
+    if (!window.confirm('Excluir esta tática?')) return;
+    deleteTacticsPreset(selectedId);
+  }
+
+  const savedAt = selected?.updatedAt
+    ? new Date(selected.updatedAt).toLocaleString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
@@ -96,7 +159,7 @@ export default function Tactics() {
         <div>
           <h1 className={styles.title}>Táticas</h1>
           <p className={styles.sub}>
-            Escolha a formação e a variante, depois monte titulares e banco.
+            Salve até {MAX_TACTICS_PRESETS} táticas nomeadas e escolha qual usar na partida.
           </p>
         </div>
         <div className={styles.headerActions}>
@@ -117,6 +180,43 @@ export default function Tactics() {
           </button>
         </div>
       </header>
+
+      <section className={styles.presetBar}>
+        <div className={styles.presetList}>
+          {presets.map(p => (
+            <button
+              key={p.id}
+              type="button"
+              className={`${styles.presetChip} ${p.id === selectedId ? styles.presetChipActive : ''}`}
+              onClick={() => selectPreset(p.id)}
+            >
+              {p.name}
+            </button>
+          ))}
+          {canAdd && (
+            <button type="button" className={styles.presetAdd} onClick={handleAdd}>
+              + Nova
+            </button>
+          )}
+        </div>
+        <div className={styles.presetMeta}>
+          <label className={styles.nameField}>
+            <span>Nome</span>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ex.: Casa 4-3-3"
+              maxLength={32}
+            />
+          </label>
+          {selectedId && presets.some(p => p.id === selectedId) && (
+            <button type="button" className={styles.deleteBtn} onClick={handleDelete}>
+              Excluir
+            </button>
+          )}
+        </div>
+      </section>
 
       <section className={styles.setupCard}>
         <FormationPicker value={draft.formationKey} onChange={handleFormationChange} />
@@ -158,7 +258,10 @@ export default function Tactics() {
           <button
             type="button"
             className={styles.toolBtn}
-            onClick={() => setDraft(saved)}
+            onClick={() => {
+              setName(selected?.name ?? '');
+              setDraft(savedDraft);
+            }}
             disabled={!dirty}
           >
             Descartar

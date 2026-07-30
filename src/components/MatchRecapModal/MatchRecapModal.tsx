@@ -3,7 +3,12 @@ import type { Match } from '../../types/Match';
 import type { Player } from '../../types/Player';
 import { locationIcon } from '../../utils/calendarHelpers';
 import { POSITION_LABELS, ratingColor } from '../../utils/matchEvents';
-import { locationLabel } from '../../utils/matchStats';
+import { getHomeAway, locationLabel } from '../../utils/matchStats';
+import {
+  buildMatchTimeline,
+  formatTimelineMinute,
+  resultLetter,
+} from '../../utils/matchTimeline';
 import styles from './MatchRecapModal.module.css';
 
 interface MatchRecapModalProps {
@@ -46,11 +51,21 @@ export default function MatchRecapModal({
       .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
   }, [match, players]);
 
+  const ourSide = match?.location === 'away' ? 'away' : 'home';
+  const events = useMemo(
+    () => (match ? buildMatchTimeline(match, ourSide) : []),
+    [match, ourSide],
+  );
+
   if (!open || !match) return null;
 
   const result = match.result;
+  const letter = resultLetter(result);
   const resultClass =
     result === 'win' ? styles.resWin : result === 'draw' ? styles.resDraw : result === 'loss' ? styles.resLoss : '';
+  const ha = getHomeAway(teamName ?? 'Nós', match);
+  const homeLabel = ha.homeTeam;
+  const awayLabel = ha.awayTeam;
 
   return (
     <div className={styles.overlay} onClick={onClose} role="presentation">
@@ -86,8 +101,11 @@ export default function MatchRecapModal({
 
         <div className={`${styles.scoreBlock} ${resultClass}`}>
           <span className={styles.score}>
-            {match.goalsFor} × {match.goalsAgainst}
+            {match.goalsFor}
+            <span className={styles.scoreSep}>×</span>
+            {match.goalsAgainst}
           </span>
+          {letter && <span className={styles.resultBadge}>{letter}</span>}
           {result && <span className={styles.resultLabel}>{RESULT_LABEL[result]}</span>}
         </div>
 
@@ -95,9 +113,53 @@ export default function MatchRecapModal({
           <p className={styles.description}>{match.description.trim()}</p>
         )}
 
+        <section className={styles.timelineSection}>
+          <h3 className={styles.sectionTitle}>Acontecimentos</h3>
+          {events.length === 0 ? (
+            <p className={styles.tlEmpty}>Nenhum lance registrado.</p>
+          ) : (
+            <div className={styles.dualTimeline}>
+              <div className={styles.dualHead}>
+                <span>{homeLabel}</span>
+                <span />
+                <span>{awayLabel}</span>
+              </div>
+              <ul className={styles.dualList}>
+                {events.map(ev => (
+                  <li key={ev.id} className={styles.dualRow}>
+                    <div className={`${styles.dualCell} ${styles.dualLeft}`}>
+                      {ev.pitchSide === 'home' && (
+                        <div className={styles.dualEvent}>
+                          <span className={styles.dualIcon}>{ev.icon}</span>
+                          <div className={styles.dualText}>
+                            <p className={styles.tlName}>{ev.title}</p>
+                            {ev.assist && <p className={styles.tlAssist}>{ev.assist}</p>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <span className={styles.dualMin}>{formatTimelineMinute(ev.minute)}</span>
+                    <div className={`${styles.dualCell} ${styles.dualRight}`}>
+                      {ev.pitchSide === 'away' && (
+                        <div className={styles.dualEvent}>
+                          <span className={styles.dualIcon}>{ev.icon}</span>
+                          <div className={styles.dualText}>
+                            <p className={styles.tlName}>{ev.title}</p>
+                            {ev.assist && <p className={styles.tlAssist}>{ev.assist}</p>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+
         {match.playerPerformance && ratings.length === 0 && (
           <section className={styles.ratingsSection}>
-            <h3 className={styles.ratingsTitle}>Sua partida</h3>
+            <h3 className={styles.sectionTitle}>Sua partida</h3>
             <ul className={styles.ratingsList}>
               <li className={styles.ratingRow}>
                 <span
@@ -122,7 +184,7 @@ export default function MatchRecapModal({
 
         {ratings.length > 0 && (
           <section className={styles.ratingsSection}>
-            <h3 className={styles.ratingsTitle}>Notas</h3>
+            <h3 className={styles.sectionTitle}>Notas</h3>
             <ul className={styles.ratingsList}>
               {ratings.map(r => {
                 const isMotm = match.motmPlayerId === r.playerId;

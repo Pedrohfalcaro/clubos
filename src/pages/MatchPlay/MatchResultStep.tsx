@@ -13,6 +13,7 @@ import type {
   OpponentGoalEntry,
   OpponentCardEntry,
   OpponentSubEntry,
+  TeamInjuryEntry,
 } from '../../types/Match';
 import { defaultMinute, formatMinute, uid } from '../../utils/matchEvents';
 import { getFieldPlayerIds, isPlayerOnField } from '../../utils/matchPlayHelpers';
@@ -37,6 +38,8 @@ interface MatchResultStepProps {
   onTeamCardsChange: (c: TeamCardEntry[]) => void;
   teamSubs: SubstitutionEvent[];
   onTeamSubsChange: (s: SubstitutionEvent[]) => void;
+  injuries?: TeamInjuryEntry[];
+  onInjuriesChange?: (i: TeamInjuryEntry[]) => void;
   opponentGoals: OpponentGoalEntry[];
   onOpponentGoalsChange: (g: OpponentGoalEntry[]) => void;
   opponentCards: OpponentCardEntry[];
@@ -69,6 +72,7 @@ export default function MatchResultStep(props: MatchResultStepProps) {
     teamGoals, onTeamGoalsChange,
     teamCards, onTeamCardsChange,
     teamSubs, onTeamSubsChange,
+    injuries = [], onInjuriesChange,
     opponentGoals, onOpponentGoalsChange,
     opponentCards, onOpponentCardsChange,
     opponentSubs, onOpponentSubsChange,
@@ -381,6 +385,75 @@ export default function MatchResultStep(props: MatchResultStepProps) {
       <button type="button" className={styles.subBtn} onClick={() => setVoluntarySubOpen(true)}>
         🔄 Substituição
       </button>
+
+      {onInjuriesChange && (
+        <div className={styles.cardSection}>
+          {injuries.map(inj => {
+            const complete = !!inj.playerId;
+            const summary = `${formatMinute(inj.minute)} · ✚ ${inj.playerName || '—'}${inj.note ? ` · ${inj.note}` : ''}`;
+            return (
+              <CollapsibleEventBlock
+                key={inj.id}
+                isComplete={complete}
+                expanded={isFormOpen(inj.id, complete, expandedIds)}
+                summary={summary}
+                onEdit={() => openEdit(inj.id)}
+                onRemove={() => onInjuriesChange(injuries.filter(x => x.id !== inj.id))}
+              >
+                <div className={styles.eventFields}>
+                  <div className={styles.minuteRow}>
+                    <span className={styles.fieldLabel}>Minuto</span>
+                    <MinuteInput
+                      value={inj.minute}
+                      onChange={m =>
+                        onInjuriesChange(injuries.map(x => (x.id === inj.id ? { ...x, minute: m } : x)))
+                      }
+                    />
+                  </div>
+                  <SearchableSelect
+                    options={fieldOptions}
+                    value={inj.playerId}
+                    onChange={pid => {
+                      const p = resolvePlayer(pid);
+                      if (!p) return;
+                      onInjuriesChange(
+                        injuries.map(x =>
+                          x.id === inj.id ? { ...x, playerId: p.id, playerName: p.name } : x,
+                        ),
+                      );
+                    }}
+                    placeholder="Jogador lesionado..."
+                  />
+                  <input
+                    className={styles.textInput}
+                    placeholder="Observação (opcional)"
+                    value={inj.note ?? ''}
+                    onChange={e =>
+                      onInjuriesChange(
+                        injuries.map(x => (x.id === inj.id ? { ...x, note: e.target.value } : x)),
+                      )
+                    }
+                  />
+                </div>
+              </CollapsibleEventBlock>
+            );
+          })}
+          <button
+            type="button"
+            className={styles.subBtn}
+            onClick={() => {
+              const id = uid();
+              onInjuriesChange([
+                ...injuries,
+                { id, playerId: '', playerName: '', minute: defaultMinute() },
+              ]);
+              setExpandedIds(prev => new Set(prev).add(id));
+            }}
+          >
+            ✚ Lesão
+          </button>
+        </div>
+      )}
     </div>
   );
 
