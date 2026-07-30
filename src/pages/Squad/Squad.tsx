@@ -64,6 +64,7 @@ export default function Squad() {
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
+    name: '',
     number: '' as string | number,
     age: 0,
     overall: 0,
@@ -186,6 +187,7 @@ export default function Squad() {
     if (!p) return;
     setEditingId(playerId);
     setEditForm({
+      name: p.name,
       number: p.number ?? '',
       age: p.age,
       overall: p.overall,
@@ -197,7 +199,10 @@ export default function Squad() {
 
   function saveEdit() {
     if (!editingId) return;
+    const name = editForm.name.trim();
+    if (!name) return;
     updatePlayer(editingId, {
+      name,
       number: editForm.number === '' ? null : Number(editForm.number),
       age: editForm.age,
       overall: editForm.overall,
@@ -431,7 +436,14 @@ export default function Squad() {
                                 value={editForm.number}
                                 onChange={e => setEditForm(f => ({ ...f, number: e.target.value }))}
                               />
-                              <span className={styles.editName}>{p.name}</span>
+                              <input
+                                className={styles.editNameInput}
+                                type="text"
+                                value={editForm.name}
+                                onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                                placeholder="Nome"
+                                aria-label="Nome do atleta"
+                              />
                               <input
                                 className={styles.editInputSm}
                                 type="number"
@@ -449,7 +461,7 @@ export default function Squad() {
                                 onChange={e => setEditForm(f => ({ ...f, overall: Number(e.target.value) }))}
                               />
                               <span className={styles.colMatches} title="Jogos (somente leitura)">{stats.matches}</span>
-                              <span className={styles.colMin} title="Minutos (somente leitura)">{stats.minutes}'</span>
+                              <span className={styles.colMin} title="Minutos (somente leitura)">{stats.minutes}</span>
                               <span
                                 className={styles.notaBadge}
                                 style={{

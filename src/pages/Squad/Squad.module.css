@@ -482,6 +482,18 @@
   font-size: 12px;
 }
 
+.editNameInput {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .editSelect {
   padding: 4px 6px;
   background: var(--bg);
