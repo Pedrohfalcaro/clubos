@@ -19,8 +19,22 @@ import {
 } from './saveSlots';
 
 const CHUNKED_FORMAT = 'chunked-v1' as const;
-/** Margem abaixo do limite de 1 MiB do Firestore por documento. */
-const MAX_DOC_BYTES = 900_000;
+/**
+ * Margem abaixo do limite de 1 MiB do Firestore.
+ * JSON.stringify subestima o encoding real — 700 KB é mais seguro que 900 KB.
+ */
+const MAX_DOC_BYTES = 700_000;
+/** Limite conservador por commit (API request ≤ 10 MiB). */
+const MAX_BATCH_BYTES = 3_500_000;
+const MAX_BATCH_OPS = 40;
+
+const textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+
+function estimateBytes(value: unknown): number {
+  const json = JSON.stringify(value);
+  if (textEncoder) return textEncoder.encode(json).length;
+  return json.length;
+}
 
 function slotRef(uid: string, slotId: SaveSlotId) {
   return doc(getFirestoreDb(), 'users', uid, 'saves', slotId);
@@ -73,29 +87,122 @@ function explainFirestoreError(err: unknown): Error {
   return err instanceof Error ? err : new Error(message || 'Falha na nuvem');
 }
 
-/** Parte arrays grandes em pedaços que cabem no limite do Firestore. */
-function shardArray<T>(items: T[], prefix: string): { id: string; payload: Record<string, unknown> }[] {
+type ChunkDoc = { id: string; payload: Record<string, unknown> };
+
+/** Enxuga item único que sozinho estoura o limite (ex.: jogo com muitos detalhes). */
+function slimOversizedItem(item: unknown, prefix: string): unknown {
+  if (!item || typeof item !== 'object') return item;
+  const obj = { ...(item as Record<string, unknown>) };
+
+  if (prefix.startsWith('matches')) {
+    delete obj.description;
+    delete obj.playerPerformance;
+    if (estimateBytes(obj) <= MAX_DOC_BYTES) return obj;
+    // Mantém só o essencial para o jogo continuar
+    return {
+      id: obj.id,
+      teamId: obj.teamId,
+      date: obj.date,
+      opponent: obj.opponent,
+      location: obj.location,
+      goalsFor: obj.goalsFor,
+      goalsAgainst: obj.goalsAgainst,
+      result: obj.result,
+      competition: obj.competition,
+      status: obj.status,
+      goals: obj.goals ?? [],
+      assists: obj.assists ?? [],
+      cards: obj.cards ?? [],
+      playerMatches: obj.playerMatches ?? [],
+      lineup: obj.lineup,
+      substitutions: obj.substitutions,
+      injuries: obj.injuries,
+      playerRatings: obj.playerRatings,
+      motmPlayerId: obj.motmPlayerId,
+      worstPlayerId: obj.worstPlayerId,
+      season: obj.season,
+    };
+  }
+
+  return obj;
+}
+
+/**
+ * Parte arrays em pedaços que cabem no limite.
+ * Item único gigante é enxugado; se ainda não couber, vai sozinho (melhor erro claro depois).
+ */
+function shardArray(items: unknown[], prefix: string): ChunkDoc[] {
   if (items.length === 0) {
     return [{ id: `${prefix}-0`, payload: { items: [] } }];
   }
 
-  const shards: { id: string; payload: Record<string, unknown> }[] = [];
-  let current: T[] = [];
+  const shards: ChunkDoc[] = [];
+  let current: unknown[] = [];
   let size = 12; // {"items":[]}
 
-  for (const item of items) {
-    const piece = JSON.stringify(item);
-    const add = piece.length + (current.length ? 1 : 0);
-    if (current.length > 0 && size + add > MAX_DOC_BYTES) {
-      shards.push({ id: `${prefix}-${shards.length}`, payload: { items: current } });
-      current = [];
-      size = 12;
+  const flush = () => {
+    if (current.length === 0) return;
+    shards.push({ id: `${prefix}-${shards.length}`, payload: { items: current } });
+    current = [];
+    size = 12;
+  };
+
+  for (const raw of items) {
+    let item = raw;
+    let piece = estimateBytes(item);
+
+    if (piece > MAX_DOC_BYTES) {
+      item = slimOversizedItem(item, prefix);
+      piece = estimateBytes(item);
     }
+
+    const add = piece + (current.length ? 1 : 0);
+    if (current.length > 0 && size + add > MAX_DOC_BYTES) {
+      flush();
+    }
+
+    // Item sozinho ainda grande: grava sozinho (assertDocFits trata depois)
+    if (current.length === 0 && piece > MAX_DOC_BYTES) {
+      shards.push({ id: `${prefix}-${shards.length}`, payload: { items: [item] } });
+      continue;
+    }
+
     current.push(item);
-    size += add;
+    size += current.length === 1 ? piece : add;
   }
-  shards.push({ id: `${prefix}-${shards.length}`, payload: { items: current } });
+  flush();
   return shards;
+}
+
+function assertDocFits(doc: ChunkDoc): void {
+  const size = estimateBytes(doc.payload);
+  if (size > MAX_DOC_BYTES) {
+    throw new Error(
+      `Parte "${doc.id}" ainda grande demais (${Math.round(size / 1024)} KB). Abra o jogo logado de novo após atualizar.`,
+    );
+  }
+}
+
+function splitObjectFields(
+  id: string,
+  payload: Record<string, unknown>,
+): ChunkDoc[] {
+  const size = estimateBytes(payload);
+  if (size <= MAX_DOC_BYTES) {
+    return [{ id, payload }];
+  }
+
+  // Um campo por documento quando o objeto composto estoura
+  const docs: ChunkDoc[] = [];
+  for (const [key, value] of Object.entries(payload)) {
+    const part: ChunkDoc = { id: `${id}-${key}`, payload: { [key]: value } };
+    if (estimateBytes(part.payload) > MAX_DOC_BYTES && Array.isArray(value)) {
+      docs.push(...shardArray(value, `${id}-${key}`));
+    } else {
+      docs.push(part);
+    }
+  }
+  return docs.length > 0 ? docs : [{ id, payload }];
 }
 
 function splitSave(save: GameSave) {
@@ -115,60 +222,48 @@ function splitSave(save: GameSave) {
 
   const playerShards = shardArray(players ?? [], 'players');
   const matchShards = shardArray(matches ?? [], 'matches');
-  const extrasPayload = {
-    pulse: pulse ?? null,
-    finance: finance ?? null,
-    board: board ?? null,
-    transfers: transfers ?? null,
-    seasonHistory: seasonHistory ?? [],
+
+  // Sempre separar extras pesados (não esperar estourar)
+  const pulseObj = pulse ?? null;
+  const pulseHistory = Array.isArray(pulseObj?.history) ? pulseObj.history : [];
+  const pulseCore = pulseObj
+    ? { ...pulseObj, history: [] as typeof pulseHistory }
+    : null;
+
+  const transfersObj = transfers ?? null;
+  const transferHistory = Array.isArray(transfersObj?.history)
+    ? transfersObj.history
+    : [];
+  const transfersCore = transfersObj
+    ? { ...transfersObj, history: [] as typeof transferHistory }
+    : null;
+
+  const extrasCore = {
     tactics: tactics ?? null,
     tacticsPresets: tacticsPresets ?? [],
     activeTacticsId: activeTacticsId ?? null,
+    board: board ?? null,
+    finance: finance ?? null,
   };
 
-  // Extras ainda pode estourar — se passar, grava sem seasonHistory/pulse pesados no mesmo doc
-  let extrasDocs: { id: string; payload: Record<string, unknown> }[] = [
-    { id: 'extras', payload: extrasPayload },
-  ];
-  const extrasSize = JSON.stringify(extrasPayload).length;
-  if (extrasSize > MAX_DOC_BYTES) {
-    extrasDocs = [
-      {
-        id: 'extras',
-        payload: {
-          tactics: extrasPayload.tactics,
-          tacticsPresets: extrasPayload.tacticsPresets,
-          activeTacticsId: extrasPayload.activeTacticsId,
-          board: extrasPayload.board,
-          finance: extrasPayload.finance,
-        },
-      },
-      {
-        id: 'extras-pulse',
-        payload: { pulse: extrasPayload.pulse },
-      },
-      {
-        id: 'extras-transfers',
-        payload: { transfers: extrasPayload.transfers },
-      },
-      ...shardArray(
-        (extrasPayload.seasonHistory as unknown[]) ?? [],
-        'extras-history',
-      ),
-    ];
-  }
-
-  const chunkIds = [
-    ...playerShards.map(s => s.id),
-    ...matchShards.map(s => s.id),
-    ...extrasDocs.map(s => s.id),
+  const extrasDocs: ChunkDoc[] = [
+    ...splitObjectFields('extras', extrasCore),
+    ...splitObjectFields('extras-pulse', { pulse: pulseCore }),
+    ...shardArray(pulseHistory, 'extras-pulse-history'),
+    ...splitObjectFields('extras-transfers', { transfers: transfersCore }),
+    ...shardArray(transferHistory, 'extras-transfers-history'),
+    ...shardArray(seasonHistory ?? [], 'extras-history'),
   ];
 
+  const docs = [...playerShards, ...matchShards, ...extrasDocs];
+  for (const d of docs) assertDocFits(d);
+
+  // Header enxuto: se careerPlayer/team forem enormes, ainda cabem — assert separado
   const header = {
     ...headerRest,
     format: CHUNKED_FORMAT,
     revision: Date.now(),
-    chunks: chunkIds,
+    chunks: docs.map(d => d.id),
     _summary: {
       matchesPlayed: (matches ?? []).filter(m => m.status === 'completed').length,
       wins: save.team?.statistics?.wins,
@@ -177,13 +272,86 @@ function splitSave(save: GameSave) {
     },
   };
 
-  return {
-    header,
-    docs: [...playerShards, ...matchShards, ...extrasDocs] as {
-      id: string;
-      payload: Record<string, unknown>;
-    }[],
+  const headerSize = estimateBytes(header);
+  if (headerSize > MAX_DOC_BYTES) {
+    throw new Error(
+      `Cabeçalho do save grande demais (${Math.round(headerSize / 1024)} KB).`,
+    );
+  }
+
+  return { header, docs };
+}
+
+async function commitChunkBatches(
+  uid: string,
+  slotId: SaveSlotId,
+  docs: ChunkDoc[],
+  header: Record<string, unknown>,
+): Promise<void> {
+  const db = getFirestoreDb();
+
+  let batch = writeBatch(db);
+  let ops = 0;
+  let bytes = 0;
+
+  const flush = async () => {
+    if (ops === 0) return;
+    await batch.commit();
+    batch = writeBatch(db);
+    ops = 0;
+    bytes = 0;
   };
+
+  for (const { id, payload } of docs) {
+    const size = estimateBytes(payload);
+    if (ops > 0 && (ops >= MAX_BATCH_OPS || bytes + size > MAX_BATCH_BYTES)) {
+      await flush();
+    }
+    batch.set(chunkRef(uid, slotId, id), payload, { merge: false });
+    ops += 1;
+    bytes += size;
+  }
+
+  // Header por último — aponta para os chunks já gravados
+  const headerSize = estimateBytes(header);
+  if (ops > 0 && (ops >= MAX_BATCH_OPS || bytes + headerSize > MAX_BATCH_BYTES)) {
+    await flush();
+  }
+  batch.set(slotRef(uid, slotId), header, { merge: false });
+  ops += 1;
+  await flush();
+}
+
+async function deleteChunkIds(
+  uid: string,
+  slotId: SaveSlotId,
+  ids: string[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  const db = getFirestoreDb();
+  for (let i = 0; i < ids.length; i += MAX_BATCH_OPS) {
+    const slice = ids.slice(i, i + MAX_BATCH_OPS);
+    const batch = writeBatch(db);
+    for (const id of slice) {
+      batch.delete(chunkRef(uid, slotId, id));
+    }
+    try {
+      await batch.commit();
+    } catch {
+      /* limpeza best-effort */
+    }
+  }
+}
+
+async function readPreviousChunkIds(uid: string, slotId: SaveSlotId): Promise<string[]> {
+  try {
+    const snap = await readDoc(slotRef(uid, slotId));
+    if (!snap.exists()) return [];
+    const data = snap.data() as Record<string, unknown>;
+    return Array.isArray(data.chunks) ? (data.chunks as string[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 function collectItems<T>(
@@ -207,6 +375,20 @@ function collectItems<T>(
   return out;
 }
 
+function mergeExtrasField(
+  chunks: Map<string, Record<string, unknown>>,
+  rootKey: string,
+  field: string,
+): unknown {
+  const root = chunks.get(rootKey);
+  if (root && field in root) return root[field];
+
+  // splitObjectFields → extras-tactics, extras-board, etc.
+  const part = chunks.get(`${rootKey}-${field}`);
+  if (part && field in part) return part[field];
+  return undefined;
+}
+
 function assembleSave(
   header: Record<string, unknown>,
   chunks: Map<string, Record<string, unknown>>,
@@ -222,10 +404,46 @@ function assembleSave(
   const players = collectItems<NonNullable<GameSave['players']>[number]>(chunks, 'players');
   const matches = collectItems<NonNullable<GameSave['matches']>[number]>(chunks, 'matches');
 
-  // Extras: legado { extras: { pulse, ... } } ou shards
   const extrasRoot = chunks.get('extras') ?? {};
-  const pulseDoc = chunks.get('extras-pulse');
-  const transfersDoc = chunks.get('extras-transfers');
+  const pulseFromDoc = mergeExtrasField(chunks, 'extras-pulse', 'pulse') as
+    | GameSave['pulse']
+    | undefined;
+  const pulseLegacy = extrasRoot.pulse as GameSave['pulse'] | undefined;
+  const pulseBase = pulseFromDoc ?? pulseLegacy;
+
+  const pulseHistoryShards = collectItems<
+    NonNullable<NonNullable<GameSave['pulse']>['history']>[number]
+  >(chunks, 'extras-pulse-history');
+
+  const pulse = pulseBase
+    ? {
+        ...pulseBase,
+        history:
+          pulseHistoryShards.length > 0
+            ? pulseHistoryShards
+            : (pulseBase.history ?? []),
+      }
+    : undefined;
+
+  const transfersFromDoc = mergeExtrasField(chunks, 'extras-transfers', 'transfers') as
+    | GameSave['transfers']
+    | undefined;
+  const transfersLegacy = extrasRoot.transfers as GameSave['transfers'] | undefined;
+  const transfersBase = transfersFromDoc ?? transfersLegacy;
+  const transferHistoryShards = collectItems<
+    NonNullable<NonNullable<GameSave['transfers']>['history']>[number]
+  >(chunks, 'extras-transfers-history');
+
+  const transfers = transfersBase
+    ? {
+        ...transfersBase,
+        history:
+          transferHistoryShards.length > 0
+            ? transferHistoryShards
+            : (transfersBase.history ?? []),
+      }
+    : undefined;
+
   const history = collectItems<NonNullable<GameSave['seasonHistory']>[number]>(
     chunks,
     'extras-history',
@@ -236,21 +454,42 @@ function assembleSave(
       ? history
       : ((extrasRoot.seasonHistory as GameSave['seasonHistory']) ?? []);
 
+  const tactics =
+    (mergeExtrasField(chunks, 'extras', 'tactics') as GameSave['tactics']) ??
+    (extrasRoot.tactics as GameSave['tactics']) ??
+    null;
+  const tacticsPresets =
+    (mergeExtrasField(chunks, 'extras', 'tacticsPresets') as GameSave['tacticsPresets']) ??
+    (extrasRoot.tacticsPresets as GameSave['tacticsPresets']) ??
+    [];
+  const activeTacticsId =
+    (mergeExtrasField(chunks, 'extras', 'activeTacticsId') as GameSave['activeTacticsId']) ??
+    (extrasRoot.activeTacticsId as GameSave['activeTacticsId']) ??
+    null;
+  const board =
+    (mergeExtrasField(chunks, 'extras', 'board') as GameSave['board']) ??
+    (extrasRoot.board as GameSave['board']) ??
+    undefined;
+  const finance =
+    (mergeExtrasField(chunks, 'extras', 'finance') as GameSave['finance']) ??
+    (extrasRoot.finance as GameSave['finance']) ??
+    undefined;
+
   const raw = {
     ...rest,
     players,
     matches,
-    pulse: pulseDoc?.pulse ?? extrasRoot.pulse ?? undefined,
-    finance: extrasRoot.finance ?? undefined,
-    board: extrasRoot.board ?? undefined,
-    transfers: transfersDoc?.transfers ?? extrasRoot.transfers ?? undefined,
+    pulse,
+    finance,
+    board,
+    transfers,
     seasonHistory,
-    tactics: extrasRoot.tactics ?? null,
-    tacticsPresets: (extrasRoot.tacticsPresets as GameSave['tacticsPresets']) ?? [],
-    activeTacticsId: (extrasRoot.activeTacticsId as GameSave['activeTacticsId']) ?? null,
+    tactics,
+    tacticsPresets,
+    activeTacticsId,
   } as GameSave;
 
-  return migrateSave(raw);
+  return migrateSave(raw as unknown as GameSave);
 }
 
 export async function cloudLoadSlot(
@@ -374,17 +613,19 @@ export async function cloudSaveSlot(
     savedAt: save.savedAt || new Date().toISOString(),
   });
 
+  const previousChunks = await readPreviousChunkIds(uid, slotId);
+  const nextChunkIds = docs.map(d => d.id);
+
   try {
-    // Atomicidade: ou grava tudo, ou nada (evita header novo + chunks velhos)
-    const batch = writeBatch(getFirestoreDb());
-    for (const { id, payload } of docs) {
-      batch.set(chunkRef(uid, slotId, id), payload, { merge: false });
-    }
-    batch.set(slotRef(uid, slotId), header, { merge: false });
-    await batch.commit();
+    await commitChunkBatches(uid, slotId, docs, header);
   } catch (err) {
     throw explainFirestoreError(err);
   }
+
+  // Remove chunks antigos que não fazem mais parte do save
+  const keep = new Set(nextChunkIds);
+  const stale = previousChunks.filter(id => !keep.has(id));
+  await deleteChunkIds(uid, slotId, stale);
 
   try {
     await writeBatch(getFirestoreDb())
@@ -436,17 +677,25 @@ export async function cloudSaveSlot(
 export async function cloudDeleteSlot(uid: string, slotId: SaveSlotId): Promise<void> {
   // Apaga header + chunks conhecidos (e nomes legados)
   const headerSnap = await readDoc(slotRef(uid, slotId)).catch(() => null);
-  const chunkIds = new Set<string>(['players', 'matches', 'extras', 'extras-pulse', 'extras-transfers']);
+  const chunkIds = new Set<string>([
+    'players',
+    'matches',
+    'extras',
+    'extras-pulse',
+    'extras-transfers',
+  ]);
   if (headerSnap?.exists()) {
     const data = headerSnap.data() as Record<string, unknown>;
     if (Array.isArray(data.chunks)) {
       for (const id of data.chunks as string[]) chunkIds.add(id);
     }
   }
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 80; i++) {
     chunkIds.add(`players-${i}`);
     chunkIds.add(`matches-${i}`);
     chunkIds.add(`extras-history-${i}`);
+    chunkIds.add(`extras-pulse-history-${i}`);
+    chunkIds.add(`extras-transfers-history-${i}`);
   }
 
   await Promise.allSettled([
