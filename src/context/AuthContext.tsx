@@ -170,21 +170,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const auth = getFirebaseAuth();
-    const unsub = onAuthStateChanged(auth, async next => {
+    const unsub = onAuthStateChanged(auth, next => {
       setUser(next);
-      if (next) {
+      // Libera a UI assim que a sessão Auth estiver resolvida.
+      // Sync/listagem na nuvem NÃO pode bloquear "Verificando sessão..." —
+      // getDocFromServer pode demorar ou pendurar com rede ruim / regras desatualizadas.
+      setLoading(false);
+
+      if (!next) {
+        setCloudReady(false);
+        applySlots(listLocalSlotSummaries());
+        return;
+      }
+
+      void (async () => {
         try {
           await syncLocalSlotsToCloud(next.uid);
         } catch (err) {
           console.error('Falha ao sincronizar save na nuvem', err);
         }
-        await refreshSlots(next.uid);
+        try {
+          await refreshSlots(next.uid);
+        } catch (err) {
+          console.error('Falha ao listar slots após login', err);
+          applySlots(listLocalSlotSummaries());
+        }
         setCloudReady(true);
-      } else {
-        setCloudReady(false);
-        applySlots(listLocalSlotSummaries());
-      }
-      setLoading(false);
+      })();
     });
 
     return () => unsub();
