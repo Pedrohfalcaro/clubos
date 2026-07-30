@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocFromServer,
+  setDoc,
   writeBatch,
   type DocumentReference,
 } from 'firebase/firestore';
@@ -24,8 +25,7 @@ const CHUNKED_FORMAT = 'chunked-v1' as const;
  * JSON.stringify subestima o encoding real — 700 KB é mais seguro que 900 KB.
  */
 const MAX_DOC_BYTES = 700_000;
-/** Limite conservador por commit (API request ≤ 10 MiB). */
-const MAX_BATCH_BYTES = 3_500_000;
+/** Limite conservador de ops por batch de limpeza. */
 const MAX_BATCH_OPS = 40;
 
 const textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
@@ -73,18 +73,62 @@ function explainFirestoreError(err: unknown): Error {
       'Sem permissão no Firestore. Publique as regras atualizadas (saves/*/data/*) no Console Firebase.',
     );
   }
-  if (
-    code === 'invalid-argument' ||
-    /exceeds|too (large|big)|1 MiB|1048576|size/i.test(message)
-  ) {
+  // Só tratar como tamanho quando a mensagem realmente fala de size —
+  // `invalid-argument` também cobre undefined/NaN e estava gerando falso positivo.
+  if (/exceeds|too (large|big)|1 MiB|1048576|maximum size|size /i.test(message)) {
     return new Error(
       'Save grande demais para um documento. Tente de novo (o app agora divide em partes).',
+    );
+  }
+  if (/unsupported field value|undefined|NaN|invalid.*value/i.test(message)) {
+    return new Error(
+      'Dados inválidos no save (campo vazio/inválido). Atualize a página e salve de novo.',
     );
   }
   if (code === 'unavailable' || /offline|network/i.test(message)) {
     return new Error('Sem conexão com a nuvem. O progresso ficou só neste aparelho.');
   }
+  if (code === 'invalid-argument') {
+    return new Error(`Falha ao gravar na nuvem: ${message}`);
+  }
   return err instanceof Error ? err : new Error(message || 'Falha na nuvem');
+}
+
+/**
+ * Firestore rejeita `undefined` e `NaN` com invalid-argument.
+ * JSON.stringify omite undefined (por isso o tamanho “passava”), mas o SDK não.
+ */
+function sanitizeForFirestore(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (value instanceof Date) return value;
+  if (Array.isArray(value)) {
+    return value.map(item => {
+      const cleaned = sanitizeForFirestore(item);
+      return cleaned === undefined ? null : cleaned;
+    });
+  }
+  if (typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (child === undefined) continue;
+      const cleaned = sanitizeForFirestore(child);
+      if (cleaned === undefined) continue;
+      out[key] = cleaned;
+    }
+    return out;
+  }
+  // functions, symbols, etc.
+  return null;
+}
+
+function sanitizePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  return sanitizeForFirestore(payload) as Record<string, unknown>;
 }
 
 type ChunkDoc = { id: string; payload: Record<string, unknown> };
@@ -255,11 +299,14 @@ function splitSave(save: GameSave) {
     ...shardArray(seasonHistory ?? [], 'extras-history'),
   ];
 
-  const docs = [...playerShards, ...matchShards, ...extrasDocs];
+  const docs = [...playerShards, ...matchShards, ...extrasDocs].map(d => ({
+    id: d.id,
+    payload: sanitizePayload(d.payload),
+  }));
   for (const d of docs) assertDocFits(d);
 
   // Header enxuto: se careerPlayer/team forem enormes, ainda cabem — assert separado
-  const header = {
+  const header = sanitizePayload({
     ...headerRest,
     format: CHUNKED_FORMAT,
     revision: Date.now(),
@@ -270,7 +317,7 @@ function splitSave(save: GameSave) {
       draws: save.team?.statistics?.draws,
       losses: save.team?.statistics?.losses,
     },
-  };
+  });
 
   const headerSize = estimateBytes(header);
   if (headerSize > MAX_DOC_BYTES) {
@@ -288,38 +335,28 @@ async function commitChunkBatches(
   docs: ChunkDoc[],
   header: Record<string, unknown>,
 ): Promise<void> {
-  const db = getFirestoreDb();
+  const cleanDocs = docs.map(d => ({
+    id: d.id,
+    payload: sanitizePayload(d.payload),
+  }));
+  const cleanHeader = sanitizePayload(header);
 
-  let batch = writeBatch(db);
-  let ops = 0;
-  let bytes = 0;
-
-  const flush = async () => {
-    if (ops === 0) return;
-    await batch.commit();
-    batch = writeBatch(db);
-    ops = 0;
-    bytes = 0;
-  };
-
-  for (const { id, payload } of docs) {
-    const size = estimateBytes(payload);
-    if (ops > 0 && (ops >= MAX_BATCH_OPS || bytes + size > MAX_BATCH_BYTES)) {
-      await flush();
+  // Grava documento a documento — evita batch grande e isola falha
+  for (const { id, payload } of cleanDocs) {
+    try {
+      await setDoc(chunkRef(uid, slotId, id), payload, { merge: false });
+    } catch (err) {
+      console.error(`Falha ao gravar chunk ${id}`, err);
+      throw err;
     }
-    batch.set(chunkRef(uid, slotId, id), payload, { merge: false });
-    ops += 1;
-    bytes += size;
   }
 
-  // Header por último — aponta para os chunks já gravados
-  const headerSize = estimateBytes(header);
-  if (ops > 0 && (ops >= MAX_BATCH_OPS || bytes + headerSize > MAX_BATCH_BYTES)) {
-    await flush();
+  try {
+    await setDoc(slotRef(uid, slotId), cleanHeader, { merge: false });
+  } catch (err) {
+    console.error('Falha ao gravar header do save', err);
+    throw err;
   }
-  batch.set(slotRef(uid, slotId), header, { merge: false });
-  ops += 1;
-  await flush();
 }
 
 async function deleteChunkIds(
@@ -628,19 +665,24 @@ export async function cloudSaveSlot(
   await deleteChunkIds(uid, slotId, stale);
 
   try {
+    const summary = header._summary as
+      | { matchesPlayed?: number }
+      | undefined;
     await writeBatch(getFirestoreDb())
       .set(
         metaRef(uid, slotId),
-        {
+        sanitizePayload({
           savedAt: header.savedAt,
           season: header.season,
-          matchesPlayed: header._summary?.matchesPlayed ?? 0,
+          matchesPlayed:
+            summary?.matchesPlayed ??
+            (save.matches ?? []).filter(m => m.status === 'completed').length,
           teamName: save.team?.name ?? save.careerPlayer?.name ?? null,
           careerMode: save.careerMode,
           slotId,
           format: CHUNKED_FORMAT,
           revision: header.revision,
-        },
+        }),
         { merge: true },
       )
       .commit();
