@@ -1,4 +1,7 @@
 import type { Match, MatchLocation, MatchResult } from '../types/Match';
+import type { SeasonCompetition } from '../types/Competition';
+import { findCompetition } from './competitions';
+import { locationLabel } from './matchStats';
 
 export type CompetitionCategory = 'national' | 'national_cup' | 'continental' | 'state' | 'friendly';
 
@@ -47,6 +50,20 @@ export function locationIcon(location: MatchLocation): string {
   return '—';
 }
 
+export function shortLocation(location: MatchLocation): string {
+  if (location === 'home') return 'Casa';
+  if (location === 'away') return 'Fora';
+  return 'Neutro';
+}
+
+export function competitionLabel(
+  comps: SeasonCompetition[],
+  competitionName: string,
+): string {
+  const found = findCompetition(comps, competitionName);
+  return found?.shortName || found?.name || competitionName;
+}
+
 /** Mês inicial: primeiro jogo ainda não jogado; senão, último já disputado. */
 export function getInitialCalendarDate(matches: Match[]): Date {
   const scheduled = matches
@@ -70,14 +87,13 @@ const RESULT_LABEL: Record<MatchResult, string> = {
   loss: 'Derrota',
 };
 
-/** Resultado principal do dia (prioriza jogo completo; senão o primeiro). */
-export function dayPrimaryResult(dayMatches: Match[]): MatchResult | null {
-  const completed = dayMatches.find(m => m.status === 'completed' && m.result);
-  return completed?.result ?? null;
+export function resultLabel(result: MatchResult | null | undefined): string {
+  if (!result) return '';
+  return RESULT_LABEL[result];
 }
 
 export function formatMatchDayTitle(m: Match): string {
-  const base = `${m.opponent} · ${m.competition}`;
+  const base = `${m.opponent} · ${m.competition} · ${locationLabel(m.location)}`;
   if (m.status !== 'completed') return base;
   const score = `${m.goalsFor}×${m.goalsAgainst}`;
   const res = m.result ? RESULT_LABEL[m.result] : 'Realizada';

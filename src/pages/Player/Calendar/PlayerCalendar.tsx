@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import MatchRecapModal from '../../../components/MatchRecapModal/MatchRecapModal';
 import MatchScheduleModal from '../../../components/MatchScheduleModal/MatchScheduleModal';
 import { useGame } from '../../../context/GameContext';
+import type { Match } from '../../../types/Match';
 import {
-  dayPrimaryResult,
-  formatMatchDayTitle,
+  competitionLabel,
   getInitialCalendarDate,
   locationIcon,
+  shortLocation,
 } from '../../../utils/calendarHelpers';
 import { competitionNames, resolveCompetitionColor } from '../../../utils/competitions';
 import styles from '../../Calendar/Calendar.module.css';
@@ -23,18 +26,27 @@ function toDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function scoreResultClass(result: Match['result']): string {
+  if (result === 'win') return styles.scoreWin;
+  if (result === 'draw') return styles.scoreDraw;
+  if (result === 'loss') return styles.scoreLoss;
+  return '';
+}
+
 export default function PlayerCalendar() {
+  const navigate = useNavigate();
   const { state, schedulePlayerMatch } = useGame();
   const [viewDate, setViewDate] = useState(() => getInitialCalendarDate(state.matches));
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
+  const [recapMatch, setRecapMatch] = useState<Match | null>(null);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
   const comps = state.seasonCompetitions;
 
   const matchesByDate = useMemo(() => {
-    const map = new Map<string, typeof state.matches>();
+    const map = new Map<string, Match[]>();
     for (const m of state.matches) {
       const list = map.get(m.date) ?? [];
       list.push(m);
@@ -56,11 +68,17 @@ export default function PlayerCalendar() {
     return days;
   }, [year, month]);
 
-  function dayResultClass(result: ReturnType<typeof dayPrimaryResult>): string {
-    if (result === 'win') return styles.dayResultWin;
-    if (result === 'draw') return styles.dayResultDraw;
-    if (result === 'loss') return styles.dayResultLoss;
-    return '';
+  function openSchedule(dateKey: string) {
+    setSelectedDate(dateKey);
+    setModalOpen(true);
+  }
+
+  function handleMatchClick(match: Match) {
+    if (match.status === 'completed') {
+      setRecapMatch(match);
+      return;
+    }
+    navigate(`/player/match/${match.id}/play`);
   }
 
   return (
@@ -85,47 +103,71 @@ export default function PlayerCalendar() {
           const dateKey = toDateKey(date);
           const dayMatches = matchesByDate.get(dateKey) ?? [];
           const isToday = dateKey === toDateKey(new Date());
-          const primaryMatch = dayMatches[0];
-          const result = dayPrimaryResult(dayMatches);
-          const resultClass = dayResultClass(result);
-          const completedPrimary = dayMatches.find(m => m.status === 'completed' && m.result);
+          const hasMatches = dayMatches.length > 0;
 
           return (
-            <button
+            <div
               key={key}
-              type="button"
               className={[
                 styles.day,
                 isToday ? styles.dayToday : '',
-                dayMatches.length && !result ? styles.dayHasMatch : '',
-                resultClass,
+                hasMatches ? styles.dayHasMatch : '',
               ].filter(Boolean).join(' ')}
-              onClick={() => { setSelectedDate(dateKey); setModalOpen(true); }}
             >
               <div className={styles.dayHeader}>
-                {primaryMatch && (
-                  <span className={styles.locationIcon}>{locationIcon(primaryMatch.location)}</span>
-                )}
                 <span className={styles.dayNum}>{date.getDate()}</span>
+                <button
+                  type="button"
+                  className={styles.addBtn}
+                  onClick={() => openSchedule(dateKey)}
+                  title="Agendar partida"
+                  aria-label={`Agendar em ${dateKey}`}
+                >
+                  +
+                </button>
               </div>
-              {completedPrimary && (
-                <span className={styles.dayScore}>
-                  {completedPrimary.goalsFor}×{completedPrimary.goalsAgainst}
-                </span>
-              )}
-              {dayMatches.length > 0 && (
-                <div className={styles.dayMatches}>
-                  {dayMatches.slice(0, 3).map(m => (
-                    <span
+              <div className={styles.dayBody}>
+                {dayMatches.map(m => {
+                  const color = resolveCompetitionColor(comps, m.competition);
+                  const done = m.status === 'completed';
+                  const playerRating = m.playerPerformance?.rating;
+                  return (
+                    <button
                       key={m.id}
-                      className={styles.matchMarker}
-                      style={{ background: resolveCompetitionColor(comps, m.competition) }}
-                      title={formatMatchDayTitle(m)}
-                    />
-                  ))}
-                </div>
-              )}
-            </button>
+                      type="button"
+                      className={styles.matchCard}
+                      style={{ borderLeftColor: color }}
+                      onClick={() => handleMatchClick(m)}
+                      title={done ? 'Ver resumo' : 'Registrar partida'}
+                    >
+                      <span className={styles.matchComp} style={{ color }}>
+                        {competitionLabel(comps, m.competition)}
+                      </span>
+                      <span className={styles.matchLoc}>
+                        {locationIcon(m.location)} {shortLocation(m.location)}
+                      </span>
+                      <span className={styles.matchOpp}>{m.opponent}</span>
+                      {done ? (
+                        <span className={`${styles.matchScore} ${scoreResultClass(m.result)}`}>
+                          {m.goalsFor}×{m.goalsAgainst}
+                          {playerRating != null ? ` · ${playerRating.toFixed(1)}` : ''}
+                        </span>
+                      ) : (
+                        <span className={styles.matchPlayHint}>Jogar</span>
+                      )}
+                    </button>
+                  );
+                })}
+                {!hasMatches && (
+                  <button
+                    type="button"
+                    className={styles.emptyDayBtn}
+                    onClick={() => openSchedule(dateKey)}
+                    aria-label={`Agendar em ${dateKey}`}
+                  />
+                )}
+              </div>
+            </div>
           );
         })}
       </div>
@@ -140,21 +182,6 @@ export default function PlayerCalendar() {
             </span>
           ))}
         </div>
-        <div className={styles.legendGroup}>
-          <span className={styles.legendTitle}>Resultado</span>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendSwatch} ${styles.dayResultWin}`} />
-            Vitória
-          </span>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendSwatch} ${styles.dayResultDraw}`} />
-            Empate
-          </span>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendSwatch} ${styles.dayResultLoss}`} />
-            Derrota
-          </span>
-        </div>
       </div>
 
       <MatchScheduleModal
@@ -164,6 +191,23 @@ export default function PlayerCalendar() {
         competitions={competitionNames(comps)}
         initialDate={selectedDate}
         title="Agendar Partida"
+      />
+
+      <MatchRecapModal
+        open={!!recapMatch}
+        match={recapMatch}
+        players={[]}
+        teamName={state.careerPlayer?.currentClub?.name}
+        onClose={() => setRecapMatch(null)}
+        onEdit={
+          recapMatch
+            ? () => {
+                const id = recapMatch.id;
+                setRecapMatch(null);
+                navigate(`/player/match/${id}/play`);
+              }
+            : undefined
+        }
       />
     </div>
   );
