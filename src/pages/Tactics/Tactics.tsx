@@ -63,12 +63,24 @@ export default function Tactics() {
     const key = `${selectedId}:${presets.map(p => p.id + p.updatedAt).join('|')}`;
     if (syncedKey.current === key) return;
     syncedKey.current = key;
-    const preset = presets.find(p => p.id === selectedId) ?? presets[0] ?? null;
-    const nextId = preset?.id ?? null;
-    if (nextId !== selectedId) setSelectedId(nextId);
-    setName(preset?.name ?? '');
-    setDraft(resolveTactics(preset, players));
+
+    const preset = presets.find(p => p.id === selectedId);
+    if (preset) {
+      setName(preset.name);
+      setDraft(resolveTactics(preset, players));
+      return;
+    }
+
+    // ID de rascunho "+ Nova" ainda não persistido — não voltar ao primeiro preset
+    if (selectedId) return;
+
+    const fallback = presets[0] ?? null;
+    setSelectedId(fallback?.id ?? null);
+    setName(fallback?.name ?? '');
+    setDraft(resolveTactics(fallback, players));
   }, [presets, selectedId, players]);
+
+  const isNewDraft = Boolean(selectedId && !selected);
 
   const savedDraft = useMemo(
     () => resolveTactics(selected, players),
@@ -80,6 +92,7 @@ export default function Tactics() {
   const filled = countFilledSlots(draft.formation, draft.formationKey, players);
   const complete = filled === total;
   const dirty =
+    isNewDraft ||
     signature(draft) !== signature(savedDraft) ||
     (name.trim() || 'Tática') !== (selected?.name ?? '');
   const warnings = lineupWarnings(draft.formation, draft.formationKey, players, draft.bench);
@@ -113,7 +126,11 @@ export default function Tactics() {
   }
 
   function handleSave() {
-    const id = selectedId ?? createTacticsPresetId();
+    // Sempre gerar id novo se ainda for rascunho — evita sobrescrever a tática anterior
+    const id =
+      selectedId && presets.some(p => p.id === selectedId)
+        ? selectedId
+        : createTacticsPresetId();
     const presetPayload: TacticsPreset = {
       id,
       name: name.trim() || `Tática ${presets.length + 1}`,
@@ -132,16 +149,52 @@ export default function Tactics() {
   function handleAdd() {
     if (!canAdd) return;
     const id = createTacticsPresetId();
-    const empty = resolveTactics(null, players);
+    const base = resolveTactics(null, players);
+    // Preenche XI pra já poder persistir (normalize rejeita tática vazia)
+    const filled =
+      players.length > 0
+        ? { ...base, ...buildBestLineup(base.formationKey, players, 7) }
+        : base;
+    const nameStr = `Tática ${presets.length + 1}`;
+
+    if (filled.formation.length > 0) {
+      saveTacticsPreset({
+        id,
+        name: nameStr,
+        formationKey: filled.formationKey,
+        style: filled.style || DEFAULT_STYLE_KEY,
+        formation: normalizeFormation(filled.formation, filled.formationKey, players),
+        bench: filled.bench,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
     setSelectedId(id);
-    setName(`Tática ${presets.length + 1}`);
-    setDraft(empty);
+    setName(nameStr);
+    setDraft(filled);
   }
 
   function handleDelete() {
     if (!selectedId || presets.length === 0) return;
     if (!window.confirm('Excluir esta tática?')) return;
+    const remaining = presets.filter(p => p.id !== selectedId);
     deleteTacticsPreset(selectedId);
+    const next = remaining[0] ?? null;
+    setSelectedId(next?.id ?? null);
+    setName(next?.name ?? '');
+    setDraft(resolveTactics(next, players));
+  }
+
+  function handleDiscard() {
+    if (isNewDraft) {
+      const fallback = presets[0] ?? null;
+      setSelectedId(fallback?.id ?? null);
+      setName(fallback?.name ?? '');
+      setDraft(resolveTactics(fallback, players));
+      return;
+    }
+    setName(selected?.name ?? '');
+    setDraft(savedDraft);
   }
 
   const savedAt = selected?.updatedAt
@@ -193,7 +246,16 @@ export default function Tactics() {
               {p.name}
             </button>
           ))}
-          {canAdd && (
+          {isNewDraft && (
+            <button
+              type="button"
+              className={`${styles.presetChip} ${styles.presetChipActive}`}
+              disabled
+            >
+              {name.trim() || 'Nova tática'}
+            </button>
+          )}
+          {canAdd && !isNewDraft && (
             <button type="button" className={styles.presetAdd} onClick={handleAdd}>
               + Nova
             </button>
@@ -258,10 +320,7 @@ export default function Tactics() {
           <button
             type="button"
             className={styles.toolBtn}
-            onClick={() => {
-              setName(selected?.name ?? '');
-              setDraft(savedDraft);
-            }}
+            onClick={handleDiscard}
             disabled={!dirty}
           >
             Descartar
