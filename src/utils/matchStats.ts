@@ -125,10 +125,15 @@ export function locationLabel(location: Match['location']): string {
 }
 
 /** Average match rating for a player across completed matches where they played. */
-export function calcPlayerAverageRating(playerId: string, matches: Match[]): number | null {
+export function calcPlayerAverageRating(
+  playerId: string,
+  matches: Match[],
+  competition?: string,
+): number | null {
   const ratings: number[] = [];
   for (const match of matches) {
     if (match.status !== 'completed') continue;
+    if (competition && match.competition !== competition) continue;
     const played = getMatchPlayingTime(match);
     if (!played.has(playerId)) continue;
     const entry = match.playerRatings?.find(r => r.playerId === playerId);

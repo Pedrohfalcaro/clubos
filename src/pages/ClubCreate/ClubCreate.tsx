@@ -302,7 +302,7 @@ export default function ClubCreate() {
                   value={form.status}
                   onChange={e => setForm(f => ({ ...f, status: e.target.value as PlayerStatus }))}
                 >
-                  {(['Titular', 'Reserva', 'Promessa', 'Transferível'] as PlayerStatus[]).map(s => (
+                  {(['Titular', 'Reserva', 'Promessa', 'Transferível', 'Emprestado', 'Aposentado'] as PlayerStatus[]).map(s => (
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>

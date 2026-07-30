@@ -908,6 +908,7 @@ export function remapFormation(
 }
 
 function isAvailable(player: Player): boolean {
+  if (player.status === 'Aposentado') return false;
   return (player.availability ?? 'disponivel') === 'disponivel';
 }
 

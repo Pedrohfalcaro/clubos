@@ -59,7 +59,14 @@ export const CLUB_IMPORT_TEMPLATE: ClubImportJson = {
   ],
 };
 
-const VALID_STATUSES = new Set(['Titular', 'Reserva', 'Promessa', 'Transferível', 'Emprestado']);
+const VALID_STATUSES = new Set([
+  'Titular',
+  'Reserva',
+  'Promessa',
+  'Transferível',
+  'Emprestado',
+  'Aposentado',
+]);
 
 export function downloadClubTemplate() {
   const blob = new Blob([JSON.stringify(CLUB_IMPORT_TEMPLATE, null, 2)], {

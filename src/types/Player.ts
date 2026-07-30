@@ -1,4 +1,10 @@
-export type PlayerStatus = 'Titular' | 'Reserva' | 'Promessa' | 'Transferível' | 'Emprestado';
+export type PlayerStatus =
+  | 'Titular'
+  | 'Reserva'
+  | 'Promessa'
+  | 'Transferível'
+  | 'Emprestado'
+  | 'Aposentado';
 
 export type PlayerAvailability = 'disponivel' | 'lesionado' | 'indisponivel';
 

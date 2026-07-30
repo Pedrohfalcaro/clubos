@@ -54,7 +54,9 @@ export default function FormationField({
 
   const onFieldIds = new Set(formation.map(f => f.playerId));
   const benchIds = new Set(bench);
-  const available = players.filter(p => !onFieldIds.has(p.id) && !benchIds.has(p.id));
+  const available = players.filter(
+    p => !onFieldIds.has(p.id) && !benchIds.has(p.id) && p.status !== 'Aposentado',
+  );
 
   function getPlayer(id: string) {
     return players.find(p => p.id === id);

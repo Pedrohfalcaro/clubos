@@ -7,6 +7,9 @@ import {
   teamStatsForScope,
   type HistoryScope,
 } from '../../utils/historyScope';
+import { calcPlayerAverageRating } from '../../utils/matchStats';
+import { ratingColor } from '../../utils/matchEvents';
+import { getMatchPlayingTime } from '../../utils/playingTime';
 import styles from './Squad.module.css';
 
 const POSITION_ORDER = ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'CF', 'ST'];
@@ -16,8 +19,12 @@ const POSITION_LABELS: Record<string, string> = {
   RW: 'Pontas Direitas', LW: 'Pontas Esquerdas', CF: 'Centroavantes', ST: 'Atacantes',
 };
 
-const STATUS_FILTERS: Array<PlayerStatus | 'Todos'> = ['Todos', 'Titular', 'Reserva', 'Promessa', 'Transferível', 'Emprestado'];
-const STATUS_OPTIONS: PlayerStatus[] = ['Titular', 'Reserva', 'Promessa', 'Transferível', 'Emprestado'];
+const STATUS_FILTERS: Array<PlayerStatus | 'Todos'> = [
+  'Todos', 'Titular', 'Reserva', 'Promessa', 'Transferível', 'Emprestado', 'Aposentado',
+];
+const STATUS_OPTIONS: PlayerStatus[] = [
+  'Titular', 'Reserva', 'Promessa', 'Transferível', 'Emprestado', 'Aposentado',
+];
 
 const STATUS_COLOR: Record<string, string> = {
   Titular: 'var(--success)',
@@ -25,12 +32,18 @@ const STATUS_COLOR: Record<string, string> = {
   Promessa: 'var(--accent)',
   Transferível: 'var(--danger)',
   Emprestado: '#f59e0b',
+  Aposentado: '#94a3b8',
 };
 
 function overallColor(ovr: number): string {
   if (ovr >= 80) return 'var(--success)';
   if (ovr >= 70) return 'var(--warning)';
   return 'var(--text)';
+}
+
+function formatAvg(rating: number | null): string {
+  if (rating == null) return '—';
+  return rating.toFixed(1);
 }
 
 type CompFilter = 'all' | string;
@@ -82,13 +95,16 @@ export default function Squad() {
     }
 
     for (const match of state.matches.filter(m => m.status === 'completed')) {
-      const played = new Set(match.playerMatches ?? []);
-      // Titulares da escalação também contam se playerMatches estiver vazio (saves antigos)
+      const playingTime = getMatchPlayingTime(match);
+      const played = new Set(playingTime.keys());
       if (played.size === 0 && match.lineup?.formation) {
         for (const slot of match.lineup.formation) played.add(slot.playerId);
       }
       for (const playerId of played) {
-        bump(playerId, match.competition, { matches: 1 });
+        bump(playerId, match.competition, {
+          matches: 1,
+          minutes: playingTime.get(playerId) ?? 0,
+        });
       }
       for (const goal of match.goals ?? []) {
         if (!goal.isOwnGoal && goal.playerId) {
@@ -149,12 +165,13 @@ export default function Squad() {
     return historyRows.reduce(
       (acc, r) => ({
         matches: teamGames,
+        minutes: acc.minutes + r.stats.minutes,
         goals: acc.goals + r.stats.goals,
         assists: acc.assists + r.stats.assists,
         yellowCards: acc.yellowCards + r.stats.yellowCards,
         redCards: acc.redCards + r.stats.redCards,
       }),
-      { matches: teamGames, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+      { matches: teamGames, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
     );
   }, [historyRows, histScope, state.team?.statistics, state.seasonHistory, state.season]);
 
@@ -196,19 +213,28 @@ export default function Squad() {
   }
 
   function displayStats(playerId: string) {
+    const avg = calcPlayerAverageRating(
+      playerId,
+      state.matches,
+      compFilter === 'all' ? undefined : compFilter,
+    );
     if (compFilter === 'all') {
       const p = state.players.find(x => x.id === playerId);
       return {
         matches: p?.stats.matches ?? 0,
+        minutes: p?.stats.minutes ?? 0,
         goals: p?.stats.goals ?? 0,
         assists: p?.stats.assists ?? 0,
+        avg,
       };
     }
     const s = statsByPlayerComp.get(playerId)?.get(compFilter);
     return {
       matches: s?.matches ?? 0,
+      minutes: s?.minutes ?? 0,
       goals: s?.goals ?? 0,
       assists: s?.assists ?? 0,
+      avg,
     };
   }
 
@@ -268,6 +294,7 @@ export default function Squad() {
 
           <div className={styles.histTotals}>
             <div><strong>{historyTotals.matches}</strong><span>Jogos</span></div>
+            <div><strong>{historyTotals.minutes}'</strong><span>Minutos</span></div>
             <div><strong>{historyTotals.goals}</strong><span>Gols</span></div>
             <div><strong>{historyTotals.assists}</strong><span>Assist.</span></div>
             <div><strong>{historyTotals.yellowCards}</strong><span>CA</span></div>
@@ -359,7 +386,7 @@ export default function Squad() {
 
             {compFilter !== 'all' && (
               <p className={styles.compBanner}>
-                Filtrando por <strong>{compFilter}</strong> — números de J/G/A desta competição
+                Filtrando por <strong>{compFilter}</strong> — J / Min / Nota / G / A desta competição
               </p>
             )}
 
@@ -381,6 +408,8 @@ export default function Squad() {
                       <span className={styles.colAge}>Idade</span>
                       <span className={styles.colOvr}>OVR</span>
                       <span className={styles.colMatches}>J</span>
+                      <span className={styles.colMin}>Min</span>
+                      <span className={styles.colNota}>Nota</span>
                       <span className={styles.colStat}>G</span>
                       <span className={styles.colStat}>A</span>
                       <span className={styles.colStatus}>Status</span>
@@ -388,6 +417,7 @@ export default function Squad() {
                     </div>
                     {group.map(p => {
                       const stats = displayStats(p.id);
+                      const retired = p.status === 'Aposentado';
                       return (
                         <div key={p.id}>
                           {editingId === p.id ? (
@@ -418,6 +448,20 @@ export default function Squad() {
                                 value={editForm.overall}
                                 onChange={e => setEditForm(f => ({ ...f, overall: Number(e.target.value) }))}
                               />
+                              <span className={styles.colMatches} title="Jogos (somente leitura)">{stats.matches}</span>
+                              <span className={styles.colMin} title="Minutos (somente leitura)">{stats.minutes}'</span>
+                              <span
+                                className={styles.notaBadge}
+                                style={{
+                                  background: stats.avg != null ? ratingColor(stats.avg) : 'var(--border)',
+                                  color: stats.avg != null ? '#fff' : 'var(--text)',
+                                }}
+                                title="Nota média (somente leitura)"
+                              >
+                                {formatAvg(stats.avg)}
+                              </span>
+                              <span className={styles.colStat} title="Gols (somente leitura)">{stats.goals}</span>
+                              <span className={styles.colStat} title="Assistências (somente leitura)">{stats.assists}</span>
                               <select
                                 className={styles.editSelect}
                                 value={editForm.status}
@@ -427,34 +471,51 @@ export default function Squad() {
                                   <option key={s} value={s}>{s}</option>
                                 ))}
                               </select>
-                              <input
-                                className={styles.editInputMd}
-                                type="number"
-                                min={0}
-                                placeholder="Salário"
-                                value={editForm.salary}
-                                onChange={e => setEditForm(f => ({ ...f, salary: Number(e.target.value) }))}
-                              />
-                              <input
-                                className={styles.editInputMd}
-                                type="number"
-                                min={0}
-                                placeholder="Valor"
-                                value={editForm.marketValue}
-                                onChange={e => setEditForm(f => ({ ...f, marketValue: Number(e.target.value) }))}
-                              />
                               <div className={styles.editActions}>
                                 <button type="button" className={styles.saveBtn} onClick={saveEdit}>Salvar</button>
                                 <button type="button" className={styles.cancelBtn} onClick={cancelEdit}>Cancelar</button>
                               </div>
+                              <div className={styles.editExtra}>
+                                <label>
+                                  Salário
+                                  <input
+                                    className={styles.editInputMd}
+                                    type="number"
+                                    min={0}
+                                    value={editForm.salary}
+                                    onChange={e => setEditForm(f => ({ ...f, salary: Number(e.target.value) }))}
+                                  />
+                                </label>
+                                <label>
+                                  Valor
+                                  <input
+                                    className={styles.editInputMd}
+                                    type="number"
+                                    min={0}
+                                    value={editForm.marketValue}
+                                    onChange={e => setEditForm(f => ({ ...f, marketValue: Number(e.target.value) }))}
+                                  />
+                                </label>
+                              </div>
                             </div>
                           ) : (
-                            <div className={styles.tableRow}>
+                            <div className={`${styles.tableRow} ${retired ? styles.rowRetired : ''}`}>
                               <span className={styles.colNum}>{p.number ?? '—'}</span>
                               <span className={styles.colName}>{p.name}</span>
                               <span className={styles.colAge}>{p.age}</span>
                               <span className={styles.colOvr} style={{ color: overallColor(p.overall) }}>{p.overall}</span>
                               <span className={styles.colMatches}>{stats.matches}</span>
+                              <span className={styles.colMin}>{stats.minutes}'</span>
+                              <span
+                                className={styles.notaBadge}
+                                style={{
+                                  background: stats.avg != null ? ratingColor(stats.avg) : 'transparent',
+                                  color: stats.avg != null ? '#fff' : 'var(--text)',
+                                  border: stats.avg == null ? '1px solid var(--border)' : 'none',
+                                }}
+                              >
+                                {formatAvg(stats.avg)}
+                              </span>
                               <span className={styles.colStat}>{stats.goals}</span>
                               <span className={styles.colStat}>{stats.assists}</span>
                               <span className={styles.colStatus} style={{ color: STATUS_COLOR[p.status] }}>{p.status}</span>

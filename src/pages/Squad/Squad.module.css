@@ -169,7 +169,7 @@
 
 .histTotals {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 8px;
 }
 
@@ -334,10 +334,10 @@
 .tableRow,
 .editRow {
   display: grid;
-  grid-template-columns: 40px 1fr 52px 52px 88px 40px 40px 100px 70px;
+  grid-template-columns: 36px minmax(90px, 1.2fr) 44px 44px 36px 48px 48px 36px 36px 96px 64px;
   align-items: center;
-  padding: 10px 16px;
-  gap: 8px;
+  padding: 10px 12px;
+  gap: 6px;
 }
 
 .tableHead {
@@ -380,26 +380,33 @@
 }
 
 .colMatches {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
-.minutes {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 11px;
-  font-weight: 600;
+.colMin {
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
   color: var(--text);
-  opacity: 0.9;
 }
 
-.minutesIcon {
-  font-size: 10px;
-  line-height: 1;
+.notaBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  justify-self: center;
+}
+
+.rowRetired {
+  opacity: 0.72;
 }
 
 .colOvr {
@@ -442,6 +449,27 @@
   font-size: 13px;
   background: var(--accent-bg);
   border-bottom: 1px solid var(--border);
+}
+
+.editExtra {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  margin-top: 4px;
+}
+
+.editExtra label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 .editInputSm {
