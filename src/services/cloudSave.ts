@@ -76,8 +76,8 @@ async function readDoc(ref: DocumentReference) {
   try {
     return await withTimeout(getDocFromServer(ref), READ_TIMEOUT_MS, ref.path);
   } catch {
-    // Offline / lento / server indisponível — fallback no cache do SDK
-    return await getDoc(ref);
+    // Offline / lento — cache do SDK (também com timeout: getDoc pode pendurar)
+    return await withTimeout(getDoc(ref), READ_TIMEOUT_MS, `cache:${ref.path}`);
   }
 }
 

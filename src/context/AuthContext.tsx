@@ -33,7 +33,6 @@ import {
   listLocalSlotSummaries,
   MAX_SAVE_SLOTS,
   mirrorActiveToLegacy,
-  pickBestSave,
   SAVE_SLOT_IDS,
   saveLocalSlot,
   savedAtMs,
@@ -292,67 +291,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return isCompleteSave(local) ? local : null;
       }
 
+      // Tem save local completo: abre NA HORA e sincroniza nuvem em background.
+      // Antes o load esperava upload/migração e o menu ficava travado no slot.
+      if (isCompleteSave(local)) {
+        setActiveSlot(resolvedSlot);
+        void (async () => {
+          try {
+            let cloud: GameSave | null = null;
+            try {
+              cloud = await cloudLoadSlot(currentUser.uid, resolvedSlot);
+            } catch (err) {
+              console.warn('Falha ao ler nuvem em background', err);
+            }
+            if (!cloud) {
+              void migrateLegacyCloudSave(currentUser.uid).catch(() => {});
+            }
+            if (isSavePreferable(local, cloud)) {
+              try {
+                await pushSaveToCloud(currentUser.uid, resolvedSlot, local!);
+                await refreshSlots(currentUser.uid);
+                setCloudSyncError(null);
+                setLastCloudSyncAt(local!.savedAt);
+              } catch (err) {
+                console.warn('Falha ao subir save local preferível', err);
+                setCloudSyncError(
+                  err instanceof Error ? err.message : 'Falha ao subir save',
+                );
+              }
+            } else if (isCompleteSave(cloud) && isSavePreferable(cloud, local)) {
+              // Nuvem mais nova — espelha local (próximo load já pega)
+              saveLocalSlot(resolvedSlot, { ...cloud!, slotId: resolvedSlot });
+              mirrorActiveToLegacy({ ...cloud!, slotId: resolvedSlot });
+              await refreshSlots(currentUser.uid);
+              setCloudSyncError(null);
+            }
+          } catch (err) {
+            console.warn('Sync background após load falhou', err);
+          }
+        })();
+        return local;
+      }
+
+      // Sem local: precisa da nuvem (com timeout geral)
       let cloud: GameSave | null = null;
       let cloudError: string | null = null;
       try {
         cloud = await cloudLoadSlot(currentUser.uid, resolvedSlot);
       } catch (err) {
         cloudError = err instanceof Error ? err.message : 'Falha ao ler nuvem';
-        console.warn('Falha ao carregar slot da nuvem, tentando local', err);
+        console.warn('Falha ao carregar slot da nuvem', err);
       }
 
       if (!cloud) {
-        try {
-          await migrateLegacyCloudSave(currentUser.uid);
-          cloud = await cloudLoadSlot(currentUser.uid, resolvedSlot);
-          cloudError = null;
-        } catch (err) {
-          if (!cloudError) {
-            cloudError = err instanceof Error ? err.message : 'Falha ao ler nuvem';
-          }
-        }
+        void migrateLegacyCloudSave(currentUser.uid).catch(() => {});
       }
 
-      const best = pickBestSave(
-        isCompleteSave(cloud) ? cloud : null,
-        isCompleteSave(local) ? local : null,
-      );
-
-      if (!best) {
+      if (!isCompleteSave(cloud)) {
         if (cloudError) setCloudSyncError(cloudError);
         return null;
       }
 
       setActiveSlot(resolvedSlot);
-
-      if (best === local && isCompleteSave(local)) {
-        if (isSavePreferable(local, cloud)) {
-          try {
-            await pushSaveToCloud(currentUser.uid, resolvedSlot, local!);
-            await refreshSlots(currentUser.uid);
-            setCloudSyncError(null);
-            setLastCloudSyncAt(local!.savedAt);
-          } catch (err) {
-            console.warn('Falha ao subir save local preferível', err);
-            setCloudSyncError(err instanceof Error ? err.message : 'Falha ao subir save');
-          }
-        } else if (cloudError) {
-          setCloudSyncError(cloudError);
-        }
-        return local;
-      }
-
-      // Nuvem com mais progresso — espelha no local
-      if (isCompleteSave(best)) {
-        saveLocalSlot(resolvedSlot, { ...best, slotId: resolvedSlot });
-        mirrorActiveToLegacy({ ...best, slotId: resolvedSlot });
-        await refreshSlots(currentUser.uid);
-        setCloudSyncError(null);
-        return best;
-      }
-
-      if (cloudError) setCloudSyncError(cloudError);
-      return null;
+      saveLocalSlot(resolvedSlot, { ...cloud!, slotId: resolvedSlot });
+      mirrorActiveToLegacy({ ...cloud!, slotId: resolvedSlot });
+      void refreshSlots(currentUser.uid).catch(() => {});
+      setCloudSyncError(null);
+      return cloud;
     },
     [configured, setActiveSlot],
   );
