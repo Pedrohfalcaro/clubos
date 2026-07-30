@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react';
 import MatchScheduleModal from '../../../components/MatchScheduleModal/MatchScheduleModal';
 import { useGame } from '../../../context/GameContext';
-import { locationIcon } from '../../../utils/calendarHelpers';
+import {
+  dayPrimaryResult,
+  formatMatchDayTitle,
+  getInitialCalendarDate,
+  locationIcon,
+} from '../../../utils/calendarHelpers';
 import { competitionNames, resolveCompetitionColor } from '../../../utils/competitions';
 import styles from '../../Calendar/Calendar.module.css';
 
@@ -20,7 +25,7 @@ function toDateKey(d: Date): string {
 
 export default function PlayerCalendar() {
   const { state, schedulePlayerMatch } = useGame();
-  const [viewDate, setViewDate] = useState(() => new Date());
+  const [viewDate, setViewDate] = useState(() => getInitialCalendarDate(state.matches));
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
 
@@ -51,6 +56,13 @@ export default function PlayerCalendar() {
     return days;
   }, [year, month]);
 
+  function dayResultClass(result: ReturnType<typeof dayPrimaryResult>): string {
+    if (result === 'win') return styles.dayResultWin;
+    if (result === 'draw') return styles.dayResultDraw;
+    if (result === 'loss') return styles.dayResultLoss;
+    return '';
+  }
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -74,11 +86,20 @@ export default function PlayerCalendar() {
           const dayMatches = matchesByDate.get(dateKey) ?? [];
           const isToday = dateKey === toDateKey(new Date());
           const primaryMatch = dayMatches[0];
+          const result = dayPrimaryResult(dayMatches);
+          const resultClass = dayResultClass(result);
+          const completedPrimary = dayMatches.find(m => m.status === 'completed' && m.result);
+
           return (
             <button
               key={key}
               type="button"
-              className={`${styles.day} ${isToday ? styles.dayToday : ''} ${dayMatches.length ? styles.dayHasMatch : ''}`}
+              className={[
+                styles.day,
+                isToday ? styles.dayToday : '',
+                dayMatches.length && !result ? styles.dayHasMatch : '',
+                resultClass,
+              ].filter(Boolean).join(' ')}
               onClick={() => { setSelectedDate(dateKey); setModalOpen(true); }}
             >
               <div className={styles.dayHeader}>
@@ -87,6 +108,11 @@ export default function PlayerCalendar() {
                 )}
                 <span className={styles.dayNum}>{date.getDate()}</span>
               </div>
+              {completedPrimary && (
+                <span className={styles.dayScore}>
+                  {completedPrimary.goalsFor}×{completedPrimary.goalsAgainst}
+                </span>
+              )}
               {dayMatches.length > 0 && (
                 <div className={styles.dayMatches}>
                   {dayMatches.slice(0, 3).map(m => (
@@ -94,7 +120,7 @@ export default function PlayerCalendar() {
                       key={m.id}
                       className={styles.matchMarker}
                       style={{ background: resolveCompetitionColor(comps, m.competition) }}
-                      title={`${m.opponent} · ${m.competition}`}
+                      title={formatMatchDayTitle(m)}
                     />
                   ))}
                 </div>
@@ -113,6 +139,21 @@ export default function PlayerCalendar() {
               {comp.shortName || comp.name}
             </span>
           ))}
+        </div>
+        <div className={styles.legendGroup}>
+          <span className={styles.legendTitle}>Resultado</span>
+          <span className={styles.legendItem}>
+            <span className={`${styles.legendSwatch} ${styles.dayResultWin}`} />
+            Vitória
+          </span>
+          <span className={styles.legendItem}>
+            <span className={`${styles.legendSwatch} ${styles.dayResultDraw}`} />
+            Empate
+          </span>
+          <span className={styles.legendItem}>
+            <span className={`${styles.legendSwatch} ${styles.dayResultLoss}`} />
+            Derrota
+          </span>
         </div>
       </div>
 

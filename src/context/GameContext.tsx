@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, useRef, type ReactNode } from 'react';
 import type { SeasonCompetition } from '../types/Competition';
 import {
   competitionNames,
@@ -994,63 +994,91 @@ const GameContext = createContext<GameContextValue | null>(null);
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { persistSave, fetchCloudSave, setActiveSlot, activeSlotId } = useAuth();
+  const pendingCloudRef = useRef<{
+    data: Omit<GameSave, 'savedAt' | 'version'>;
+    slotId: SaveSlotId;
+  } | null>(null);
 
   useEffect(() => {
     if (!state.started) return;
 
-    let cancelled = false;
+    const slotId = state.saveSlotId || activeSlotId;
+    let payload: Omit<GameSave, 'savedAt' | 'version'> | null = null;
 
-    async function sync() {
-      try {
-        const slotId = state.saveSlotId || activeSlotId;
-        if (state.careerMode === 'coach' && state.team && state.teamId) {
-          await persistSave(
-            {
-              careerMode: 'coach',
-              teamId: state.teamId,
-              team: state.team,
-              players: state.players,
-              matches: state.matches,
-              season: state.season,
-              manager: state.manager,
-              seasonCompetitions: state.seasonCompetitions,
-              tactics: state.tactics,
-              tutorialCompleted: state.tutorialCompleted,
-              pulse: state.pulse,
-              finance: state.finance,
-              board: state.board,
-              transfers: state.transfers,
-              seasonHistory: state.seasonHistory,
-              slotId,
-            },
-            slotId,
-          );
-        } else if (state.careerMode === 'player' && state.careerPlayer) {
-          await persistSave(
-            {
-              careerMode: 'player',
-              careerPlayer: state.careerPlayer,
-              matches: state.matches,
-              season: state.season,
-              seasonCompetitions: state.seasonCompetitions,
-              tutorialCompleted: state.tutorialCompleted,
-              slotId,
-            },
-            slotId,
-          );
-        }
-      } catch (err) {
-        if (!cancelled) console.error('Falha ao salvar na nuvem', err);
-      }
+    if (state.careerMode === 'coach' && state.team && state.teamId) {
+      payload = {
+        careerMode: 'coach',
+        teamId: state.teamId,
+        team: state.team,
+        players: state.players,
+        matches: state.matches,
+        season: state.season,
+        manager: state.manager,
+        seasonCompetitions: state.seasonCompetitions,
+        tactics: state.tactics,
+        tutorialCompleted: state.tutorialCompleted,
+        pulse: state.pulse,
+        finance: state.finance,
+        board: state.board,
+        transfers: state.transfers,
+        seasonHistory: state.seasonHistory,
+        slotId,
+      };
+    } else if (state.careerMode === 'player' && state.careerPlayer) {
+      payload = {
+        careerMode: 'player',
+        careerPlayer: state.careerPlayer,
+        matches: state.matches,
+        season: state.season,
+        seasonCompetitions: state.seasonCompetitions,
+        tutorialCompleted: state.tutorialCompleted,
+        slotId,
+      };
     }
 
-    // Debounce cloud writes — avoid hammering Firestore on every keystroke
-    const timer = window.setTimeout(sync, 600);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
+    if (!payload) return;
+
+    // Local imediato — não perde progresso se fechar a aba antes do debounce
+    void persistSave(payload, slotId, { cloud: false });
+    pendingCloudRef.current = { data: payload, slotId };
+
+    const timer = window.setTimeout(() => {
+      const pending = pendingCloudRef.current;
+      if (!pending) return;
+      void persistSave(pending.data, pending.slotId, { cloud: true })
+        .then(() => {
+          if (pendingCloudRef.current === pending) pendingCloudRef.current = null;
+        })
+        .catch(err => console.error('Falha ao salvar na nuvem', err));
+    }, 600);
+
+    return () => window.clearTimeout(timer);
   }, [state, persistSave, activeSlotId]);
+
+  // Flush nuvem ao sair/minimizar — cobre o debounce pendente
+  useEffect(() => {
+    function flushCloud() {
+      const pending = pendingCloudRef.current;
+      if (!pending) return;
+      void persistSave(pending.data, pending.slotId, { cloud: true })
+        .then(() => {
+          if (pendingCloudRef.current === pending) pendingCloudRef.current = null;
+        })
+        .catch(err => console.error('Falha ao salvar na nuvem', err));
+    }
+
+    function onVisibility() {
+      if (document.visibilityState === 'hidden') flushCloud();
+    }
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', flushCloud);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', flushCloud);
+      flushCloud();
+    };
+  }, [persistSave]);
 
   function selectCareerMode(mode: CareerMode) {
     dispatch({ type: 'SELECT_CAREER_MODE', mode });

@@ -52,7 +52,8 @@ export function summarizeSave(save: GameSave, id: SaveSlotId): SaveSlotSummary {
   const draws = completed.filter(m => m.result === 'draw').length;
   const losses = completed.filter(m => m.result === 'loss').length;
 
-  if (save.careerMode === 'player' && save.careerPlayer) {
+  if (save.careerMode === 'player') {
+    if (!save.careerPlayer) return emptySlotSummary(id);
     return {
       id,
       empty: false,
@@ -68,15 +69,17 @@ export function summarizeSave(save: GameSave, id: SaveSlotId): SaveSlotSummary {
     };
   }
 
+  if (!save.team || !save.teamId) return emptySlotSummary(id);
+
   return {
     id,
     empty: false,
     careerMode: 'coach',
-    teamName: save.team?.name ?? 'Clube',
+    teamName: save.team.name,
     season: save.season,
-    wins: save.team?.statistics?.wins ?? wins,
-    draws: save.team?.statistics?.draws ?? draws,
-    losses: save.team?.statistics?.losses ?? losses,
+    wins: save.team.statistics?.wins ?? wins,
+    draws: save.team.statistics?.draws ?? draws,
+    losses: save.team.statistics?.losses ?? losses,
     matchesPlayed: completed.length,
     savedAt: save.savedAt,
   };
@@ -147,4 +150,38 @@ export function formatSlotSavedAt(iso?: string): string {
   } catch {
     return '';
   }
+}
+
+/** Save carregável (coach com time ou player com careerPlayer). */
+export function isCompleteSave(save: GameSave | null | undefined): boolean {
+  if (!save) return false;
+  if (save.careerMode === 'player') return !!save.careerPlayer;
+  return !!(save.team && save.teamId);
+}
+
+export function savedAtMs(save: { savedAt?: string } | null | undefined): number {
+  if (!save?.savedAt) return 0;
+  const t = Date.parse(save.savedAt);
+  return Number.isFinite(t) ? t : 0;
+}
+
+/**
+ * Escolhe o melhor entre nuvem e local: completo > incompleto;
+ * em empate de completude, o mais recente (savedAt) vence.
+ */
+export function pickBestSave(
+  cloud: GameSave | null,
+  local: GameSave | null,
+): GameSave | null {
+  const cloudOk = isCompleteSave(cloud);
+  const localOk = isCompleteSave(local);
+  if (cloudOk && localOk) {
+    return savedAtMs(local) > savedAtMs(cloud) ? local! : cloud!;
+  }
+  if (cloudOk) return cloud!;
+  if (localOk) return local!;
+  if (cloud && local) {
+    return savedAtMs(local) > savedAtMs(cloud) ? local : cloud;
+  }
+  return cloud ?? local;
 }

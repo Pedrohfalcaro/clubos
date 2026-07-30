@@ -1,7 +1,9 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -14,7 +16,6 @@ import {
 } from 'firebase/auth';
 import { getFirebaseAuth, isFirebaseConfigured } from '../services/firebase';
 import {
-  cloudHasAnySave,
   cloudListSlots,
   cloudLoadSlot,
   cloudSaveSlot,
@@ -22,16 +23,19 @@ import {
 } from '../services/cloudSave';
 import {
   clearGame,
-  hasSave as hasLocalSave,
   loadGame,
-  saveGame as saveLocalGame,
   type GameSave,
 } from '../services/storage';
 import {
   getActiveSlotId,
+  isCompleteSave,
   listLocalSlotSummaries,
   MAX_SAVE_SLOTS,
+  mirrorActiveToLegacy,
+  pickBestSave,
   SAVE_SLOT_IDS,
+  saveLocalSlot,
+  savedAtMs,
   setActiveSlotId,
   type SaveSlotId,
   type SaveSlotSummary,
@@ -49,10 +53,12 @@ interface AuthContextValue {
   maxSaveSlots: number;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Grava local imediatamente; nuvem opcional (default true). */
   persistSave: (
     data: Omit<GameSave, 'savedAt' | 'version'>,
     slotId?: SaveSlotId,
-  ) => Promise<void>;
+    options?: { cloud?: boolean },
+  ) => Promise<GameSave>;
   fetchCloudSave: (slotId?: SaveSlotId) => Promise<GameSave | null>;
   listSaveSlots: () => Promise<SaveSlotSummary[]>;
   refreshCloudSaveFlag: () => Promise<void>;
@@ -68,10 +74,56 @@ function mergeSlotLists(
   return SAVE_SLOT_IDS.map(id => {
     const c = cloud.find(s => s.id === id);
     const l = local.find(s => s.id === id);
-    if (c && !c.empty) return c;
-    if (l && !l.empty) return l;
+    const cloudOk = c && !c.empty;
+    const localOk = l && !l.empty;
+    if (cloudOk && localOk) {
+      return savedAtMs(l) > savedAtMs(c) ? l! : c!;
+    }
+    if (cloudOk) return c!;
+    if (localOk) return l!;
     return c ?? l ?? { id, empty: true };
   });
+}
+
+async function pushSaveToCloud(
+  uid: string,
+  slotId: SaveSlotId,
+  save: GameSave,
+): Promise<void> {
+  await cloudSaveSlot(uid, slotId, {
+    ...save,
+    slotId,
+    version: save.version ?? '0.6.0',
+    savedAt: save.savedAt || new Date().toISOString(),
+  });
+}
+
+/** Sobe o local para a nuvem quando for mais novo ou a nuvem estiver incompleta/vazia. */
+async function syncLocalSlotsToCloud(uid: string): Promise<void> {
+  for (const id of SAVE_SLOT_IDS) {
+    const local = loadGame(id);
+    if (!isCompleteSave(local)) continue;
+
+    let cloud: GameSave | null = null;
+    try {
+      cloud = await cloudLoadSlot(uid, id);
+    } catch {
+      cloud = null;
+    }
+
+    const shouldUpload =
+      !cloud ||
+      !isCompleteSave(cloud) ||
+      savedAtMs(local) > savedAtMs(cloud);
+
+    if (!shouldUpload) continue;
+
+    try {
+      await pushSaveToCloud(uid, id, local!);
+    } catch (err) {
+      console.warn(`Upload do slot ${id} para a nuvem falhou`, err);
+    }
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -82,6 +134,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [cloudReady, setCloudReady] = useState(false);
   const [activeSlotId, setActiveSlotIdState] = useState<SaveSlotId>(() => getActiveSlotId());
   const [saveSlots, setSaveSlots] = useState<SaveSlotSummary[]>(() => listLocalSlotSummaries());
+
+  const userRef = useRef(user);
+  userRef.current = user;
+  const activeSlotIdRef = useRef(activeSlotId);
+  activeSlotIdRef.current = activeSlotId;
 
   function applySlots(slots: SaveSlotSummary[]) {
     setSaveSlots(slots);
@@ -114,24 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(next);
       if (next) {
         try {
-          const exists = await cloudHasAnySave(next.uid);
-          if (!exists && hasLocalSave()) {
-            const local = loadGame();
-            if (local) {
-              try {
-                await cloudSaveSlot(next.uid, '1', {
-                  ...local,
-                  version: local.version ?? '0.6.0',
-                  savedAt: local.savedAt ?? new Date().toISOString(),
-                  slotId: '1',
-                });
-              } catch (err) {
-                console.warn('Upload do save local para a nuvem falhou', err);
-              }
-              setActiveSlotId('1');
-              setActiveSlotIdState('1');
-            }
-          }
+          await syncLocalSlotsToCloud(next.uid);
         } catch (err) {
           console.error('Falha ao sincronizar save na nuvem', err);
         }
@@ -147,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsub();
   }, [configured]);
 
-  async function signInWithGoogle() {
+  const signInWithGoogle = useCallback(async () => {
     if (!configured) {
       throw new Error('Firebase não configurado');
     }
@@ -155,91 +195,118 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     await signInWithPopup(auth, provider);
-  }
+  }, [configured]);
 
-  async function signOut() {
+  const signOut = useCallback(async () => {
     if (!configured) return;
     await firebaseSignOut(getFirebaseAuth());
     clearGame();
     applySlots(listLocalSlotSummaries());
-  }
+  }, [configured]);
 
-  function setActiveSlot(slotId: SaveSlotId) {
+  const setActiveSlot = useCallback((slotId: SaveSlotId) => {
     setActiveSlotId(slotId);
     setActiveSlotIdState(slotId);
-  }
+  }, []);
 
-  async function persistSave(
-    data: Omit<GameSave, 'savedAt' | 'version'>,
-    slotId: SaveSlotId = activeSlotId,
-  ) {
-    saveLocalGame(data, slotId);
-    setActiveSlot(slotId);
-    applySlots(listLocalSlotSummaries());
+  const persistSave = useCallback(
+    async (
+      data: Omit<GameSave, 'savedAt' | 'version'>,
+      slotId?: SaveSlotId,
+      options: { cloud?: boolean } = {},
+    ): Promise<GameSave> => {
+      const writeCloud = options.cloud !== false;
+      const resolvedSlot = slotId ?? activeSlotIdRef.current;
+      const save: GameSave = {
+        ...data,
+        slotId: resolvedSlot,
+        version: '0.6.0',
+        savedAt: new Date().toISOString(),
+      };
 
-    if (!user || !configured) return;
-
-    const save: GameSave = {
-      ...data,
-      slotId,
-      version: '0.6.0',
-      savedAt: new Date().toISOString(),
-    };
-    try {
-      await cloudSaveSlot(user.uid, slotId, save);
-      await refreshSlots(user.uid);
-    } catch (err) {
-      console.error('Falha ao salvar na nuvem (mantido local)', err);
-    }
-  }
-
-  async function fetchCloudSave(slotId: SaveSlotId = activeSlotId): Promise<GameSave | null> {
-    if (!user || !configured) {
-      const local = loadGame(slotId);
-      if (local) setActiveSlot(slotId);
-      return local;
-    }
-
-    try {
-      const cloud = await cloudLoadSlot(user.uid, slotId);
-      if (cloud) {
-        const { savedAt: _s, version: _v, ...rest } = cloud;
-        saveLocalGame(rest, slotId);
-        setActiveSlot(slotId);
-        await refreshSlots(user.uid);
-        return cloud;
+      // localStorage síncrono — mesmo savedAt que vai para a nuvem
+      saveLocalSlot(resolvedSlot, save);
+      mirrorActiveToLegacy(save);
+      setActiveSlotId(resolvedSlot);
+      if (resolvedSlot !== activeSlotIdRef.current) {
+        setActiveSlotIdState(resolvedSlot);
       }
-    } catch (err) {
-      console.warn('Falha ao carregar slot da nuvem, tentando local', err);
-    }
 
-    // Legado / local
-    try {
-      await migrateLegacyCloudSave(user.uid);
-      const again = await cloudLoadSlot(user.uid, slotId);
-      if (again) {
-        const { savedAt: _s, version: _v, ...rest } = again;
-        saveLocalGame(rest, slotId);
-        setActiveSlot(slotId);
-        return again;
+      const currentUser = userRef.current;
+      if (!writeCloud || !currentUser || !configured) return save;
+
+      try {
+        await pushSaveToCloud(currentUser.uid, resolvedSlot, save);
+        await refreshSlots(currentUser.uid);
+      } catch (err) {
+        console.error('Falha ao salvar na nuvem (mantido local)', err);
+        applySlots(listLocalSlotSummaries());
       }
-    } catch {
-      /* fall through */
-    }
+      return save;
+    },
+    [configured],
+  );
 
-    const local = loadGame(slotId);
-    if (local) setActiveSlot(slotId);
-    return local;
-  }
+  const fetchCloudSave = useCallback(
+    async (slotId?: SaveSlotId): Promise<GameSave | null> => {
+      const resolvedSlot = slotId ?? activeSlotIdRef.current;
+      const local = loadGame(resolvedSlot);
+      const currentUser = userRef.current;
 
-  async function listSaveSlots(): Promise<SaveSlotSummary[]> {
+      if (!currentUser || !configured) {
+        if (local) setActiveSlot(resolvedSlot);
+        return local;
+      }
+
+      let cloud: GameSave | null = null;
+      try {
+        cloud = await cloudLoadSlot(currentUser.uid, resolvedSlot);
+      } catch (err) {
+        console.warn('Falha ao carregar slot da nuvem, tentando local', err);
+      }
+
+      if (!cloud) {
+        try {
+          await migrateLegacyCloudSave(currentUser.uid);
+          cloud = await cloudLoadSlot(currentUser.uid, resolvedSlot);
+        } catch {
+          /* fall through */
+        }
+      }
+
+      const best = pickBestSave(cloud, local);
+      if (!best) return null;
+
+      setActiveSlot(resolvedSlot);
+
+      const localIsBest = !!local && isCompleteSave(local) && best === local;
+      if (localIsBest) {
+        try {
+          await pushSaveToCloud(currentUser.uid, resolvedSlot, local!);
+          await refreshSlots(currentUser.uid);
+        } catch (err) {
+          console.warn('Falha ao subir save local mais novo', err);
+        }
+        return local;
+      }
+
+      saveLocalSlot(resolvedSlot, { ...best, slotId: resolvedSlot });
+      mirrorActiveToLegacy({ ...best, slotId: resolvedSlot });
+      await refreshSlots(currentUser.uid);
+      return best;
+    },
+    [configured, setActiveSlot],
+  );
+
+  const listSaveSlots = useCallback(async (): Promise<SaveSlotSummary[]> => {
     const local = listLocalSlotSummaries();
-    if (!user || !configured) {
+    const currentUser = userRef.current;
+    if (!currentUser || !configured) {
       applySlots(local);
       return local;
     }
     try {
-      const cloud = await cloudListSlots(user.uid);
+      const cloud = await cloudListSlots(currentUser.uid);
       const merged = mergeSlotLists(cloud, local);
       applySlots(merged);
       return merged;
@@ -248,11 +315,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       applySlots(local);
       return local;
     }
-  }
+  }, [configured]);
 
-  async function refreshCloudSaveFlag() {
-    await refreshSlots(user?.uid);
-  }
+  const refreshCloudSaveFlag = useCallback(async () => {
+    await refreshSlots(userRef.current?.uid);
+  }, [configured]);
 
   return (
     <AuthContext.Provider
