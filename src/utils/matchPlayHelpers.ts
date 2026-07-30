@@ -7,6 +7,7 @@ import type {
   TeamCardEntry,
   OpponentGoalEntry,
   TeamInjuryEntry,
+  MatchMinute,
 } from '../types/Match';
 import type { Player } from '../types/Player';
 import { minuteSortValue } from './matchEvents';
@@ -66,6 +67,99 @@ export function isPlayerOnField(
   injuries: TeamInjuryEntry[] = [],
 ): boolean {
   return getFieldPlayerIds(starters, subs, injuries).has(playerId);
+}
+
+/**
+ * Quem estava em campo no minuto do evento.
+ * Subs com minuto <= `at` já valem (quem entrou aos 70 pode marcar aos 70;
+ * quem saiu aos 70 não aparece para evento aos 70 — só antes).
+ */
+export function getFieldPlayerIdsAtMinute(
+  starters: string[],
+  subs: SubstitutionEvent[],
+  at: MatchMinute,
+  injuries: TeamInjuryEntry[] = [],
+): Set<string> {
+  const atVal = minuteSortValue(at);
+
+  const injuredByThen = new Set(
+    injuries
+      .filter(i => i.playerId && minuteSortValue(i.minute) <= atVal)
+      .map(i => i.playerId),
+  );
+
+  const onField = new Set(starters.filter(id => !injuredByThen.has(id)));
+
+  const teamSubs = subs
+    .filter(s => s.side === 'team')
+    .sort((a, b) => minuteSortValue(a.minute) - minuteSortValue(b.minute));
+
+  for (const sub of teamSubs) {
+    if (minuteSortValue(sub.minute) > atVal) continue;
+    onField.delete(sub.playerOutId);
+    if (sub.playerInId && !injuredByThen.has(sub.playerInId)) {
+      onField.add(sub.playerInId);
+    }
+  }
+
+  for (const id of injuredByThen) {
+    onField.delete(id);
+  }
+
+  return onField;
+}
+
+export function isPlayerOnFieldAtMinute(
+  playerId: string,
+  starters: string[],
+  subs: SubstitutionEvent[],
+  at: MatchMinute,
+  injuries: TeamInjuryEntry[] = [],
+): boolean {
+  return getFieldPlayerIdsAtMinute(starters, subs, at, injuries).has(playerId);
+}
+
+/**
+ * Quem pode ser autor/assistente num evento aos `at`:
+ * - quem estava em campo nesse minuto (inclui titular que só saiu depois)
+ * - quem ainda pode entrar do banco (dispara modal de sub)
+ */
+export function getEligiblePlayerIdsForEvent(
+  starters: string[],
+  bench: string[],
+  subs: SubstitutionEvent[],
+  at: MatchMinute,
+  injuries: TeamInjuryEntry[] = [],
+): string[] {
+  const atVal = minuteSortValue(at);
+  const onField = getFieldPlayerIdsAtMinute(starters, subs, at, injuries);
+
+  const outByThen = new Set(
+    subs
+      .filter(s => s.side === 'team' && minuteSortValue(s.minute) <= atVal)
+      .map(s => s.playerOutId),
+  );
+  const inByThen = new Set(
+    subs
+      .filter(s => s.side === 'team' && minuteSortValue(s.minute) <= atVal)
+      .map(s => s.playerInId)
+      .filter(Boolean),
+  );
+  const injuredByThen = new Set(
+    injuries
+      .filter(i => i.playerId && minuteSortValue(i.minute) <= atVal)
+      .map(i => i.playerId),
+  );
+
+  const eligible = new Set(onField);
+
+  for (const id of bench) {
+    if (injuredByThen.has(id) || outByThen.has(id) || onField.has(id)) continue;
+    // Ainda no banco nesse minuto → pode entrar via substituição
+    if (!inByThen.has(id)) eligible.add(id);
+  }
+
+  return [...eligible];
 }
 
 /** Bench players eligible to enter (not already on field, not permanently out). */

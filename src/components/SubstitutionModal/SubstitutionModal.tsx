@@ -18,6 +18,8 @@ interface SubstitutionModalProps {
   playerIn: PlayerOption;
   onFieldOptions: PlayerOption[];
   required?: boolean;
+  /** Prefill do minuto (ex.: minuto do gol). */
+  initialMinute?: MatchMinute;
 }
 
 export default function SubstitutionModal({
@@ -28,9 +30,10 @@ export default function SubstitutionModal({
   playerIn,
   onFieldOptions,
   required,
+  initialMinute,
 }: SubstitutionModalProps) {
   const [playerOutId, setPlayerOutId] = useState('');
-  const [minute, setMinute] = useState<MatchMinute>(defaultMinute());
+  const [minute, setMinute] = useState<MatchMinute>(initialMinute ?? defaultMinute());
 
   if (!open) return null;
 
