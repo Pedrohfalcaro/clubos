@@ -17,6 +17,13 @@ import { createDefaultCareerPlayer, emptyPlayerStats } from '../types/CareerPlay
 import type { CompletePlayerMatchInput } from '../types/PlayerMatchPerformance';
 import { clearGame, type GameSave } from '../services/storage';
 import { calcResult, recalculateFromMatches } from '../utils/matchStats';
+import { applyMatchMoraleToPlayers } from '../utils/squadMorale';
+import {
+  BOARD_RESULT_DELTA,
+  SUPPORTER_RESULT_DELTA,
+  clampConfidence,
+  resultConfidenceReason,
+} from '../utils/clubConfidence';
 import {
   createTacticsPresetId,
   migrateTacticsPresets,
@@ -576,6 +583,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             minutes: (p.careerStats?.minutes ?? 0) + (p.stats.minutes ?? 0),
             goals: (p.careerStats?.goals ?? 0) + (p.stats.goals ?? 0),
             assists: (p.careerStats?.assists ?? 0) + (p.stats.assists ?? 0),
+            cleanSheets: (p.careerStats?.cleanSheets ?? 0) + (p.stats.cleanSheets ?? 0),
             yellowCards: (p.careerStats?.yellowCards ?? 0) + (p.stats.yellowCards ?? 0),
             redCards: (p.careerStats?.redCards ?? 0) + (p.stats.redCards ?? 0),
           },
@@ -606,6 +614,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
                 reason: `Início da temporada ${newSeason}`,
               },
               ...state.board.confidenceHistory,
+            ].slice(0, 50),
+            supporterHistory: [
+              {
+                date: new Date().toISOString().slice(0, 10),
+                value: state.team.supporterConfidence,
+                reason: `Início da temporada ${newSeason}`,
+              },
+              ...(state.board.supporterHistory ?? []),
             ].slice(0, 50),
           },
           pulse: {
@@ -682,28 +698,57 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         injuredIds.has(p.id) ? { ...p, availability: 'lesionado' as const } : p,
       );
       const recalculated = recalculateFromMatches(state.team, playersWithInjury, updatedMatches);
+      const completedMatch = updatedMatches.find(m => m.id === action.input.matchId);
+      const playersWithMorale = completedMatch
+        ? applyMatchMoraleToPlayers(recalculated.players, completedMatch)
+        : recalculated.players;
 
-      // Board confidence reaction
-      const confDelta = result === 'win' ? 3 : result === 'draw' ? 0 : -4;
-      const confReason = result === 'win' ? 'Vitória' : result === 'draw' ? 'Empate' : 'Derrota';
-      const newConf = Math.max(0, Math.min(100, (recalculated.team?.boardConfidence ?? state.team.boardConfidence) + confDelta));
-      const confEntry = confDelta !== 0
-        ? { date: new Date().toISOString().slice(0, 10), value: newConf, reason: confReason }
-        : null;
-      const updatedBoard = confEntry
-        ? {
-            ...state.board,
-            confidenceHistory: [confEntry, ...state.board.confidenceHistory].slice(0, 50),
-          }
-        : state.board;
+      // Board + torcida reagem ao resultado
+      const confReason = resultConfidenceReason(result);
+      const boardDelta = BOARD_RESULT_DELTA[result];
+      const fanDelta = SUPPORTER_RESULT_DELTA[result];
+      const dateStr = new Date().toISOString().slice(0, 10);
+
+      const newBoardConf = clampConfidence(
+        (recalculated.team?.boardConfidence ?? state.team.boardConfidence) + boardDelta,
+      );
+      const newFanConf = clampConfidence(
+        (recalculated.team?.supporterConfidence ?? state.team.supporterConfidence) + fanDelta,
+      );
+
+      let updatedBoard = state.board;
+      if (boardDelta !== 0) {
+        updatedBoard = {
+          ...updatedBoard,
+          confidenceHistory: [
+            { date: dateStr, value: newBoardConf, reason: confReason },
+            ...updatedBoard.confidenceHistory,
+          ].slice(0, 50),
+        };
+      }
+      if (fanDelta !== 0) {
+        updatedBoard = {
+          ...updatedBoard,
+          supporterHistory: [
+            { date: dateStr, value: newFanConf, reason: confReason },
+            ...(updatedBoard.supporterHistory ?? []),
+          ].slice(0, 50),
+        };
+      }
+
       const teamWithConf = recalculated.team
-        ? { ...recalculated.team, boardConfidence: newConf }
+        ? {
+            ...recalculated.team,
+            boardConfidence: newBoardConf,
+            supporterConfidence: newFanConf,
+          }
         : recalculated.team;
 
       return {
         ...state,
         matches: updatedMatches,
         ...recalculated,
+        players: playersWithMorale,
         team: teamWithConf ?? recalculated.team,
         board: updatedBoard,
       };
@@ -885,6 +930,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           id: state.team.id,
           nome: state.team.name,
           temporadaAtual: state.season,
+          boardConfidence: state.team.boardConfidence,
+          supporterConfidence: state.team.supporterConfidence,
         },
         athletes: state.players.map(playerToPulseAthlete),
         pulseState: state.pulse,

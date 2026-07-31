@@ -188,7 +188,7 @@ export default function Transfers() {
       salary,
       marketValue: mv || overall * 150_000,
       status: 'Titular',
-      stats: { matches: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+      stats: { matches: 0, minutes: 0, goals: 0, assists: 0, cleanSheets: 0, yellowCards: 0, redCards: 0 },
       personality: 'Disciplinado',
       fatigue: 0,
       availability: 'disponivel',

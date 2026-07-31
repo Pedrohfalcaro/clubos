@@ -2,6 +2,7 @@ import {
   aplicarEfeitos,
   candidatosParaEvento,
   getById,
+  pesoEventoPorMoral,
   selecionarAtleta,
   varsTemplate,
 } from './athletes';
@@ -16,7 +17,7 @@ import type {
   PulseHistoryEntry,
   PulseState,
 } from './types';
-import { clamp, pickRandom, template, uid } from './utils';
+import { clamp, pickWeighted, template, uid } from './utils';
 
 function recentEventIds(history: PulseHistoryEntry[], n: number): string[] {
   return (history || [])
@@ -155,7 +156,7 @@ export function generatePulse(input: {
       resultado = { tipo: 'nada' };
     } else {
       const catsRecent = recentCategories(state.history, 5);
-      const categoria = escolherCategoria(athletesWorking, catsRecent);
+      const categoria = escolherCategoria(athletesWorking, catsRecent, club);
       let raridade = escolherRaridade();
       let pool = elegiveis(state, athletesWorking, categoria, raridade);
 
@@ -173,7 +174,7 @@ export function generatePulse(input: {
       if (pool.length === 0) {
         resultado = { tipo: 'nada' };
       } else {
-        evento = pickRandom(pool)!;
+        evento = pickWeighted(pool, e => pesoEventoPorMoral(e, athletesWorking, club))!;
         atleta = selecionarAtleta(athletesWorking, evento);
         resultado = montarResultado(club, evento, atleta);
       }

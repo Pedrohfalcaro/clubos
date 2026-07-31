@@ -57,9 +57,18 @@ export function sumPlayerStats(list: PlayerStats[]): PlayerStats {
       minutes: acc.minutes + (s.minutes ?? 0),
       goals: acc.goals + (s.goals ?? 0),
       assists: acc.assists + (s.assists ?? 0),
+      cleanSheets: acc.cleanSheets + (s.cleanSheets ?? 0),
       yellowCards: acc.yellowCards + (s.yellowCards ?? 0),
       redCards: acc.redCards + (s.redCards ?? 0),
     }),
-    { matches: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+    {
+      matches: 0,
+      minutes: 0,
+      goals: 0,
+      assists: 0,
+      cleanSheets: 0,
+      yellowCards: 0,
+      redCards: 0,
+    },
   );
 }

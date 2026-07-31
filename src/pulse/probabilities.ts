@@ -1,4 +1,4 @@
-import type { PulseAthlete, PulseCategory, PulseRarity } from './types';
+import type { PulseAthlete, PulseCategory, PulseClub, PulseRarity } from './types';
 import { ageBand, pickWeighted } from './utils';
 
 const CATEGORIA_PESOS: Record<Exclude<PulseCategory, 'nenhum'>, number> = {
@@ -38,24 +38,63 @@ const IDADE_MODS: Record<string, Partial<Record<string, number>>> = {
   veterano: { familia: 1.35, lesao: 1.3, transferencia: 0.7, atleta: 1.1 },
 };
 
-function pesoCategoria(categoria: string, atletasContexto: PulseAthlete[]): number {
+const CATEGORIAS_RUINS = new Set(['lesao', 'escandalo', 'imprensa']);
+const CATEGORIAS_BOAS = new Set(['atleta', 'patrocinio', 'familia']);
+
+export type ClubClimate = Pick<PulseClub, 'boardConfidence' | 'supporterConfidence'>;
+
+function pesoCategoria(
+  categoria: string,
+  atletasContexto: PulseAthlete[],
+  club?: ClubClimate | null,
+): number {
   let base = CATEGORIA_PESOS[categoria as keyof typeof CATEGORIA_PESOS] || 1;
-  if (!atletasContexto || atletasContexto.length === 0) return base;
+  if (!atletasContexto || atletasContexto.length === 0) {
+    return applyClubCategoryMod(base, categoria, club);
+  }
 
   let modSum = 0;
+  let moralSum = 0;
   for (const a of atletasContexto) {
     const pMods = PERSONALIDADE_MODS[a.personalidade] || {};
     const band = ageBand(a.idade);
     const iMods = IDADE_MODS[band] || {};
     const m = (pMods[categoria] || 1) * (iMods[categoria] || 1);
     modSum += m;
+    moralSum += a.moral ?? 70;
   }
-  return base * (modSum / atletasContexto.length);
+  let weight = base * (modSum / atletasContexto.length);
+
+  const avgMoral = moralSum / atletasContexto.length;
+  const t = (avgMoral - 50) / 50;
+  if (CATEGORIAS_RUINS.has(categoria)) weight *= Math.max(0.35, 1 - t * 0.55);
+  else if (CATEGORIAS_BOAS.has(categoria)) weight *= Math.max(0.45, 1 + t * 0.45);
+
+  return applyClubCategoryMod(weight, categoria, club);
+}
+
+/** Extremos de confiança aumentam a chance da categoria aparecer no Pulse. */
+function applyClubCategoryMod(
+  weight: number,
+  categoria: string,
+  club?: ClubClimate | null,
+): number {
+  if (!club) return weight;
+  if (categoria === 'torcida' && club.supporterConfidence != null) {
+    const t = Math.abs(club.supporterConfidence - 50) / 50;
+    return weight * (1 + t * 0.7);
+  }
+  if (categoria === 'diretoria' && club.boardConfidence != null) {
+    const t = Math.abs(club.boardConfidence - 50) / 50;
+    return weight * (1 + t * 0.7);
+  }
+  return weight;
 }
 
 export function escolherCategoria(
   atletasContexto: PulseAthlete[],
   recentCategories: string[],
+  club?: ClubClimate | null,
 ): Exclude<PulseCategory, 'nenhum'> {
   const cats = Object.keys(CATEGORIA_PESOS);
   const last3 = (recentCategories || []).slice(-3);
@@ -63,7 +102,7 @@ export function escolherCategoria(
     last3.length === 3 && last3.every(c => c === last3[0]) ? last3[0] : null;
 
   return pickWeighted(cats, cat => {
-    let w = pesoCategoria(cat, atletasContexto);
+    let w = pesoCategoria(cat, atletasContexto, club);
     if (sameStreak && cat === sameStreak) w *= 0.15;
     if (last3[last3.length - 1] === cat) w *= 0.55;
     return w;

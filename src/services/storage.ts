@@ -16,6 +16,7 @@ import type { TransferState } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
 import type { SeasonArchive } from '../types/SeasonHistory';
 import { migrateTacticsPresets, normalizeMatchLineup } from '../utils/formations';
+import { recalculateFromMatches } from '../utils/matchStats';
 import {
   getActiveSlotId,
   loadLocalSlot,
@@ -110,8 +111,9 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       }
     : createDefaultPulseState();
 
-  const players = (save.players ?? []).map(p => ({
+  const playersRaw = (save.players ?? []).map(p => ({
     ...p,
+    morale: p.morale ?? 70,
     personality: p.personality ?? 'Disciplinado',
     fatigue: p.fatigue ?? 0,
     availability: p.availability ?? 'disponivel',
@@ -120,16 +122,18 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       minutes: p.stats?.minutes ?? 0,
       goals: p.stats?.goals ?? 0,
       assists: p.stats?.assists ?? 0,
+      cleanSheets: p.stats?.cleanSheets ?? 0,
       yellowCards: p.stats?.yellowCards ?? 0,
       redCards: p.stats?.redCards ?? 0,
     },
-    careerStats: p.careerStats ?? {
-      matches: 0,
-      minutes: 0,
-      goals: 0,
-      assists: 0,
-      yellowCards: 0,
-      redCards: 0,
+    careerStats: {
+      matches: p.careerStats?.matches ?? 0,
+      minutes: p.careerStats?.minutes ?? 0,
+      goals: p.careerStats?.goals ?? 0,
+      assists: p.careerStats?.assists ?? 0,
+      cleanSheets: p.careerStats?.cleanSheets ?? 0,
+      yellowCards: p.careerStats?.yellowCards ?? 0,
+      redCards: p.careerStats?.redCards ?? 0,
     },
   }));
 
@@ -140,6 +144,11 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
         secondaryColor: save.team.secondaryColor ?? '#e2e8f0',
       }
     : save.team;
+
+  const players =
+    team && playersRaw.length
+      ? recalculateFromMatches(team, playersRaw, matches).players
+      : playersRaw;
 
   // Migrate finance: if no finance saved, create from team.budget
   const finance: ClubFinance = save.finance
@@ -158,6 +167,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
         ...save.board,
         goals: save.board.goals ?? [],
         confidenceHistory: save.board.confidenceHistory ?? [],
+        supporterHistory: save.board.supporterHistory ?? [],
       }
     : createDefaultBoardState();
 
@@ -210,7 +220,15 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       ...base,
       careerPlayer: {
         ...save.careerPlayer,
-        seasonStats: save.careerPlayer.seasonStats ?? { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+        seasonStats: save.careerPlayer.seasonStats ?? {
+          matches: 0,
+          minutes: 0,
+          goals: 0,
+          assists: 0,
+          cleanSheets: 0,
+          yellowCards: 0,
+          redCards: 0,
+        },
         overallHistory: save.careerPlayer.overallHistory ?? [{ season: save.season ?? 2026, overall: save.careerPlayer.overall }],
         injuries: save.careerPlayer.injuries ?? [],
         careerHistory: save.careerPlayer.careerHistory ?? [],

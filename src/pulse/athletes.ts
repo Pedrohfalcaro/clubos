@@ -1,5 +1,5 @@
 import type { Player, PlayerPosition } from '../types/Player';
-import type { PulseAthlete, PulseAvailability, PulseEventDef, PulsePosition } from './types';
+import type { PulseAthlete, PulseAvailability, PulseClub, PulseEventDef, PulsePosition } from './types';
 import { ageBand, clamp, pickRandom, pickWeighted, PERSONALIDADES } from './utils';
 
 const CLUBOS_TO_PULSE: Record<PlayerPosition, PulsePosition> = {
@@ -73,6 +73,78 @@ export function candidatosParaEvento(athletes: PulseAthlete[], evento: PulseEven
   return (athletes || []).filter(a => eventoCombinaTags(evento, a));
 }
 
+/** Classifica o evento para o sistema de moral (bom / ruim / neutro). */
+export function polaridadeEvento(evento: PulseEventDef): 'bom' | 'ruim' | 'neutro' {
+  const moral = evento.efeitos?.moral;
+  if (typeof moral === 'number') {
+    if (moral > 0) return 'bom';
+    if (moral < 0) return 'ruim';
+  }
+  if (evento.efeitos?.status === 'lesionado' || evento.efeitos?.status === 'indisponivel') {
+    return 'ruim';
+  }
+  if (evento.categoria === 'lesao' || evento.categoria === 'escandalo') return 'ruim';
+
+  const key = `${evento.id} ${evento.titulo} ${evento.descricao}`.toLowerCase();
+  if (
+    /protesto|exige|cobran[cç]a|corta|corte|cr[ií]tica|press[aã]o|abaixo-assinado|sil[eê]ncio|atrasad|boato|m[aá] fase|discuss[aã]o|fri[oa]|distante|apreens|tensa|reage [aà] m[ií]dia/.test(
+      key,
+    )
+  ) {
+    return 'ruim';
+  }
+  if (
+    /apoio|promessa|upgrade|conforto|idolatr|festa|positivo|carreata|mosaico|cantos|faixas de apoio|bem humor|elogio|ovacion/.test(
+      key,
+    )
+  ) {
+    return 'bom';
+  }
+  return 'neutro';
+}
+
+function climaParaEvento(
+  evento: PulseEventDef,
+  club?: Pick<PulseClub, 'boardConfidence' | 'supporterConfidence'> | null,
+): number | null {
+  if (!club) return null;
+  if (evento.categoria === 'torcida' && club.supporterConfidence != null) {
+    return club.supporterConfidence;
+  }
+  if (evento.categoria === 'diretoria' && club.boardConfidence != null) {
+    return club.boardConfidence;
+  }
+  return null;
+}
+
+/**
+ * Peso de um evento segundo a moral dos candidatos / clima do clube.
+ * Moral alta favorece eventos bons; moral baixa favorece ruins.
+ */
+export function pesoEventoPorMoral(
+  evento: PulseEventDef,
+  athletes: PulseAthlete[],
+  club?: Pick<PulseClub, 'boardConfidence' | 'supporterConfidence'> | null,
+): number {
+  const pol = polaridadeEvento(evento);
+  if (pol === 'neutro') return 1;
+
+  const clima = climaParaEvento(evento, club);
+  let t: number;
+  if (clima != null) {
+    t = (clima - 50) / 50;
+  } else {
+    const cands = candidatosParaEvento(athletes, evento);
+    const pool = cands.length ? cands : athletes;
+    if (!pool.length) return 1;
+    const avgMoral = pool.reduce((s, a) => s + (a.moral ?? 70), 0) / pool.length;
+    t = (avgMoral - 50) / 50;
+  }
+
+  if (pol === 'bom') return Math.max(0.12, 1 + t * 1.35);
+  return Math.max(0.12, 1 - t * 1.35);
+}
+
 export function selecionarAtleta(athletes: PulseAthlete[], evento: PulseEventDef): PulseAthlete | null {
   const tags = evento.tags || {};
   if (tags.precisaAtleta === false) return null;
@@ -87,11 +159,22 @@ export function selecionarAtleta(athletes: PulseAthlete[], evento: PulseEventDef
   }
   if (pool.length === 0) return null;
 
+  const pol = polaridadeEvento(evento);
+
   return pickWeighted(pool, a => {
+    const moral = a.moral ?? 70;
     let w = 1;
-    w += (100 - (a.moral || 100)) / 100;
+    if (pol === 'ruim') {
+      // Moral baixa → mais chance de coisas ruins
+      w += ((100 - moral) / 40) ** 1.15;
+    } else if (pol === 'bom') {
+      // Moral alta → mais chance de coisas boas
+      w += (moral / 40) ** 1.15;
+    } else {
+      w += (100 - moral) / 120;
+    }
     w += (a.fadiga || 0) / 200;
-    return Math.max(0.1, w);
+    return Math.max(0.08, w);
   });
 }
 

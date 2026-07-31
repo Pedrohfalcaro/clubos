@@ -26,6 +26,8 @@ export interface PlayerStats {
   minutes: number;
   goals: number;
   assists: number;
+  /** Jogos em que o atleta esteve em campo e o time não sofreu gols */
+  cleanSheets: number;
   yellowCards: number;
   redCards: number;
 }
@@ -58,5 +60,13 @@ export const PLAYER_POSITIONS: PlayerPosition[] = [
 ];
 
 export function emptyPlayerStats(): PlayerStats {
-  return { matches: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
+  return {
+    matches: 0,
+    minutes: 0,
+    goals: 0,
+    assists: 0,
+    cleanSheets: 0,
+    yellowCards: 0,
+    redCards: 0,
+  };
 }

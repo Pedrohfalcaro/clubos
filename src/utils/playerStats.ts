@@ -13,6 +13,7 @@ export function applyPerformanceToStats(
     minutes: (stats.minutes ?? 0) + (perf.minutesPlayed ?? 0),
     goals: stats.goals + perf.goals,
     assists: stats.assists + perf.assists,
+    cleanSheets: stats.cleanSheets ?? 0,
     yellowCards: stats.yellowCards + perf.yellowCards,
     redCards: stats.redCards + perf.redCards,
   };
@@ -28,6 +29,7 @@ export function subtractPerformanceFromStats(
     minutes: Math.max(0, (stats.minutes ?? 0) - (perf.minutesPlayed ?? 0)),
     goals: Math.max(0, stats.goals - perf.goals),
     assists: Math.max(0, stats.assists - perf.assists),
+    cleanSheets: stats.cleanSheets ?? 0,
     yellowCards: Math.max(0, stats.yellowCards - perf.yellowCards),
     redCards: Math.max(0, stats.redCards - perf.redCards),
   };

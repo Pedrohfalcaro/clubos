@@ -71,6 +71,10 @@ export interface PulseClub {
   nome: string;
   temporadaAtual: number;
   partidasGeradas?: number;
+  /** Confiança da diretoria (0–100) — influencia eventos de diretoria */
+  boardConfidence?: number;
+  /** Moral da torcida (0–100) — influencia eventos de torcida */
+  supporterConfidence?: number;
 }
 
 export interface PulseSettings {

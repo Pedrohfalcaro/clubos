@@ -46,12 +46,22 @@ function formatAvg(rating: number | null): string {
   return rating.toFixed(1);
 }
 
+function moraleMeta(morale: number): { label: string; color: string; title: string } {
+  const m = Math.max(0, Math.min(100, Math.round(morale)));
+  if (m >= 80) return { label: '▲', color: 'var(--success)', title: `Moral alta (${m})` };
+  if (m >= 60) return { label: '●', color: '#22c55e', title: `Moral boa (${m})` };
+  if (m >= 40) return { label: '●', color: 'var(--warning)', title: `Moral média (${m})` };
+  if (m >= 20) return { label: '▼', color: '#f97316', title: `Moral baixa (${m})` };
+  return { label: '▼', color: 'var(--danger)', title: `Moral péssima (${m})` };
+}
+
 type CompFilter = 'all' | string;
 
 interface PlayerCompStats {
   matches: number;
   goals: number;
   assists: number;
+  cleanSheets: number;
   minutes: number;
 }
 
@@ -86,11 +96,18 @@ export default function Squad() {
         byComp = new Map();
         map.set(playerId, byComp);
       }
-      const prev = byComp.get(competition) ?? { matches: 0, goals: 0, assists: 0, minutes: 0 };
+      const prev = byComp.get(competition) ?? {
+        matches: 0,
+        goals: 0,
+        assists: 0,
+        cleanSheets: 0,
+        minutes: 0,
+      };
       byComp.set(competition, {
         matches: prev.matches + (patch.matches ?? 0),
         goals: prev.goals + (patch.goals ?? 0),
         assists: prev.assists + (patch.assists ?? 0),
+        cleanSheets: prev.cleanSheets + (patch.cleanSheets ?? 0),
         minutes: prev.minutes + (patch.minutes ?? 0),
       });
     }
@@ -101,10 +118,13 @@ export default function Squad() {
       if (played.size === 0 && match.lineup?.formation) {
         for (const slot of match.lineup.formation) played.add(slot.playerId);
       }
+      const cleanSheet = match.goalsAgainst === 0;
       for (const playerId of played) {
+        const mins = playingTime.get(playerId) ?? 0;
         bump(playerId, match.competition, {
           matches: 1,
-          minutes: playingTime.get(playerId) ?? 0,
+          minutes: mins,
+          cleanSheets: cleanSheet && mins > 0 ? 1 : 0,
         });
       }
       for (const goal of match.goals ?? []) {
@@ -169,10 +189,19 @@ export default function Squad() {
         minutes: acc.minutes + r.stats.minutes,
         goals: acc.goals + r.stats.goals,
         assists: acc.assists + r.stats.assists,
+        cleanSheets: acc.cleanSheets + (r.stats.cleanSheets ?? 0),
         yellowCards: acc.yellowCards + r.stats.yellowCards,
         redCards: acc.redCards + r.stats.redCards,
       }),
-      { matches: teamGames, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+      {
+        matches: teamGames,
+        minutes: 0,
+        goals: 0,
+        assists: 0,
+        cleanSheets: 0,
+        yellowCards: 0,
+        redCards: 0,
+      },
     );
   }, [historyRows, histScope, state.team?.statistics, state.seasonHistory, state.season]);
 
@@ -230,6 +259,7 @@ export default function Squad() {
         minutes: p?.stats.minutes ?? 0,
         goals: p?.stats.goals ?? 0,
         assists: p?.stats.assists ?? 0,
+        cleanSheets: p?.stats.cleanSheets ?? 0,
         avg,
       };
     }
@@ -239,6 +269,7 @@ export default function Squad() {
       minutes: s?.minutes ?? 0,
       goals: s?.goals ?? 0,
       assists: s?.assists ?? 0,
+      cleanSheets: s?.cleanSheets ?? 0,
       avg,
     };
   }
@@ -302,6 +333,7 @@ export default function Squad() {
             <div><strong>{historyTotals.minutes}'</strong><span>Minutos</span></div>
             <div><strong>{historyTotals.goals}</strong><span>Gols</span></div>
             <div><strong>{historyTotals.assists}</strong><span>Assist.</span></div>
+            <div><strong>{historyTotals.cleanSheets}</strong><span>SG</span></div>
             <div><strong>{historyTotals.yellowCards}</strong><span>CA</span></div>
             <div><strong>{historyTotals.redCards}</strong><span>CV</span></div>
           </div>
@@ -317,6 +349,7 @@ export default function Squad() {
                 <span>Min</span>
                 <span>G</span>
                 <span>A</span>
+                <span title="Sem sofrer gols">SG</span>
                 <span>CA</span>
                 <span>CV</span>
               </div>
@@ -328,6 +361,7 @@ export default function Squad() {
                   <span>{stats.minutes}'</span>
                   <span>{stats.goals}</span>
                   <span>{stats.assists}</span>
+                  <span>{stats.cleanSheets ?? 0}</span>
                   <span>{stats.yellowCards}</span>
                   <span>{stats.redCards}</span>
                 </div>
@@ -391,7 +425,7 @@ export default function Squad() {
 
             {compFilter !== 'all' && (
               <p className={styles.compBanner}>
-                Filtrando por <strong>{compFilter}</strong> — J / Min / Nota / G / A desta competição
+                Filtrando por <strong>{compFilter}</strong> — J / Min / Nota / G / A / SG desta competição
               </p>
             )}
 
@@ -416,13 +450,15 @@ export default function Squad() {
                       <span className={styles.colMin}>Min</span>
                       <span className={styles.colNota}>Nota</span>
                       <span className={styles.colStat}>G</span>
-                      <span className={styles.colStat}>A</span>
+                      <span className={styles.colStat} title="Assistências">A</span>
+                      <span className={styles.colStat} title="Sem sofrer gols">SG</span>
                       <span className={styles.colStatus}>Status</span>
                       <span className={styles.colAction} />
                     </div>
                     {group.map(p => {
                       const stats = displayStats(p.id);
                       const retired = p.status === 'Aposentado';
+                      const morale = moraleMeta(p.morale ?? 70);
                       return (
                         <div key={p.id}>
                           {editingId === p.id ? (
@@ -474,6 +510,7 @@ export default function Squad() {
                               </span>
                               <span className={styles.colStat} title="Gols (somente leitura)">{stats.goals}</span>
                               <span className={styles.colStat} title="Assistências (somente leitura)">{stats.assists}</span>
+                              <span className={styles.colStat} title="Sem sofrer gols (somente leitura)">{stats.cleanSheets}</span>
                               <select
                                 className={styles.editSelect}
                                 value={editForm.status}
@@ -513,7 +550,17 @@ export default function Squad() {
                           ) : (
                             <div className={`${styles.tableRow} ${retired ? styles.rowRetired : ''}`}>
                               <span className={styles.colNum}>{p.number ?? '—'}</span>
-                              <span className={styles.colName}>{p.name}</span>
+                              <span className={styles.colName}>
+                                <span className={styles.nameText}>{p.name}</span>
+                                <span
+                                  className={styles.moraleMark}
+                                  style={{ color: morale.color }}
+                                  title={morale.title}
+                                  aria-label={morale.title}
+                                >
+                                  {morale.label}
+                                </span>
+                              </span>
                               <span className={styles.colAge}>{p.age}</span>
                               <span className={styles.colOvr} style={{ color: overallColor(p.overall) }}>{p.overall}</span>
                               <span className={styles.colMatches}>{stats.matches}</span>
@@ -530,6 +577,7 @@ export default function Squad() {
                               </span>
                               <span className={styles.colStat}>{stats.goals}</span>
                               <span className={styles.colStat}>{stats.assists}</span>
+                              <span className={styles.colStat} title="Sem sofrer gols">{stats.cleanSheets}</span>
                               <span className={styles.colStatus} style={{ color: STATUS_COLOR[p.status] }}>{p.status}</span>
                               <span className={styles.colAction}>
                                 <button type="button" className={styles.editBtn} onClick={() => startEdit(p.id)}>Editar</button>

@@ -47,6 +47,8 @@ export default function Board() {
   const secondary = team?.secondaryColor ?? DEFAULT_SECONDARY;
   const conf = team?.boardConfidence ?? 70;
   const status = boardStatus(conf);
+  const fanConf = team?.supporterConfidence ?? 65;
+  const fanStatus = boardStatus(fanConf);
 
   // Club edit state
   const [clubName, setClubName] = useState(team?.name ?? '');
@@ -175,6 +177,8 @@ export default function Board() {
 
   const confBarColor = status === 'stable' ? '#22c55e' : status === 'watchful' ? '#ca8a04' : '#ef4444';
   const statusClass = status === 'stable' ? styles.statusStable : status === 'watchful' ? styles.statusWatchful : styles.statusCrisis;
+  const fanBarColor = fanStatus === 'stable' ? '#22c55e' : fanStatus === 'watchful' ? '#ca8a04' : '#ef4444';
+  const fanStatusClass = fanStatus === 'stable' ? styles.statusStable : fanStatus === 'watchful' ? styles.statusWatchful : styles.statusCrisis;
 
   return (
     <div className={styles.page}>
@@ -204,36 +208,88 @@ export default function Board() {
 
       {tab === 'confidence' && (
         <>
-          <div className={styles.confCard}>
-            <div className={styles.confHead}>
-              <span className={styles.confLabel}>Confiança da Diretoria</span>
-              <span className={`${styles.confStatus} ${statusClass}`}>
-                {STATUS_LABELS[status]}
-              </span>
-            </div>
-            <p className={styles.confValue}>{conf}</p>
-            <div className={styles.confBar}>
-              <div
-                className={styles.confFill}
-                style={{ width: `${conf}%`, background: confBarColor }}
-              />
-            </div>
-            {board.notes && (
-              <div className={styles.notesCard}>
-                "{board.notes}"
+          <div className={styles.confGrid}>
+            <div className={styles.confCard}>
+              <div className={styles.confHead}>
+                <span className={styles.confLabel}>Confiança da Diretoria</span>
+                <span className={`${styles.confStatus} ${statusClass}`}>
+                  {STATUS_LABELS[status]}
+                </span>
               </div>
-            )}
+              <p className={styles.confValue}>{conf}</p>
+              <div className={styles.confBar}>
+                <div
+                  className={styles.confFill}
+                  style={{ width: `${conf}%`, background: confBarColor }}
+                />
+              </div>
+              <p className={styles.confHint}>
+                Vitória <strong>+3</strong> · Empate <strong>0</strong> · Derrota <strong>−4</strong>
+              </p>
+              <p className={styles.confHintMuted}>
+                Baixa → mais cobranças no Pulse · Alta → mais apoio e boas notícias
+              </p>
+            </div>
+
+            <div className={styles.confCard}>
+              <div className={styles.confHead}>
+                <span className={styles.confLabel}>Moral da Torcida</span>
+                <span className={`${styles.confStatus} ${fanStatusClass}`}>
+                  {STATUS_LABELS[fanStatus]}
+                </span>
+              </div>
+              <p className={styles.confValue}>{fanConf}</p>
+              <div className={styles.confBar}>
+                <div
+                  className={styles.confFill}
+                  style={{ width: `${fanConf}%`, background: fanBarColor }}
+                />
+              </div>
+              <p className={styles.confHint}>
+                Vitória <strong>+4</strong> · Empate <strong>−1</strong> · Derrota <strong>−5</strong>
+              </p>
+              <p className={styles.confHintMuted}>
+                Baixa → protestos e críticas · Alta → festa, apoio e idolatria
+              </p>
+            </div>
           </div>
+
+          {board.notes && (
+            <div className={styles.notesCard}>
+              "{board.notes}"
+            </div>
+          )}
 
           {board.confidenceHistory.length > 0 && (
             <div>
-              <h3 className={styles.sectionTitle} style={{ marginBottom: 10 }}>Histórico</h3>
+              <h3 className={styles.sectionTitle} style={{ marginBottom: 10 }}>Histórico — Diretoria</h3>
               <div className={styles.confHistory}>
                 {board.confidenceHistory.slice(0, 10).map((e, i) => {
                   const prev = board.confidenceHistory[i + 1];
                   const delta = prev ? e.value - prev.value : 0;
                   return (
-                    <div key={i} className={styles.confHistEntry}>
+                    <div key={`b-${i}`} className={styles.confHistEntry}>
+                      <span className={styles.confHistDate}>{e.date}</span>
+                      <span className={styles.confHistReason}>{e.reason}</span>
+                      <span className={`${styles.confHistVal} ${delta > 0 ? styles.up : delta < 0 ? styles.down : ''}`}>
+                        {delta > 0 ? '+' : ''}{delta !== 0 ? delta : '—'} → {e.value}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {(board.supporterHistory?.length ?? 0) > 0 && (
+            <div>
+              <h3 className={styles.sectionTitle} style={{ marginBottom: 10 }}>Histórico — Torcida</h3>
+              <div className={styles.confHistory}>
+                {board.supporterHistory.slice(0, 10).map((e, i) => {
+                  const prev = board.supporterHistory[i + 1];
+                  const delta = prev ? e.value - prev.value : 0;
+                  return (
+                    <div key={`f-${i}`} className={styles.confHistEntry}>
                       <span className={styles.confHistDate}>{e.date}</span>
                       <span className={styles.confHistReason}>{e.reason}</span>
                       <span className={`${styles.confHistVal} ${delta > 0 ? styles.up : delta < 0 ? styles.down : ''}`}>

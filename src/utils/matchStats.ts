@@ -32,7 +32,15 @@ export function recalculateFromMatches(
   const playerStatsMap = new Map(
     players.map(p => [
       p.id,
-      { matches: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+      {
+        matches: 0,
+        minutes: 0,
+        goals: 0,
+        assists: 0,
+        cleanSheets: 0,
+        yellowCards: 0,
+        redCards: 0,
+      },
     ]),
   );
 
@@ -53,11 +61,13 @@ export function recalculateFromMatches(
     }
 
     const playingTime = getMatchPlayingTime(match);
+    const cleanSheet = match.goalsAgainst === 0;
     for (const [pid, mins] of playingTime) {
       const stats = playerStatsMap.get(pid);
       if (!stats) continue;
       stats.matches += 1;
       stats.minutes += mins;
+      if (cleanSheet && mins > 0) stats.cleanSheets += 1;
     }
 
     for (const goal of match.goals.filter(g => !g.isOwnGoal && g.playerId)) {

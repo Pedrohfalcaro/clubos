@@ -28,6 +28,8 @@ export interface BoardConfidenceEntry {
 export interface BoardState {
   goals: BoardGoal[];
   confidenceHistory: BoardConfidenceEntry[];
+  /** Histórico da moral/confiança da torcida */
+  supporterHistory: BoardConfidenceEntry[];
   notes?: string;
 }
 
@@ -35,6 +37,7 @@ export function createDefaultBoardState(): BoardState {
   return {
     goals: [],
     confidenceHistory: [],
+    supporterHistory: [],
     notes: undefined,
   };
 }

@@ -90,13 +90,18 @@ export const SECTION_TUTORIALS: Record<string, TutorialStep[]> = {
   '/diretoria': [
     {
       section: 'Diretoria',
-      title: 'Relacionamento com a diretoria',
-      body: 'Acompanhe a confiança da diretoria, que reage a resultados, saúde financeira e cumprimento de metas.',
+      title: 'Confiança da diretoria',
+      body: 'Sobe com vitórias (+3) e cai com derrotas (−4). Empates não mudam. Quanto menor a confiança, mais eventos ruins de diretoria no Pulse; quanto maior, mais chance de coisas boas.',
+    },
+    {
+      section: 'Torcida',
+      title: 'Moral da torcida',
+      body: 'Reage mais forte aos resultados: vitória +4, empate −1, derrota −5. Moral baixa favorece protestos e cobranças no Pulse; moral alta favorece apoio, festa e idolatria.',
     },
     {
       section: 'Metas',
       title: 'Metas da temporada',
-      body: 'Defina objetivos que a diretoria espera — posição no campeonato, limite de gastos, vendas de jogadores. Metas cumpridas aumentam a confiança.',
+      body: 'Defina objetivos que a diretoria espera — posição no campeonato, limite de gastos, vendas de jogadores.',
     },
     {
       section: 'Identidade',
