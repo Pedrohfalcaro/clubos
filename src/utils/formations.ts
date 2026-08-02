@@ -1,5 +1,6 @@
 import type { MatchLineup } from '../types/Match';
 import type { Player, PlayerPosition } from '../types/Player';
+import { isPlayerBlockedFromLineup, availabilityStatusLabel } from '../types/Player';
 import type {
   FormationKey,
   FormationSlot,
@@ -922,8 +923,19 @@ export function isLineupComplete(
   formation: FormationSlot[] | null | undefined,
   key: FormationKey,
   players?: Player[],
+  competition?: string | null,
+  gameDate?: string | null,
 ): boolean {
-  return countFilledSlots(formation, key, players) === getFormationPreset(key).slots.length;
+  if (countFilledSlots(formation, key, players) !== getFormationPreset(key).slots.length) {
+    return false;
+  }
+  if (!players) return true;
+  const byId = new Map(players.map(p => [p.id, p]));
+  for (const entry of formation ?? []) {
+    const player = byId.get(entry.playerId);
+    if (!player || isPlayerBlockedFromLineup(player, competition, gameDate)) return false;
+  }
+  return true;
 }
 
 /** Mantém os mesmos jogadores ao trocar de formação, reposicionando por função. */
@@ -973,9 +985,12 @@ export function remapFormation(
     }));
 }
 
-function isAvailable(player: Player): boolean {
-  if (player.status === 'Aposentado') return false;
-  return (player.availability ?? 'disponivel') === 'disponivel';
+function isAvailable(
+  player: Player,
+  competition?: string | null,
+  gameDate?: string | null,
+): boolean {
+  return !isPlayerBlockedFromLineup(player, competition, gameDate);
 }
 
 /** Monta a melhor escalação possível para a formação, por posição e overall. */
@@ -983,10 +998,11 @@ export function buildBestLineup(
   key: FormationKey,
   players: Player[],
   benchSize = 7,
+  competition?: string | null,
+  gameDate?: string | null,
 ): { formation: FormationSlot[]; bench: string[] } {
   const preset = getFormationPreset(key);
-  const available = players.filter(isAvailable);
-  const pool = available.length >= preset.slots.length ? available : players;
+  const pool = players.filter(p => isAvailable(p, competition, gameDate));
 
   const pairs: { player: Player; slot: number; score: number }[] = [];
   pool.forEach(player => {
@@ -1040,6 +1056,8 @@ export function lineupWarnings(
   key: FormationKey,
   players: Player[],
   bench: string[] = [],
+  competition?: string | null,
+  gameDate?: string | null,
 ): LineupWarning[] {
   const preset = getFormationPreset(key);
   const byId = new Map(players.map(p => [p.id, p]));
@@ -1051,10 +1069,12 @@ export function lineupWarnings(
     const slot = preset.slots[entry.slot ?? -1];
     if (!player || !slot) continue;
 
-    if (player.availability === 'lesionado') {
-      warnings.push({ kind: 'availability', message: `${player.name} está lesionado.` });
-    } else if (player.availability === 'indisponivel') {
-      warnings.push({ kind: 'availability', message: `${player.name} está indisponível.` });
+    if (isPlayerBlockedFromLineup(player, competition, gameDate)) {
+      const label = availabilityStatusLabel(player, gameDate) ?? player.availability;
+      warnings.push({
+        kind: 'availability',
+        message: `${player.name} — ${label}. Não pode ser escalado.`,
+      });
     }
 
     if (roleFit(slot.role, player.position) <= 0.25) {
@@ -1067,6 +1087,18 @@ export function lineupWarnings(
 
   if (bench.length > 0 && !bench.some(id => byId.get(id)?.position === 'GK')) {
     warnings.push({ kind: 'bench', message: 'Nenhum goleiro reserva no banco.' });
+  }
+
+  for (const id of bench) {
+    const player = byId.get(id);
+    if (!player) continue;
+    if (isPlayerBlockedFromLineup(player, competition, gameDate)) {
+      const label = availabilityStatusLabel(player, gameDate) ?? player.availability;
+      warnings.push({
+        kind: 'availability',
+        message: `${player.name} — ${label}. Remova do banco.`,
+      });
+    }
   }
 
   return warnings;

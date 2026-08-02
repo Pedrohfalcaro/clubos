@@ -5,6 +5,7 @@ import MatchScheduleModal from '../../components/MatchScheduleModal/MatchSchedul
 import { useGame } from '../../context/GameContext';
 import type { Match } from '../../types/Match';
 import { competitionNames } from '../../utils/competitions';
+import { matchSignificanceLabel } from '../../types/Match';
 import { getHomeAway, locationLabel } from '../../utils/matchStats';
 import styles from './Matches.module.css';
 
@@ -42,6 +43,7 @@ export default function MatchRegistration() {
     date: string;
     location: Match['location'];
     competition: string;
+    significance: NonNullable<Match['significance']>;
   }) {
     if (editingMatch) {
       updateScheduledMatch(editingMatch.id, data);
@@ -83,7 +85,9 @@ export default function MatchRegistration() {
           date: editingMatch.date,
           location: editingMatch.location,
           competition: editingMatch.competition,
+          significance: editingMatch.significance ?? 'normal',
         } : undefined}
+        initialDate={state.currentDate ?? undefined}
       />
 
       <MatchRecapModal
@@ -115,6 +119,9 @@ export default function MatchRegistration() {
                   <span className={styles.matchComp}>{match.competition}</span>
                   <span className={styles.matchDate}>
                     {new Date(match.date).toLocaleDateString('pt-BR')} · {locationLabel(match.location)}
+                    {match.significance && match.significance !== 'normal'
+                      ? ` · ${matchSignificanceLabel(match.significance)}`
+                      : ''}
                   </span>
                 </div>
                 <div className={styles.matchMain}>

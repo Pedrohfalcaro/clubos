@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
 import { boardStatus } from '../../types/Board';
 import type { BoardGoal, BoardGoalKind } from '../../types/Board';
@@ -6,9 +7,11 @@ import ClubCrest from '../../components/ClubCrest/ClubCrest';
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
 import { formatMoney, newLedgerEntry } from '../../utils/finance';
 import { downloadSaveBackup } from '../../utils/backup';
+import { analyzeLiveLifeGaps } from '../../utils/livelifeTemplates';
+import { LIVELIFE_CHANGELOG } from '../../types/LiveLife';
 import styles from './Board.module.css';
 
-type Tab = 'confidence' | 'goals' | 'club' | 'season';
+type Tab = 'confidence' | 'goals' | 'club' | 'season' | 'livelife';
 
 const GOAL_KINDS: { kind: BoardGoalKind; label: string; icon: string; unit: string }[] = [
   { kind: 'league_position', label: 'Posição no campeonato', icon: '🏆', unit: 'posição (1 = 1º)' },
@@ -33,15 +36,35 @@ function goalKindLabel(kind: BoardGoalKind): string {
 }
 
 export default function Board() {
-  const { state, setBoardGoal, removeBoardGoal, updateTeam, applyLedger, getSaveSnapshot, advanceSeason } = useGame();
-  const { board, team, season, finance, matches, players, transfers } = state;
+  const {
+    state,
+    setBoardGoal,
+    removeBoardGoal,
+    updateTeam,
+    applyLedger,
+    getSaveSnapshot,
+    advanceSeason,
+    setCurrentDate,
+    completeLiveLifeOnboarding,
+    addClubDebt,
+  } = useGame();
+  const navigate = useNavigate();
+  const {
+    board, team, season, finance, matches, players, transfers, currentDate,
+    seasonCompetitions, livelife,
+  } = state;
 
   const [tab, setTab] = useState<Tab>('confidence');
+  const [showLiveLifeGuide, setShowLiveLifeGuide] = useState(false);
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupMsg, setBackupMsg] = useState('');
   const [showAdvanceConfirm, setShowAdvanceConfirm] = useState(false);
   const [advancedTo, setAdvancedTo] = useState<number | null>(null);
+  const [showLiveLifeModal, setShowLiveLifeModal] = useState(() => currentDate == null);
+  const [careerDate, setCareerDate] = useState(currentDate ?? `${season}-01-01`);
+  const [activateDate, setActivateDate] = useState(`${season}-01-01`);
+  const [dateSaved, setDateSaved] = useState(false);
 
   const primary = team?.primaryColor ?? DEFAULT_PRIMARY;
   const secondary = team?.secondaryColor ?? DEFAULT_SECONDARY;
@@ -58,6 +81,11 @@ export default function Board() {
   const [secondaryColor, setSecondaryColor] = useState(secondary);
   const [budget, setBudget] = useState(String(finance.balance));
   const [clubSaved, setClubSaved] = useState(false);
+  const [debtLabel, setDebtLabel] = useState('Dívida do clube');
+  const [debtAmount, setDebtAmount] = useState('');
+  const [debtMonthly, setDebtMonthly] = useState('');
+  const [debtDay, setDebtDay] = useState('5');
+  const [debtSaved, setDebtSaved] = useState(false);
 
   // Goal form state
   const [goalKind, setGoalKind] = useState<BoardGoalKind>('league_position');
@@ -81,11 +109,27 @@ export default function Board() {
         delta,
         'Ajuste de orçamento pela diretoria',
         season,
+        undefined,
+        currentDate ?? undefined,
       ));
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(careerDate) && careerDate !== currentDate) {
+      setCurrentDate(careerDate);
+      setDateSaved(true);
+      setShowLiveLifeModal(false);
+      setTimeout(() => setDateSaved(false), 2000);
     }
 
     setClubSaved(true);
     setTimeout(() => setClubSaved(false), 2000);
+  }
+
+  function activateLiveLife() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(activateDate)) return;
+    setCurrentDate(activateDate);
+    setCareerDate(activateDate);
+    setShowLiveLifeModal(false);
   }
 
   async function handleBackup() {
@@ -180,6 +224,20 @@ export default function Board() {
   const fanBarColor = fanStatus === 'stable' ? '#22c55e' : fanStatus === 'watchful' ? '#ca8a04' : '#ef4444';
   const fanStatusClass = fanStatus === 'stable' ? styles.statusStable : fanStatus === 'watchful' ? styles.statusWatchful : styles.statusCrisis;
 
+  const liveLifeChecklist = useMemo(() => {
+    const gaps = analyzeLiveLifeGaps({
+      finance,
+      competitions: seasonCompetitions,
+      players,
+      team,
+      currentDate,
+    });
+    // Spec Fase 4: salários, premiação, estádio
+    return gaps.filter(g => g.id === 'salaries' || g.id === 'prizes' || g.id === 'stadium');
+  }, [finance, seasonCompetitions, players, team, currentDate]);
+
+  const checklistDone = liveLifeChecklist.every(g => g.ok);
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -195,6 +253,7 @@ export default function Board() {
           ['goals', 'Metas'],
           ['club', 'Identidade do clube'],
           ['season', 'Temporada'],
+          ['livelife', 'LiveLife'],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -202,6 +261,9 @@ export default function Board() {
             onClick={() => setTab(key)}
           >
             {label}
+            {key === 'livelife' && !livelife.onboardingComplete && !checklistDone && (
+              <span className={styles.tabDot} aria-hidden />
+            )}
           </button>
         ))}
       </div>
@@ -411,6 +473,22 @@ export default function Board() {
           </div>
 
           <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Data base da carreira (LiveLife)</label>
+            <input
+              className={styles.formInput}
+              type="date"
+              value={careerDate}
+              onChange={e => setCareerDate(e.target.value)}
+            />
+            <span style={{ fontSize: 11, color: 'var(--text)' }}>
+              {currentDate
+                ? `Clock ativo: ${new Date(`${currentDate}T12:00:00`).toLocaleDateString('pt-BR')}`
+                : 'Sem data — o modo contínuo está desativado até você definir.'}
+              {dateSaved ? ' · Data salva!' : ''}
+            </span>
+          </div>
+
+          <div className={styles.formGroup}>
             <label className={styles.formLabel}>Descrição do clube</label>
             <textarea
               className={styles.formTextarea}
@@ -428,6 +506,76 @@ export default function Board() {
           </div>
 
           <div className={styles.backupBlock}>
+            <p className={styles.editTitle}>Registrar dívida</p>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>
+              Adiciona uma dívida sem mexer no caixa. Parcela mensal obrigatória no dia escolhido
+              (calendário); ignorar gera juros.
+            </p>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Descrição</label>
+              <input
+                className={styles.formInput}
+                value={debtLabel}
+                onChange={e => setDebtLabel(e.target.value)}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Valor total</label>
+                <input
+                  className={styles.formInput}
+                  type="number"
+                  min={1}
+                  value={debtAmount}
+                  onChange={e => setDebtAmount(e.target.value)}
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Parcela *</label>
+                <input
+                  className={styles.formInput}
+                  type="number"
+                  min={1}
+                  value={debtMonthly}
+                  onChange={e => setDebtMonthly(e.target.value)}
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Dia (1–28)</label>
+                <input
+                  className={styles.formInput}
+                  type="number"
+                  min={1}
+                  max={28}
+                  value={debtDay}
+                  onChange={e => setDebtDay(e.target.value)}
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              className={styles.btnSecondary}
+              onClick={() => {
+                const amt = Math.round(parseFloat(debtAmount.replace(',', '.')) || 0);
+                const monthly = Math.round(parseFloat(debtMonthly.replace(',', '.')) || 0);
+                if (amt < 1 || monthly < 1) return;
+                addClubDebt({
+                  amount: amt,
+                  monthlyInstallment: monthly,
+                  paymentDay: Math.round(parseFloat(debtDay) || 5),
+                  label: debtLabel.trim() || 'Dívida do clube',
+                });
+                setDebtAmount('');
+                setDebtMonthly('');
+                setDebtSaved(true);
+                setTimeout(() => setDebtSaved(false), 2000);
+              }}
+            >
+              {debtSaved ? 'Dívida registrada!' : 'Adicionar dívida'}
+            </button>
+          </div>
+
+          <div className={styles.backupBlock}>
             <p className={styles.editTitle}>Backup</p>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>
               Baixa um ZIP com o save completo da carreira (save.json). Guarde em local seguro.
@@ -441,6 +589,79 @@ export default function Board() {
               {backupBusy ? 'Gerando...' : 'Criar backup (ZIP)'}
             </button>
             {backupMsg && <p style={{ margin: 0, fontSize: 12, color: 'var(--accent)' }}>{backupMsg}</p>}
+          </div>
+        </div>
+      )}
+
+      {tab === 'livelife' && (
+        <div className={styles.liveLifeWrap}>
+          <div className={styles.editCard}>
+            <p className={styles.editTitle}>LiveLife</p>
+            <p className={styles.liveLifeIntro}>
+              Modo de calendário contínuo: avance o dia, gerencie bilheteria, folha e disponibilidade do elenco.
+            </p>
+            <div className={styles.liveLifeActions}>
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                onClick={() => setShowLiveLifeGuide(true)}
+              >
+                Tutorial & Guia LiveLife
+              </button>
+              {!livelife.onboardingComplete && checklistDone && (
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={completeLiveLifeOnboarding}
+                >
+                  Concluir onboarding
+                </button>
+              )}
+              {livelife.onboardingComplete && (
+                <span className={styles.liveLifeBadgeOk}>Guia concluído</span>
+              )}
+            </div>
+          </div>
+
+          <div className={styles.editCard}>
+            <p className={styles.editTitle}>Checklist obrigatório</p>
+            <ul className={styles.checkList}>
+              {liveLifeChecklist.map(item => (
+                <li
+                  key={item.id}
+                  className={`${styles.checkItem} ${item.ok ? styles.checkOk : styles.checkPending}`}
+                >
+                  <div className={styles.checkText}>
+                    <strong>{item.ok ? '✓' : '!'} {item.title}</strong>
+                    <span>{item.detail}</span>
+                  </div>
+                  {!item.ok && (
+                    <button
+                      type="button"
+                      className={styles.checkLink}
+                      onClick={() => navigate(item.href)}
+                    >
+                      Ir →
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className={styles.editCard}>
+            <p className={styles.editTitle}>Changelog</p>
+            <ul className={styles.changelogList}>
+              {LIVELIFE_CHANGELOG.map(entry => (
+                <li key={entry.version} className={styles.changelogItem}>
+                  <div className={styles.changelogHead}>
+                    <span className={styles.changelogVer}>{entry.version}</span>
+                    <span className={styles.changelogTitle}>{entry.title}</span>
+                  </div>
+                  <p className={styles.changelogBody}>{entry.body}</p>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
@@ -550,6 +771,95 @@ export default function Board() {
               </button>
               <button type="button" className={styles.btnPrimary} onClick={confirmAdvanceSeason}>
                 Confirmar → {season + 1}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLiveLifeGuide && (
+        <div className={styles.overlay} onClick={() => setShowLiveLifeGuide(false)}>
+          <div className={`${styles.modal} ${styles.modalWide}`} onClick={e => e.stopPropagation()}>
+            <p className={styles.modalTitle}>Tutorial & Guia LiveLife</p>
+            <ol className={styles.guideList}>
+              <li>
+                <strong>Calendário contínuo</strong>
+                <span>No Dashboard, use Avançar Dia. No dia de jogo aparece Jogar; no dia 5 cobramos a folha.</span>
+              </li>
+              <li>
+                <strong>Salários do elenco</strong>
+                <span>Todo atleta ativo precisa de salário — alimenta a folha mensal.</span>
+              </li>
+              <li>
+                <strong>Premiações</strong>
+                <span>Em Financeiro → Premiações, defina vitória/empate por competição.</span>
+              </li>
+              <li>
+                <strong>Estádio</strong>
+                <span>Em Financeiro → Estádio, capacidade e preços geram bilheteria após cada partida.</span>
+              </li>
+            </ol>
+            <ul className={styles.checkList}>
+              {liveLifeChecklist.map(item => (
+                <li
+                  key={item.id}
+                  className={`${styles.checkItem} ${item.ok ? styles.checkOk : styles.checkPending}`}
+                >
+                  <div className={styles.checkText}>
+                    <strong>{item.ok ? '✓' : '!'} {item.title}</strong>
+                    <span>{item.detail}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btnSecondary} onClick={() => setShowLiveLifeGuide(false)}>
+                Fechar
+              </button>
+              {checklistDone && (
+                <button
+                  type="button"
+                  className={styles.btnPrimary}
+                  onClick={() => {
+                    completeLiveLifeOnboarding();
+                    setShowLiveLifeGuide(false);
+                  }}
+                >
+                  {livelife.onboardingComplete ? 'Ok' : 'Concluir guia'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLiveLifeModal && currentDate == null && (
+        <div className={styles.overlay}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <p className={styles.modalTitle}>Ativar LiveLife</p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text)', lineHeight: 1.45 }}>
+              Esta carreira ainda não tem data base. Defina o dia inicial do calendário contínuo
+              para usar <strong>Avançar Dia</strong> no Dashboard.
+            </p>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Data base da carreira</label>
+              <input
+                className={styles.formInput}
+                type="date"
+                value={activateDate}
+                onChange={e => setActivateDate(e.target.value)}
+              />
+            </div>
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => setShowLiveLifeModal(false)}
+              >
+                Depois
+              </button>
+              <button type="button" className={styles.btnPrimary} onClick={activateLiveLife}>
+                Ativar calendário
               </button>
             </div>
           </div>

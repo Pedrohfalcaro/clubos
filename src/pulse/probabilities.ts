@@ -2,16 +2,16 @@ import type { PulseAthlete, PulseCategory, PulseClub, PulseRarity } from './type
 import { ageBand, pickWeighted } from './utils';
 
 const CATEGORIA_PESOS: Record<Exclude<PulseCategory, 'nenhum'>, number> = {
-  atleta: 30,
-  diretoria: 15,
-  torcida: 15,
+  atleta: 28,
+  diretoria: 14,
+  torcida: 14,
   imprensa: 12,
-  lesao: 10,
-  financeiro: 6,
+  lesao: 11,
+  financeiro: 10,
   familia: 5,
   transferencia: 4,
   patrocinio: 2,
-  escandalo: 1,
+  escandalo: 4,
 };
 
 const RARIDADE_PESOS: Record<PulseRarity, number> = {
@@ -41,7 +41,10 @@ const IDADE_MODS: Record<string, Partial<Record<string, number>>> = {
 const CATEGORIAS_RUINS = new Set(['lesao', 'escandalo', 'imprensa']);
 const CATEGORIAS_BOAS = new Set(['atleta', 'patrocinio', 'familia']);
 
-export type ClubClimate = Pick<PulseClub, 'boardConfidence' | 'supporterConfidence'>;
+export type ClubClimate = Pick<
+  PulseClub,
+  'boardConfidence' | 'supporterConfidence' | 'mediaConfidence'
+>;
 
 function pesoCategoria(
   categoria: string,
@@ -70,6 +73,24 @@ function pesoCategoria(
   if (CATEGORIAS_RUINS.has(categoria)) weight *= Math.max(0.35, 1 - t * 0.55);
   else if (CATEGORIAS_BOAS.has(categoria)) weight *= Math.max(0.45, 1 + t * 0.45);
 
+  // Atacantes em seca → mais torcida/imprensa
+  if (categoria === 'torcida' || categoria === 'imprensa') {
+    const dry = atletasContexto.filter(a => {
+      const pos = String(a.posicao);
+      return (
+        (pos === 'ATA' || pos === 'PE' || pos === 'PD') &&
+        (a.matches ?? 0) >= 8 &&
+        (a.goals ?? 0) === 0
+      );
+    }).length;
+    if (dry > 0) weight *= 1 + Math.min(0.9, dry * 0.35);
+  }
+
+  // Moral baixa média → mais escândalo / lesão / atleta drama
+  if (avgMoral < 45 && (categoria === 'escandalo' || categoria === 'atleta' || categoria === 'lesao')) {
+    weight *= 1.25;
+  }
+
   return applyClubCategoryMod(weight, categoria, club);
 }
 
@@ -87,6 +108,18 @@ function applyClubCategoryMod(
   if (categoria === 'diretoria' && club.boardConfidence != null) {
     const t = Math.abs(club.boardConfidence - 50) / 50;
     return weight * (1 + t * 0.7);
+  }
+  // Mídia hostil → bem mais imprensa (e um pouco de escândalo)
+  if (club.mediaConfidence != null) {
+    const media = club.mediaConfidence;
+    if (categoria === 'imprensa') {
+      if (media <= 25) return weight * 2.4;
+      if (media <= 40) return weight * 1.7;
+      if (media >= 70) return weight * 0.75;
+    }
+    if (categoria === 'escandalo' && media <= 35) {
+      return weight * 1.35;
+    }
   }
   return weight;
 }

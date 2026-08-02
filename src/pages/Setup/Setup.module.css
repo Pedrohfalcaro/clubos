@@ -16,6 +16,151 @@
   max-width: 520px;
 }
 
+.cardWide {
+  max-width: 640px;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 560px) {
+  .fieldRow {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.field select {
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-h);
+  font-size: 14px;
+  outline: none;
+}
+
+.field select:focus {
+  border-color: var(--accent);
+}
+
+.compList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compCard {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.compCardActive {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.compCheck {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.compCheck input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.prizeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 560px) {
+  .prizeGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.prizeField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prizeField label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.prizeField input {
+  padding: 8px 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-h);
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+}
+
+.prizeField input:focus {
+  border-color: var(--accent);
+}
+
+.addCompRow {
+  display: flex;
+  gap: 8px;
+}
+
+.addCompInput {
+  flex: 1;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-h);
+  font-size: 14px;
+  outline: none;
+}
+
+.addCompInput:focus {
+  border-color: var(--accent);
+}
+
+.addCompBtn {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.addCompBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .step {
   font-size: 11px;
   text-transform: uppercase;
@@ -75,6 +220,13 @@
 
 .field input:focus {
   border-color: var(--accent);
+}
+
+.fieldHint {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.75;
+  line-height: 1.4;
 }
 
 .compGrid {

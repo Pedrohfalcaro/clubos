@@ -1,6 +1,8 @@
 # Guia de uso — ClubOS
 
-Companion do Modo Carreira (EA FC / FIFA): você joga a partida no console/PC e registra tudo aqui. O ClubOS cuida das consequências — elenco, caixa, diretoria, transferências e narrativa (Pulse).
+Companion do Modo Carreira (EA FC / FIFA): você joga a partida no console/PC e registra tudo aqui. O ClubOS cuida das consequências — elenco, caixa, diretoria, transferências e narrativa (Pulse + LiveLife).
+
+**LiveLife (v1.2)** — calendário contínuo, bilheteria, lesões no tempo do jogo, ClubOSocial e coletivas: [livelife-v1.2.md](./livelife-v1.2.md).
 
 ---
 
@@ -29,7 +31,7 @@ Em **Criar clube**:
   - **Baixar modelo JSON** → edite fora → **Importar JSON**
   - **Elenco de exemplo** (preenche 13 jogadores)
 - Mínimo: **11 atletas**
-- Depois: manager + competições da temporada
+- Depois: manager + **competições** (data de início LiveLife, premiações, moeda)
 
 **Cores no campo**
 
@@ -43,20 +45,22 @@ Em **Criar clube**:
 
 ### Dashboard
 
-Painel do clube:
+Painel do clube + hub do **LiveLife**:
 
-- **Caixa** (clique) → Finanças
-- **Confiança diretoria / torcida** (clique) → Diretoria
-- Cards **Financeiro · Diretoria · Transferências** com resumo e atalho
-- Próxima partida, V/E/D, artilharia, assistências, notas, últimos jogos
-- Atalhos: Elenco, Agendar, Jogar, Finanças, Diretoria, Transferências, Tática, Pulse
+- Badge da **data do jogo** e CTA principal **Avançar Dia**
+- Em dia de partida: fluxo para Pulse/jogo; atalho **Jogar** e coletiva pré-jogo
+- No **dia 5**: modal de **folha salarial**
+- Em dias sem jogo: chance de **Pulse diário** (modal)
+- **Caixa** (clique) → Finanças · confiança → Diretoria
+- Cards **Financeiro · Diretoria · Transferências**, próxima partida, V/E/D, artilharia, etc.
 
 ---
 
 ### Elenco
 
 - Lista por posição: número, idade, OVR, jogos, gols, assistências, status
-- **Editar**: número, idade, OVR, status, salário, valor de mercado
+- **Editar**: número, idade, OVR, status, salário, valor de mercado, **personalidade**, **moral**
+- Disponibilidade: lesão (dias restantes) e suspensão (partidas + competição) editáveis
 - Status: Titular · Reserva · Promessa · Transferível · Emprestado
 - Mostra salário e valor de mercado (mesma moeda do Financeiro)
 
@@ -88,31 +92,33 @@ Painel do clube:
 
 **Jogar** (fluxo pós-partida no FIFA)
 
-1. Pulse (eventos aleatórios entre jogos — opcional conforme settings)
-2. Escalação (usa tática salva ou monta na hora)
+1. Pulse (eventos aleatórios — pré-partida ou diário)
+2. Escalação (usa tática salva ou monta na hora; lesionados/suspensos bloqueados)
 3. Placar
 4. Gols / assistências / cartões / adversário
-5. Substituições e lesões
+5. Substituições e lesões (com **data de retorno** opcional)
 6. **Notas** — lista compacta com slider, +/−, Destaque ★ e Pior ↓
 7. Resumo **cronológico** — eventos de cada time no lado do campo
 
-Resultados atualizam estatísticas do elenco e **confiança da diretoria** (+ vitória / − derrota).
+Ao finalizar: estatísticas, confiança, **bilheteria/premiação** no extrato, manchete no ClubOSocial e (se fizer) coletiva pós-jogo. Vermelho → suspenso na **mesma competição**.
 
 ---
 
 ### Competições
 
-Lista das competições da temporada (as que você escolheu no setup). Usadas em partidas e na tabela de premiações.
+Lista das competições da temporada (as que você escolheu no setup). Usadas em partidas, premiações e suspensões por competição.
+
+No setup: **Campeonato Nacional** e **Copa Nacional** pré-marcados; opcionais Estadual / Continental; botão para adicionar novas — cada uma com campos de premiação.
 
 ---
 
 ### Pulse
 
-Narrativa dinâmica entre jogos: humor, fadiga, disponibilidade, manchetes.
+Narrativa dinâmica: humor, fadiga, disponibilidade, manchetes.
 
-- Rode o Pulse ligado a uma partida
-- Ajuste intensidade / preferências na página Pulse
-- Eventos podem afetar atletas; patches de caixa/confiança entram quando ligados ao sistema
+- Pré-partida no fluxo do jogo
+- **Diário** ao Avançar Dia (chance em Pulse → Configurações)
+- Eventos podem afetar atletas, caixa e confiança
 
 ---
 
@@ -120,14 +126,18 @@ Narrativa dinâmica entre jogos: humor, fadiga, disponibilidade, manchetes.
 
 | Aba | O que faz |
 |-----|-----------|
-| **Visão geral** | Caixa, folha/mês, runway (meses cobertos), receita/despesa da temporada, últimos lançamentos · **escolhe a moeda** |
-| **Extrato** | Histórico filtrável (receitas, despesas, transferências, folha) |
-| **Folha salarial** | Salário de cada um + edição rápida · **Pagar folha** debita o mês no extrato |
-| **Premiações** | Valores por competição (vitória, empate, eliminatória, campeão) |
+| **Visão geral** | Caixa, folha/mês, runway, receita/despesa, últimos lançamentos · **moeda** |
+| **Extrato** | Histórico filtrável (inclui bilheteria, viagem, operação de estádio) |
+| **Folha salarial** | Salário de cada um · **Pagar folha** (dia 5 no Dashboard). **Adiar** baixa a moral do elenco; pagar sem caixa vira **dívida** (caixa zera) |
+| **Empréstimos** | Crédito bancário (entra no caixa) + parcelas no calendário |
+| **Dívidas** | Passivo do clube; parcela obrigatória no dia escolhido (calendário); ignorar gera ~2,5% de juros |
+| **Patrocínios** | Master / Manga: cota no dia escolhido (calendário), bônus, rescisão, renovação |
+| **Premiações** | Valores por competição (vitória, empate, eliminatória, campeão) — aplicadas ao finalizar jogo |
+| **Estádio** | Capacidade, preços casa/fora, manutenção e viagem (bilheteria automática) |
 
-**Moedas:** Real (R$), Euro (€), Libra (£), Dólar (US$).
+**Moedas:** Real (R$), Euro (€), Libra (£), Dólar (US$). Templates realistas por moeda quando estádio/premiações estão vazios.
 
-**Lançamento manual:** patrocínio, multa, ajuste, etc. — tudo vira linha no extrato. O caixa e o extrato sempre fecham juntos.
+**Lançamento manual:** patrocínio, multa, ajuste, etc. — tudo vira linha no extrato.
 
 ---
 
@@ -135,11 +145,12 @@ Narrativa dinâmica entre jogos: humor, fadiga, disponibilidade, manchetes.
 
 | Aba | O que faz |
 |-----|-----------|
-| **Confiança** | Medidor 0–100 · status Estável / Vigilante / Crise · histórico de variações |
-| **Metas** | Objetivos da temporada (posição, limite de gasto, vendas, folha, título) |
-| **Identidade** | Nome, cores, torcedores, descrição, **editar caixa/orçamento** (diferença = ajuste no extrato) · **Criar backup (ZIP)** do save |
+| **Confiança** | Medidor 0–100 · status Estável / Vigilante / Crise · histórico |
+| **Metas** | Objetivos da temporada |
+| **Identidade** | Nome, cores, torcedores, **data base** LiveLife, caixa/orçamento · **backup ZIP** |
+| **LiveLife** | Tutorial & checklist, changelog v1.0–v1.2, concluir onboarding |
 
-Confiança reage a resultados de partida e à saúde financeira (conforme as regras ligadas no save).
+Confiança reage a resultados, clima do save e saúde financeira.
 
 ---
 
@@ -147,16 +158,50 @@ Confiança reage a resultados de partida e à saúde financeira (conforme as reg
 
 | Aba | O que faz |
 |-----|-----------|
-| **Observação** | Watchlist: jogadores no radar (clube, OVR, valor, notas) · **Contratar** puxa para Operar |
-| **Operar** | Compra · venda · empréstimo (entra/sai) · livre · define taxa, salário, valor |
+| **Observação** | Watchlist: jogadores no radar |
+| **Negociar** | Compra · venda · empréstimo · livre (só com mercado aberto) |
+| **Renovar** | Contrato do elenco o ano inteiro (fora da janela também) |
 | **Histórico** | Movimentos da temporada |
+
+Janelas oficiais: **01/01–31/01** e **01/07–31/08** (aparecem no Calendário).
 
 Regras rápidas:
 
 - **Compra** cria jogador no elenco e debita a taxa
 - **Venda** remove e credita (não exige saldo — você está recebendo)
 - **Empréstimo (sai)** marca `Emprestado`
-- Toda taxa vira lançamento no Financeiro
+- Fora da janela: só **Renovar**
+- Toda taxa vira lançamento no Financeiro; movimentos relevantes geram manchete no ClubOSocial
+
+---
+
+### ClubOSocial (`/social`)
+
+Feed do clube: manchetes automáticas (jogos, transferências, coletivas) e posts do técnico.
+
+**Story Arcs** — em dias sem jogo, o Avançar Dia pode iniciar um arco narrativo (vestiário, imprensa, lesão, diretoria). Cada capítulo vira manchete encadeada; alguns pedem coletiva. Acompanhe no banner do feed ou no filtro **Arcos**.
+
+---
+
+### Coletivas (`/press-conference`)
+
+Entrevistas que alteram torcida, elenco, diretoria e **mídia**, com manchete no ClubOSocial.
+
+| Contexto | Quando aparece no Dashboard |
+|----------|----------------------------|
+| **Pré / pós-jogo** | Dia de partida / após finalizar |
+| **Convocação** | Partida importante nos próximos 3 dias |
+| **Lesão** | Atleta com ≥14 dias de lesão |
+| **Crise financeira** | Caixa crítico (1× por mês) |
+
+Respostas agressivas sobem o **atrito com a imprensa** — ganhos de mídia ficam bem mais difíceis de recuperar.
+
+---
+
+### Manager e Sala de Troféus
+
+- **Pessoal** (`/manager`): bio, notas táticas, contatos
+- **Sala de Troféus** (`/trofeus`): títulos e classificações; 1º lugar ao avançar temporada vira conquista
 
 ---
 
@@ -184,8 +229,8 @@ Finanças/diretoria/mercado do clube são do modo treinador.
 
 ## Dicas rápidas
 
-1. Defina **moeda** e **premiações** cedo no Financeiro.
-2. Use o **Dashboard** como hub — quase tudo tem clique direto.
+1. Use **Avançar Dia** no Dashboard — é o motor do LiveLife.
+2. Confira **estádio**, **premiações** e **salários** (Diretoria → LiveLife tem o checklist).
 3. Prefere elenco grande? Monte um **JSON** com o modelo e importe.
 4. Faça **backup ZIP** antes de experimentos ou troca de dispositivo.
 5. Clubes amarelos: o goleiro **não** fica amarelo (evita confusão visual).
@@ -196,7 +241,7 @@ Finanças/diretoria/mercado do clube são do modo treinador.
 
 | Rota | Seção |
 |------|--------|
-| `/dashboard` | Painel |
+| `/dashboard` | Painel / Avançar Dia |
 | `/squad` | Elenco |
 | `/tactics` | Tática |
 | `/matches` | Registro de partida |
@@ -206,9 +251,13 @@ Finanças/diretoria/mercado do clube são do modo treinador.
 | `/financas` | Financeiro |
 | `/diretoria` | Diretoria |
 | `/transferencias` | Transferências |
+| `/social` | ClubOSocial |
+| `/press-conference` | Coletivas |
+| `/manager` | Manager (pessoal) |
+| `/trofeus` | Sala de Troféus |
 
 ---
 
 ## Em construção (menu “soon”)
 
-Treinamento, sala de troféus, redes sociais, manchetes, coletivas, área pessoal do manager, conquistas — marcados no menu como *soon*.
+Ainda marcados como *soon*: **Treinamento**, perfil social detalhado de **Jogadores**, **Metas** no menu Manager (as metas da Diretoria já existem).

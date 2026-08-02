@@ -304,6 +304,22 @@
   min-width: 0;
 }
 
+.playerChipBlocked {
+  opacity: 0.55;
+  cursor: not-allowed;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.playerChipStatus {
+  font-size: 10px;
+  font-weight: 600;
+  color: #ef4444;
+  line-height: 1.2;
+}
+
 .chipSub {
   font-size: 10px;
   color: var(--text);
@@ -405,6 +421,27 @@
   color: var(--text);
   margin: 0;
   padding: 8px 4px;
+}
+
+.unavailableNote {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.06);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.unavailableLabel {
+  font-weight: 700;
+  color: #f87171;
+}
+
+.unavailableName {
+  color: #fca5a5;
+  font-weight: 600;
 }
 
 .dragging {

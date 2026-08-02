@@ -1250,7 +1250,9 @@
       },
       "efeitos": {
         "status": "indisponivel",
-        "fadiga": 10
+        "fadiga": 10,
+        "gravidade": "leve",
+        "diasFora": 3
       },
       "cadeia": null,
       "cooldown": 8
@@ -1270,7 +1272,8 @@
       "efeitos": {
         "status": "lesionado",
         "moral": -8,
-        "fadiga": 15
+        "fadiga": 15,
+        "gravidade": "media"
       },
       "cadeia": null,
       "cooldown": 12
@@ -1356,10 +1359,32 @@
       },
       "efeitos": {
         "status": "indisponivel",
-        "moral": -6
+        "moral": -6,
+        "gravidade": "media"
       },
       "cadeia": null,
       "cooldown": 14
+    },
+    {
+      "id": "les_ligamento",
+      "categoria": "lesao",
+      "raridade": "muito-raro",
+      "titulo": "Lesão ligamentar",
+      "descricao": "{{atleta}} rompeu ligamento no treino. Previsão de meses fora.",
+      "tags": {
+        "precisaAtleta": true,
+        "status": [
+          "disponivel"
+        ]
+      },
+      "efeitos": {
+        "status": "lesionado",
+        "moral": -20,
+        "fadiga": 40,
+        "gravidade": "grave"
+      },
+      "cadeia": null,
+      "cooldown": 40
     },
     {
       "id": "les_carga_treino",
@@ -2301,6 +2326,10 @@
     "les_ombro": [
       "{{atleta}} fora da partida",
       "Goleiro sob tratamento"
+    ],
+    "les_ligamento": [
+      "{{atleta}} fora por meses",
+      "Lesão grave — longa recuperação"
     ],
     "les_carga_treino": [
       "{{atleta}} preservado no treino"

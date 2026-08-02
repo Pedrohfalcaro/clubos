@@ -2,7 +2,8 @@
 
 Companion do Modo Carreira (EA FC / FIFA): gerencie elenco, táticas, partidas, finanças, diretoria, transferências e narrativa (Pulse). O jogo gera o placar — o ClubOS gera as consequências.
 
-**Guia completo de uso:** [docs/guia-de-uso.md](docs/guia-de-uso.md)
+**Guia completo de uso:** [docs/guia-de-uso.md](docs/guia-de-uso.md)  
+**LiveLife (v1.2):** [docs/livelife-v1.2.md](docs/livelife-v1.2.md)
 
 ## O que tem hoje
 
@@ -10,8 +11,10 @@ Companion do Modo Carreira (EA FC / FIFA): gerencie elenco, táticas, partidas, 
 - Carreira **treinador** e **jogador**
 - Clube custom (cores, escudo, import JSON de elenco)
 - Partidas com notas, recap cronológico e Pulse
-- **Financeiro** (caixa, folha, extrato, premiações, moedas R$/€/£/$)
-- **Diretoria** (confiança, metas, identidade, backup ZIP)
+- **LiveLife** — calendário contínuo (Avançar Dia), bilheteria, lesões temporais, folha no dia 5
+- **ClubOSocial**, coletivas, página do manager e Sala de Troféus
+- **Financeiro** (caixa, folha, extrato, premiações, estádio, moedas R$/€/£/$)
+- **Diretoria** (confiança, metas, identidade, guia LiveLife, backup ZIP)
 - **Transferências** (watchlist, compra/venda/empréstimo)
 - Dashboard com atalhos clicáveis para tudo isso
 
@@ -45,7 +48,9 @@ Publica em `https://pedrohfalcaro.github.io/clubos/`.
 | Doc | Conteúdo |
 |-----|----------|
 | [guia-de-uso.md](docs/guia-de-uso.md) | Como usar cada tela do jogo |
+| [livelife-v1.2.md](docs/livelife-v1.2.md) | Atualização LiveLife (v1.2) |
 | [firebase-setup.md](docs/firebase-setup.md) | Auth Google + Firestore |
 | [documentacao.md](docs/documentacao.md) | Visão / filosofia do produto |
 | [roadmap.md](docs/roadmap.md) | Roadmap |
 | [modo-jogador.md](docs/modo-jogador.md) | Detalhes do modo jogador |
+| [LiveLife - Desenvolvimento/](LiveLife%20-%20Desenvolvimento/) | Plano, contratos e entrega técnica |

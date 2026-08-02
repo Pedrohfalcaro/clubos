@@ -25,14 +25,24 @@ export function getCompetitionCategory(competition: string): CompetitionCategory
   const n = competition.toLowerCase();
 
   if (n.includes('amistoso')) return 'friendly';
-  if (n.includes('paulista') || n.includes('estadual') || n.includes('mineiro') || n.includes('carioca') || n.includes('gaúcho')) {
+  if (
+    n.includes('paulista') ||
+    n.includes('estadual') ||
+    n.includes('mineiro') ||
+    n.includes('carioca') ||
+    n.includes('gaúcho') ||
+    n.includes('gaucho')
+  ) {
     return 'state';
   }
-  if (n.includes('copa do brasil') || (n.includes('copa') && !n.includes('libertadores') && !n.includes('sul-americana'))) {
+  if (n.includes('copa continental') || n.includes('libertadores') || n.includes('sul-americana') || n.includes('champions') || n.includes('europa league')) {
+    return 'continental';
+  }
+  if (n.includes('copa nacional') || n.includes('copa do brasil')) {
     return 'national_cup';
   }
-  if (n.includes('libertadores') || n.includes('sul-americana') || n.includes('continental') || n.includes('champions')) {
-    return 'continental';
+  if (n.includes('copa') && !n.includes('libertadores') && !n.includes('sul-americana') && !n.includes('continental')) {
+    return 'national_cup';
   }
   if (n.includes('brasileiro') || n.includes('campeonato nacional')) return 'national';
   if (n.includes('campeonato')) return 'national';
@@ -65,7 +75,12 @@ export function competitionLabel(
 }
 
 /** Mês inicial: primeiro jogo ainda não jogado; senão, último já disputado. */
-export function getInitialCalendarDate(matches: Match[]): Date {
+export function getInitialCalendarDate(matches: Match[], gameDate?: string | null): Date {
+  if (gameDate && /^\d{4}-\d{2}-\d{2}$/.test(gameDate.slice(0, 10))) {
+    const [y, m] = gameDate.slice(0, 10).split('-').map(Number);
+    if (y && m) return new Date(y, m - 1, 1);
+  }
+
   const scheduled = matches
     .filter(m => m.status === 'scheduled')
     .sort((a, b) => a.date.localeCompare(b.date));

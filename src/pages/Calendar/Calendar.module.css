@@ -99,12 +99,25 @@
 }
 
 .dayToday {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.dayGameClock {
+  border-color: #3dcc9c;
+  box-shadow: inset 0 0 0 1px rgba(61, 204, 156, 0.35);
 }
 
 .dayHasMatch {
-  background: rgba(170, 59, 255, 0.04);
+  background: rgba(61, 204, 156, 0.04);
   min-height: 132px;
+}
+
+.dayWindow {
+  background: linear-gradient(
+    180deg,
+    rgba(56, 189, 248, 0.08) 0%,
+    rgba(56, 189, 248, 0.02) 100%
+  );
 }
 
 .dayHeader {
@@ -187,6 +200,181 @@
   cursor: pointer;
   text-align: left;
   box-sizing: border-box;
+}
+
+.transferCard,
+.loanCard,
+.payrollCard,
+.presentCard,
+.debtCard,
+.sponsorCard,
+.windowCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 5px 6px;
+  border: 1px solid #1e3a32;
+  border-left: 3px solid #3dcc9c;
+  background: rgba(61, 204, 156, 0.1);
+  color: var(--text-h);
+  cursor: pointer;
+  font: inherit;
+  border-radius: 4px;
+}
+
+.transferCard:hover {
+  background: rgba(61, 204, 156, 0.18);
+}
+
+.payrollCard {
+  border-color: #3a2e1e;
+  border-left-color: #e0a84a;
+  background: rgba(224, 168, 74, 0.12);
+}
+
+.payrollCard:hover {
+  background: rgba(224, 168, 74, 0.2);
+}
+
+.loanCard {
+  border-color: #2a2840;
+  border-left-color: #8b7cf8;
+  background: rgba(139, 124, 248, 0.12);
+}
+
+.loanCard:hover {
+  background: rgba(139, 124, 248, 0.2);
+}
+
+.presentCard {
+  border-color: #1e2e3a;
+  border-left-color: #5eb0e8;
+  background: rgba(94, 176, 232, 0.12);
+}
+
+.presentCard:hover {
+  background: rgba(94, 176, 232, 0.2);
+}
+
+.debtCard {
+  border-color: #3a1e1e;
+  border-left-color: #ef6b6b;
+  background: rgba(239, 107, 107, 0.12);
+}
+
+.debtCard:hover {
+  background: rgba(239, 107, 107, 0.2);
+}
+
+.sponsorCard {
+  border-color: #1e3a2a;
+  border-left-color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.sponsorCard:hover {
+  background: rgba(74, 222, 128, 0.18);
+}
+
+.windowCard {
+  border-color: #1e2e3a;
+  border-left-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.windowCard:hover {
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.transferTag,
+.payrollTag,
+.loanTag,
+.presentTag,
+.debtTag,
+.sponsorTag,
+.windowTag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #3dcc9c;
+}
+
+.payrollTag {
+  color: #e0a84a;
+}
+
+.loanTag {
+  color: #8b7cf8;
+}
+
+.presentTag {
+  color: #5eb0e8;
+}
+
+.debtTag {
+  color: #ef6b6b;
+}
+
+.sponsorTag {
+  color: #4ade80;
+}
+
+.windowTag {
+  color: #38bdf8;
+}
+
+.transferName {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transferMeta {
+  font-size: 10px;
+  color: var(--text);
+}
+
+.legendTransfer,
+.legendPayroll,
+.legendLoan,
+.legendPresent,
+.legendWindow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: 2px 4px;
+  margin-right: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #3dcc9c;
+  border: 1px solid #1e3a32;
+  border-radius: 3px;
+}
+
+.legendPayroll {
+  color: #e0a84a;
+  border-color: #3a2e1e;
+}
+
+.legendLoan {
+  color: #8b7cf8;
+  border-color: #2a2840;
+}
+
+.legendPresent {
+  color: #5eb0e8;
+  border-color: #1e2e3a;
+}
+
+.legendWindow {
+  color: #38bdf8;
+  border-color: #1e2e3a;
 }
 
 .matchCard:hover {

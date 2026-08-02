@@ -209,6 +209,29 @@
   color: var(--accent);
 }
 
+.injuryBtn {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.injuryBtn:hover {
+  border-color: rgba(239, 68, 68, 0.6);
+  background: rgba(239, 68, 68, 0.16);
+}
+
+.injuryError {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f87171;
+}
+
 .subDetail {
   margin: 0;
   font-size: 13px;

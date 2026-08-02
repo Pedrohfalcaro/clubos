@@ -22,6 +22,10 @@ import PulseMatch from './pages/PulseMatch/PulseMatch';
 import PulsePage from './pages/Pulse/Pulse';
 import Competitions from './pages/Competitions/Competitions';
 import UnderConstruction from './pages/UnderConstruction/UnderConstruction';
+import Social from './pages/Social/Social';
+import PressConference from './pages/PressConference/PressConference';
+import ManagerPage from './pages/Manager/Manager';
+import Trophies from './pages/Trophies/Trophies';
 import Finance from './pages/Finance/Finance';
 import Board from './pages/Board/Board';
 import Transfers from './pages/Transfers/Transfers';
@@ -76,6 +80,16 @@ function CoachRoutes() {
         <Route path="/financas" element={<Finance />} />
         <Route path="/diretoria" element={<Board />} />
         <Route path="/transferencias" element={<Transfers />} />
+        <Route path="/social" element={<Social />} />
+        <Route path="/press-conference" element={<PressConference />} />
+        <Route path="/manager" element={<ManagerPage />} />
+        <Route path="/trofeus" element={<Trophies />} />
+        <Route path="/under/redes-sociais" element={<Navigate to="/social" replace />} />
+        <Route path="/under/manchetes" element={<Navigate to="/social" replace />} />
+        <Route path="/under/coletivas" element={<Navigate to="/press-conference" replace />} />
+        <Route path="/under/pessoal" element={<Navigate to="/manager" replace />} />
+        <Route path="/under/trofeus" element={<Navigate to="/trofeus" replace />} />
+        <Route path="/under/conquistas" element={<Navigate to="/trofeus" replace />} />
         <Route path="/under/:section" element={<UnderConstruction />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>

@@ -69,6 +69,24 @@ export const PERSONALIDADES = [
   'Disciplinado',
 ] as const;
 
+export type Personality = (typeof PERSONALIDADES)[number];
+
+/** Texto curto para UI / guia do JSON — alinhado aos mods do Pulse. */
+export const PERSONALITY_DESCRIPTIONS: Record<Personality, string> = {
+  Líder: 'Influencia o grupo; mais eventos de atleta, diretoria e torcida.',
+  Veterano: 'Experiente; mais eventos de família e lesão.',
+  Promessa: 'Jovem em ascensão; mais transferência, imprensa e atleta.',
+  Temperamental: 'Estoura fácil; mais escândalo, imprensa e torcida.',
+  Vaidoso: 'Gosta dos holofotes; mais imprensa, patrocínio e escândalo.',
+  Ambicioso: 'Quer subir; mais transferência, financeiro e diretoria.',
+  Reservado: 'Discreto; mais família/atleta e menos escândalo.',
+  Disciplinado: 'Profissional; mais atleta, menos lesão e escândalo.',
+};
+
+export function isPersonality(value: unknown): value is Personality {
+  return typeof value === 'string' && (PERSONALIDADES as readonly string[]).includes(value);
+}
+
 export const CATEGORIA_LABELS: Record<string, string> = {
   atleta: 'Atleta',
   diretoria: 'Diretoria',

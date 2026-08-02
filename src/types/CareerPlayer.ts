@@ -69,6 +69,7 @@ export function emptyPlayerStats(): PlayerStats {
     goals: 0,
     assists: 0,
     cleanSheets: 0,
+    goalsConceded: 0,
     yellowCards: 0,
     redCards: 0,
   };

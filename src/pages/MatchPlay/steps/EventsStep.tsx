@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import MinuteInput from '../../../components/MinuteInput/MinuteInput';
 import SearchableSelect from '../../../components/SearchableSelect/SearchableSelect';
+import { useGame } from '../../../context/GameContext';
 import type { Player } from '../../../types/Player';
 import type {
   MatchMinute,
@@ -8,6 +9,7 @@ import type {
   TeamCardEntry,
   TeamInjuryEntry,
 } from '../../../types/Match';
+import { addDaysIso } from '../../../livelife';
 import { defaultMinute, formatMinute, uid } from '../../../utils/matchEvents';
 import {
   getBenchAvailableIds,
@@ -40,12 +42,17 @@ export default function EventsStep({
   injuries,
   onInjuriesChange,
 }: EventsStepProps) {
+  const { state } = useGame();
   const [form, setForm] = useState<FormKind>(null);
   const [playerId, setPlayerId] = useState('');
   const [playerOutId, setPlayerOutId] = useState('');
   const [playerInId, setPlayerInId] = useState('');
   const [minute, setMinute] = useState<MatchMinute>(defaultMinute());
   const [note, setNote] = useState('');
+  const [returnDate, setReturnDate] = useState(() => {
+    const base = state.currentDate ?? new Date().toISOString().slice(0, 10);
+    return addDaysIso(base, 14);
+  });
 
   const fieldIds = useMemo(
     () => getFieldPlayerIds(starters, teamSubs, injuries),
@@ -77,6 +84,8 @@ export default function EventsStep({
     setPlayerInId('');
     setMinute(defaultMinute());
     setNote('');
+    const base = state.currentDate ?? new Date().toISOString().slice(0, 10);
+    setReturnDate(addDaysIso(base, 14));
   }
 
   function resolve(id: string) {
@@ -101,7 +110,7 @@ export default function EventsStep({
 
   function submitInjury() {
     const p = resolve(playerId);
-    if (!p || !fieldIds.has(playerId)) return;
+    if (!p || !fieldIds.has(playerId) || !returnDate) return;
     onInjuriesChange([
       ...injuries,
       {
@@ -110,6 +119,7 @@ export default function EventsStep({
         playerName: p.name,
         minute,
         note: note.trim() || undefined,
+        returnDate,
       },
     ]);
     resetForm();
@@ -156,7 +166,7 @@ export default function EventsStep({
             Cartão vermelho
           </button>
           <button type="button" className={styles.eventBtn} onClick={() => setForm('injury')}>
-            <span className={styles.eventIcon}>✚</span>
+            <span className={styles.eventIconInjury} aria-hidden>✚</span>
             Lesão
           </button>
           <button type="button" className={styles.eventBtn} onClick={() => setForm('sub')}>
@@ -202,15 +212,21 @@ export default function EventsStep({
 
       {form === 'injury' && (
         <div className={styles.formSheet}>
-          <h3 className={styles.formSheetTitle}>Lesão</h3>
+          <h3 className={styles.formSheetTitle}>Registrar lesão</h3>
+          <p className={styles.formSheetHint}>
+            Escolha o atleta em campo e a data de retorno. Sem jogador, a lesão não é salva.
+          </p>
           <div className={styles.field}>
-            <label>Jogador em campo</label>
+            <label>Jogador em campo *</label>
             <SearchableSelect
               options={fieldOptions}
               value={playerId}
               onChange={setPlayerId}
-              placeholder="Selecionar..."
+              placeholder="Selecionar atleta..."
             />
+            {!playerId && (
+              <span className={styles.fieldError}>Selecione o jogador lesionado</span>
+            )}
           </div>
           <div className={styles.field}>
             <label>Minuto</label>
@@ -225,6 +241,17 @@ export default function EventsStep({
               placeholder="Ex: entorse no tornozelo"
             />
           </div>
+          <div className={styles.field}>
+            <label>Retorno previsto *</label>
+            <input
+              className={styles.input}
+              type="date"
+              value={returnDate}
+              min={state.currentDate ?? undefined}
+              onChange={e => setReturnDate(e.target.value)}
+              required
+            />
+          </div>
           <div className={styles.formActions}>
             <button type="button" className={styles.ghostBtn} onClick={resetForm}>
               Cancelar
@@ -232,10 +259,10 @@ export default function EventsStep({
             <button
               type="button"
               className={styles.primaryBtn}
-              disabled={!playerId}
+              disabled={!playerId || !returnDate}
               onClick={submitInjury}
             >
-              Adicionar
+              Confirmar lesão
             </button>
           </div>
         </div>
@@ -302,13 +329,19 @@ export default function EventsStep({
         ))}
         {injuries.map(i => (
           <div key={i.id} className={styles.eventItem}>
-            <span className={styles.eventItemIcon}>✚</span>
+            <span className={styles.eventItemIconInjury} aria-hidden>✚</span>
             <div className={styles.eventItemBody}>
-              <p className={styles.eventItemTitle}>{i.playerName}</p>
+              <p className={styles.eventItemTitle}>{i.playerName || 'Sem jogador'}</p>
               <p className={styles.eventItemMeta}>
                 {formatMinute(i.minute)}
-                {i.note ? ` · ${i.note}` : ' · Lesão'}
+                {i.note ? ` · ${i.note}` : ''}
+                {i.returnDate
+                  ? ` · retorno ${new Date(`${i.returnDate}T12:00:00`).toLocaleDateString('pt-BR')}`
+                  : ' · retorno pendente'}
               </p>
+              {!i.playerId && (
+                <p className={styles.eventItemError}>Defina o jogador ou remova esta lesão</p>
+              )}
             </div>
             <button
               type="button"

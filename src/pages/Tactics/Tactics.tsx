@@ -95,7 +95,15 @@ export default function Tactics() {
     isNewDraft ||
     signature(draft) !== signature(savedDraft) ||
     (name.trim() || 'Tática') !== (selected?.name ?? '');
-  const warnings = lineupWarnings(draft.formation, draft.formationKey, players, draft.bench);
+  const gameDate = state.currentDate;
+  const warnings = lineupWarnings(
+    draft.formation,
+    draft.formationKey,
+    players,
+    draft.bench,
+    null,
+    gameDate,
+  );
   const average = lineupAverageOverall(draft.formation, players);
   const canAdd = presets.length < MAX_TACTICS_PRESETS;
 
@@ -117,7 +125,7 @@ export default function Tactics() {
   }
 
   function handleAutoFill() {
-    const best = buildBestLineup(draft.formationKey, players, 7);
+    const best = buildBestLineup(draft.formationKey, players, 7, null, gameDate);
     setDraft(current => ({ ...current, ...best }));
   }
 
@@ -153,7 +161,7 @@ export default function Tactics() {
     // Preenche XI pra já poder persistir (normalize rejeita tática vazia)
     const filled =
       players.length > 0
-        ? { ...base, ...buildBestLineup(base.formationKey, players, 7) }
+        ? { ...base, ...buildBestLineup(base.formationKey, players, 7, null, gameDate) }
         : base;
     const nameStr = `Tática ${presets.length + 1}`;
 

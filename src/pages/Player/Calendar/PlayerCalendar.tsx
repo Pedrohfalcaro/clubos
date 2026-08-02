@@ -37,7 +37,9 @@ function letterClass(result: Match['result']): string {
 export default function PlayerCalendar() {
   const navigate = useNavigate();
   const { state, schedulePlayerMatch } = useGame();
-  const [viewDate, setViewDate] = useState(() => getInitialCalendarDate(state.matches));
+  const [viewDate, setViewDate] = useState(() =>
+    getInitialCalendarDate(state.matches, state.currentDate),
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
   const [recapMatch, setRecapMatch] = useState<Match | null>(null);
@@ -184,7 +186,7 @@ export default function PlayerCalendar() {
         onClose={() => setModalOpen(false)}
         onSubmit={data => schedulePlayerMatch(data)}
         competitions={competitionNames(comps)}
-        initialDate={selectedDate}
+        initialDate={selectedDate || state.currentDate || undefined}
         title="Agendar Partida"
       />
 

@@ -372,6 +372,21 @@
   padding: 16px;
 }
 
+.lineupWarnList {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  list-style: none;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+  color: #fca5a5;
+  font-size: 13px;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .lineupHead {
   display: flex;
   align-items: center;

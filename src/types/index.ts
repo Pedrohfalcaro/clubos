@@ -1,4 +1,5 @@
 export type { Team, TeamStatistics } from './Team';
+export type { TeamAchievement } from './Achievement';
 export type { Player, PlayerStats, PlayerStatus, PlayerPosition } from './Player';
 export type {
   Match,
@@ -13,7 +14,7 @@ export type {
   CompleteMatchInput,
 } from './Match';
 export type { Competition, StandingsEntry } from './Competition';
-export type { Manager } from './Manager';
+export type { Manager, ManagerAward } from './Manager';
 export type {
   FormationSlot,
   SavedTactics,

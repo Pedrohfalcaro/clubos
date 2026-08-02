@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Tutorial from '../../components/Tutorial/Tutorial';
 import ClubCrest from '../../components/ClubCrest/ClubCrest';
@@ -7,7 +7,23 @@ import { calcPlayerAverageRating, getHomeAway, locationLabel } from '../../utils
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
 import { WELCOME_TUTORIAL, hasSeenWelcome, markWelcomeSeen } from '../../utils/tutorials';
 import { formatMoney, wageBill, runwayMonths } from '../../utils/finance';
+import { suggestPayrollBridgeLoan } from '../../utils/clubLoans';
+import {
+  debtsWithInstallmentDue,
+  DEBT_SKIP_INTEREST_RATE,
+  PAYROLL_DELAY_MORALE_HIT,
+} from '../../utils/clubDebts';
+import { analyzeLiveLifeGaps } from '../../utils/livelifeTemplates';
 import { boardStatus } from '../../types/Board';
+import { findMatchOnDate, formatGameDate } from '../../livelife';
+import { CATEGORIA_LABELS, RARIDADE_LABELS } from '../../pulse';
+import { paymentsDueOnDate } from '../../utils/transferPayments';
+import { loanPaymentsDueOnDate } from '../../utils/clubLoans';
+import {
+  findCallupPressOpportunity,
+  findFinancePressOpportunity,
+  findInjuryPressOpportunity,
+} from '../../utils/pressTriggers';
 import {
   scopeOptions,
   teamStatsForScope,
@@ -19,6 +35,7 @@ import {
   type HistoryScope,
 } from '../../utils/historyScope';
 import styles from './Dashboard.module.css';
+import pulseStyles from '../PulseMatch/PulseMatch.module.css';
 
 function resultLabel(result: string | null): { text: string; className: string } {
   if (result === 'win') return { text: 'V', className: styles.resWin };
@@ -74,9 +91,47 @@ const BOARD_STATUS_LABEL = {
 };
 
 export default function Dashboard() {
-  const { state } = useGame();
+  const {
+    state,
+    advanceDay,
+    rewindDay,
+    payWages,
+    payWagesWithBridgeLoan,
+    dismissPayroll,
+    dismissLiveLifePrompt,
+    dismissDailyPulse,
+    payTransferPayment,
+    dismissTransferPayments,
+    payLoanPayment,
+    dismissLoanPayments,
+    payClubDebt,
+    dismissDebtPayments,
+  } = useGame();
   const navigate = useNavigate();
-  const { team, matches, manager, finance, board, transfers, players, seasonHistory } = state;
+  const {
+    team, matches, manager, finance, board, transfers, players, seasonHistory, currentDate, payrollDue,
+    liveLifePromptPending, seasonCompetitions, pendingDailyPulse, transferPaymentsDue, loanPaymentsDue,
+    debtPaymentsDue,
+  } = state;
+  const dueTransferPayments = useMemo(
+    () =>
+      currentDate
+        ? paymentsDueOnDate(transfers.pendingPayments ?? [], currentDate)
+        : [],
+    [currentDate, transfers.pendingPayments],
+  );
+  const dueLoanPayments = useMemo(
+    () =>
+      currentDate
+        ? loanPaymentsDueOnDate(finance.loanPayments ?? [], currentDate)
+        : [],
+    [currentDate, finance.loanPayments],
+  );
+  const dueDebtInstallments = useMemo(
+    () =>
+      currentDate ? debtsWithInstallmentDue(finance.debts ?? [], currentDate) : [],
+    [currentDate, finance.debts],
+  );
   const [showWelcome, setShowWelcome] = useState(() => !hasSeenWelcome());
   const [histScope, setHistScope] = useState<HistoryScope>('current');
 
@@ -101,6 +156,76 @@ export default function Dashboard() {
         .sort((a, b) => a.date.localeCompare(b.date))[0],
     [matches],
   );
+  const todayMatch = useMemo(
+    () => (currentDate ? findMatchOnDate(matches, currentDate) : null),
+    [matches, currentDate],
+  );
+  const pressPreAvailable =
+    !!todayMatch &&
+    todayMatch.status === 'scheduled' &&
+    !(state.livelife.pressPreDoneDates ?? []).includes(todayMatch.date.slice(0, 10));
+  const postMatchPending = useMemo(() => {
+    if (!currentDate) return null;
+    const done = new Set(state.livelife.pressPostDoneMatchIds ?? []);
+    return (
+      matches
+        .filter(
+          m =>
+            m.status === 'completed' &&
+            m.date.slice(0, 10) === currentDate.slice(0, 10) &&
+            !done.has(m.id),
+        )
+        .sort((a, b) => b.date.localeCompare(a.date))[0] ?? null
+    );
+  }, [matches, currentDate, state.livelife.pressPostDoneMatchIds]);
+
+  const callupPress = useMemo(
+    () =>
+      findCallupPressOpportunity({
+        matches,
+        currentDate,
+        livelife: state.livelife,
+      }),
+    [matches, currentDate, state.livelife],
+  );
+  const injuryPress = useMemo(
+    () =>
+      findInjuryPressOpportunity({
+        players,
+        currentDate,
+        livelife: state.livelife,
+      }),
+    [players, currentDate, state.livelife],
+  );
+  const financePress = useMemo(
+    () =>
+      findFinancePressOpportunity({
+        finance,
+        players,
+        currentDate,
+        livelife: state.livelife,
+      }),
+    [finance, players, currentDate, state.livelife],
+  );
+
+  function handleAdvanceDay() {
+    if (!currentDate) {
+      navigate('/diretoria');
+      return;
+    }
+    const result = advanceDay();
+    if (result.matchId) {
+      navigate(`/match/${result.matchId}/pulse`);
+    }
+  }
+
+  function handleRewindDay() {
+    if (!currentDate) {
+      navigate('/diretoria');
+      return;
+    }
+    rewindDay();
+  }
 
   const topScorers = useMemo(
     () =>
@@ -134,7 +259,35 @@ export default function Dashboard() {
   }, [players, scopedMatches]);
 
   const bill = useMemo(() => wageBill(players), [players]);
+  const payrollBridge = useMemo(
+    () =>
+      suggestPayrollBridgeLoan({
+        balance: finance.balance,
+        wageBill: bill,
+        gameDate: currentDate ?? new Date().toISOString().slice(0, 10),
+      }),
+    [finance.balance, bill, currentDate],
+  );
   const runway = useMemo(() => runwayMonths(finance, players), [finance, players]);
+  const liveLifeGaps = useMemo(
+    () =>
+      analyzeLiveLifeGaps({
+        finance,
+        competitions: seasonCompetitions,
+        players,
+        team,
+        currentDate,
+      }),
+    [finance, seasonCompetitions, players, team, currentDate],
+  );
+  const pendingGaps = liveLifeGaps.filter(g => !g.ok);
+
+  useEffect(() => {
+    if (liveLifePromptPending && pendingGaps.length === 0) {
+      dismissLiveLifePrompt();
+    }
+  }, [liveLifePromptPending, pendingGaps.length, dismissLiveLifePrompt]);
+
   const scopedFinance = useMemo(
     () => financeForScope(finance, histScope, seasonHistory, state.season),
     [finance, histScope, seasonHistory, state.season],
@@ -188,6 +341,13 @@ export default function Dashboard() {
                 {manager ? ` · ${manager.name}` : ''}
               </p>
               <h1 className={styles.heroTitle}>{team.name}</h1>
+              {currentDate ? (
+                <p className={styles.dateBadge} title="Data atual do jogo">
+                  {formatGameDate(currentDate, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                </p>
+              ) : (
+                <p className={styles.dateBadgeMuted}>LiveLife inativo — defina a data na Diretoria</p>
+              )}
             </div>
           </div>
           <button
@@ -211,6 +371,11 @@ export default function Dashboard() {
             value={team.supporterConfidence}
             onClick={() => navigate('/diretoria')}
           />
+          <ConfidenceMeter
+            label="Mídia"
+            value={team.mediaConfidence ?? 50}
+            onClick={() => navigate('/press-conference')}
+          />
         </div>
       </header>
 
@@ -226,14 +391,20 @@ export default function Dashboard() {
         <button
           type="button"
           className={styles.quickBtn}
-          onClick={() =>
-            nextMatch
-              ? navigate(`/match/${nextMatch.id}/pulse`)
-              : navigate('/matches')
-          }
+          onClick={handleRewindDay}
+          disabled={!currentDate}
+          title="Voltar um dia"
+        >
+          <span className={styles.quickIcon}>◀</span>
+          Voltar Dia
+        </button>
+        <button
+          type="button"
+          className={`${styles.quickBtn} ${styles.quickBtnPrimary}`}
+          onClick={handleAdvanceDay}
         >
           <span className={styles.quickIcon}>▶</span>
-          {nextMatch ? 'Jogar' : 'Partidas'}
+          Avançar Dia
         </button>
         <button type="button" className={styles.quickBtn} onClick={() => navigate('/financas')}>
           <span className={styles.quickIcon}>$</span>
@@ -272,32 +443,51 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {nextMatch && isCurrentScope ? (
-        <button
-          type="button"
-          className={styles.nextMatch}
-          onClick={() => navigate(`/match/${nextMatch.id}/pulse`)}
-        >
-          <div className={styles.nextMatchLeft}>
-            <span className={styles.nextMatchLabel}>Próxima partida</span>
-            <span className={styles.nextMatchTeams}>
-              {team.name} <span className={styles.nextVs}>×</span> {nextMatch.opponent}
+      {isCurrentScope && (
+        <div className={styles.dayControls}>
+          <button
+            type="button"
+            className={styles.rewindDayBtn}
+            onClick={handleRewindDay}
+            disabled={!currentDate}
+            title="Voltar um dia no calendário"
+          >
+            ← Voltar Dia
+          </button>
+          <button
+            type="button"
+            className={styles.advanceDayBanner}
+            onClick={handleAdvanceDay}
+          >
+            <div className={styles.nextMatchLeft}>
+              <span className={styles.nextMatchLabel}>
+                {currentDate ? 'LiveLife' : 'LiveLife — ativar'}
+              </span>
+              <span className={styles.nextMatchTeams}>
+                {todayMatch
+                  ? `Dia de jogo · ${todayMatch.opponent}`
+                  : currentDate
+                    ? 'Avançar Dia'
+                    : 'Definir data base'}
+              </span>
+              <span className={styles.nextMatchMeta}>
+                {currentDate
+                  ? todayMatch
+                    ? `Partida agendada para hoje · ${todayMatch.competition} · ${locationLabel(todayMatch.location)}`
+                    : nextMatch
+                      ? `Próximo jogo: ${nextMatch.opponent} em ${formatGameDate(nextMatch.date)}`
+                      : 'Nenhuma partida agendada — avance o calendário ou agende um jogo'
+                  : 'Abra a Diretoria e escolha a data inicial do calendário contínuo'}
+              </span>
+            </div>
+            <span className={styles.nextMatchCta}>
+              {todayMatch ? 'Jogar →' : currentDate ? 'Avançar →' : 'Ativar →'}
             </span>
-            <span className={styles.nextMatchMeta}>
-              {new Date(nextMatch.date).toLocaleDateString('pt-BR', {
-                weekday: 'short',
-                day: '2-digit',
-                month: 'short',
-              })}
-              {' · '}
-              {nextMatch.competition}
-              {' · '}
-              {locationLabel(nextMatch.location)}
-            </span>
-          </div>
-          <span className={styles.nextMatchCta}>Jogar →</span>
-        </button>
-      ) : isCurrentScope ? (
+          </button>
+        </div>
+      )}
+
+      {isCurrentScope && !nextMatch && !todayMatch ? (
         <button
           type="button"
           className={styles.nextMatchEmpty}
@@ -306,6 +496,133 @@ export default function Dashboard() {
           Nenhuma partida agendada — <strong>agendar agora</strong>
         </button>
       ) : null}
+
+      {isCurrentScope && pressPreAvailable && todayMatch && (
+        <button
+          type="button"
+          className={styles.pressCta}
+          onClick={() =>
+            navigate(`/press-conference?ctx=pre&matchId=${todayMatch.id}`)
+          }
+        >
+          <span className={styles.pressCtaLabel}>Coletiva pré-jogo</span>
+          <span className={styles.pressCtaMain}>
+            vs <strong>{todayMatch.opponent}</strong> — falar com a imprensa
+          </span>
+          <span className={styles.pressCtaGo}>Abrir →</span>
+        </button>
+      )}
+
+      {isCurrentScope && postMatchPending && (
+        <button
+          type="button"
+          className={`${styles.pressCta} ${styles.pressCtaPost}`}
+          onClick={() =>
+            navigate(`/press-conference?ctx=post&matchId=${postMatchPending.id}`)
+          }
+        >
+          <span className={styles.pressCtaLabel}>Coletiva pós-jogo</span>
+          <span className={styles.pressCtaMain}>
+            vs <strong>{postMatchPending.opponent}</strong> — declarar
+          </span>
+          <span className={styles.pressCtaGo}>Abrir →</span>
+        </button>
+      )}
+
+      {isCurrentScope && callupPress && (
+        <button
+          type="button"
+          className={`${styles.pressCta} ${styles.pressCtaSpecial}`}
+          onClick={() =>
+            navigate(
+              `/press-conference?ctx=callup&matchId=${callupPress.match.id}&key=${encodeURIComponent(callupPress.key)}`,
+            )
+          }
+        >
+          <span className={styles.pressCtaLabel}>Coletiva · convocação</span>
+          <span className={styles.pressCtaMain}>
+            Lista para vs <strong>{callupPress.match.opponent}</strong>
+          </span>
+          <span className={styles.pressCtaGo}>Abrir →</span>
+        </button>
+      )}
+
+      {isCurrentScope && injuryPress && (
+        <button
+          type="button"
+          className={`${styles.pressCta} ${styles.pressCtaSpecial}`}
+          onClick={() =>
+            navigate(
+              `/press-conference?ctx=injury&playerId=${injuryPress.player.id}&key=${encodeURIComponent(injuryPress.key)}`,
+            )
+          }
+        >
+          <span className={styles.pressCtaLabel}>Coletiva · lesão</span>
+          <span className={styles.pressCtaMain}>
+            <strong>{injuryPress.player.name}</strong>
+            {injuryPress.player.injuryDaysRemaining != null
+              ? ` · ~${injuryPress.player.injuryDaysRemaining} dias`
+              : ''}
+          </span>
+          <span className={styles.pressCtaGo}>Abrir →</span>
+        </button>
+      )}
+
+      {isCurrentScope && financePress && (
+        <button
+          type="button"
+          className={`${styles.pressCta} ${styles.pressCtaSpecial}`}
+          onClick={() =>
+            navigate(
+              `/press-conference?ctx=finance&key=${encodeURIComponent(financePress.key)}`,
+            )
+          }
+        >
+          <span className={styles.pressCtaLabel}>Coletiva · crise financeira</span>
+          <span className={styles.pressCtaMain}>{financePress.reason}</span>
+          <span className={styles.pressCtaGo}>Abrir →</span>
+        </button>
+      )}
+
+      {isCurrentScope && state.social.activeArc?.pendingPress && (
+        <button
+          type="button"
+          className={`${styles.pressCta} ${styles.pressCtaArc}`}
+          onClick={() => {
+            const arc = state.social.activeArc!;
+            const ctx = arc.pendingPressContext ?? 'story_arc';
+            if (ctx === 'injury' && arc.playerId) {
+              navigate(
+                `/press-conference?ctx=injury&playerId=${arc.playerId}&key=${encodeURIComponent(`arc-injury:${arc.id}`)}`,
+              );
+              return;
+            }
+            navigate(`/press-conference?ctx=${ctx === 'story_arc' ? 'arc' : ctx}`);
+          }}
+        >
+          <span className={styles.pressCtaLabel}>Coletiva · arco</span>
+          <span className={styles.pressCtaMain}>
+            <strong>{state.social.activeArc.title}</strong> — a imprensa cobra resposta
+          </span>
+          <span className={styles.pressCtaGo}>Abrir →</span>
+        </button>
+      )}
+
+      {isCurrentScope && state.social.activeArc && !state.social.activeArc.pendingPress && (
+        <button
+          type="button"
+          className={`${styles.pressCta} ${styles.pressCtaArc}`}
+          onClick={() => navigate('/social')}
+        >
+          <span className={styles.pressCtaLabel}>Story Arc</span>
+          <span className={styles.pressCtaMain}>
+            <strong>{state.social.activeArc.title}</strong>
+            {' · '}
+            capítulo em andamento no ClubOSocial
+          </span>
+          <span className={styles.pressCtaGo}>Ver feed →</span>
+        </button>
+      )}
 
       {/* Hub: Financeiro / Diretoria / Transferências */}
       <section className={styles.hubGrid} aria-label="Gestão do clube">
@@ -572,6 +889,307 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+
+      {pendingDailyPulse && (
+        <div className={pulseStyles.overlayPage} role="dialog" aria-labelledby="daily-pulse-title">
+          <div className={pulseStyles.shell}>
+            <p className={pulseStyles.eyebrow}>Pulse do dia</p>
+            <h1 className={pulseStyles.brand}>Pulse</h1>
+            <p className={pulseStyles.slogan}>O pulso do clube entre as partidas</p>
+
+            <article className={`${pulseStyles.card} ${pulseStyles.cardEvent}`}>
+              <div className={pulseStyles.badges}>
+                <span className={pulseStyles.cat}>
+                  {CATEGORIA_LABELS[pendingDailyPulse.categoria] ?? pendingDailyPulse.categoria}
+                </span>
+                {pendingDailyPulse.raridade && (
+                  <span className={pulseStyles.rar}>
+                    {RARIDADE_LABELS[pendingDailyPulse.raridade] ?? pendingDailyPulse.raridade}
+                  </span>
+                )}
+              </div>
+              <h2 id="daily-pulse-title" className={pulseStyles.eventTitle}>
+                {pendingDailyPulse.titulo}
+              </h2>
+              <p className={pulseStyles.desc}>{pendingDailyPulse.descricao}</p>
+              {pendingDailyPulse.impactos.length > 0 && (
+                <div className={pulseStyles.impacts}>
+                  <p className={pulseStyles.impactsLabel}>O que isso impacta</p>
+                  <ul>
+                    {pendingDailyPulse.impactos.map((imp, i) => (
+                      <li key={i}>{imp}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </article>
+
+            <button type="button" className={pulseStyles.cta} onClick={dismissDailyPulse}>
+              Continuar →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {liveLifePromptPending && pendingGaps.length > 0 && (
+        <div className={styles.overlay}>
+          <div className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-labelledby="livelife-gaps-title">
+            <p id="livelife-gaps-title" className={styles.modalTitle}>LiveLife — dados do clube</p>
+            <p className={styles.modalBody}>
+              Complete os itens abaixo para o modo LiveLife render melhor (bilheteria, folha e calendário).
+            </p>
+            <ul className={styles.gapList}>
+              {liveLifeGaps.map(gap => (
+                <li key={gap.id} className={`${styles.gapItem} ${gap.ok ? styles.gapOk : styles.gapPending}`}>
+                  <div className={styles.gapText}>
+                    <strong>{gap.ok ? '✓' : '!'} {gap.title}</strong>
+                    <span>{gap.detail}</span>
+                  </div>
+                  {!gap.ok && (
+                    <button
+                      type="button"
+                      className={styles.gapLink}
+                      onClick={() => {
+                        dismissLiveLifePrompt();
+                        navigate(gap.href);
+                      }}
+                    >
+                      Preencher
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btnSecondary} onClick={dismissLiveLifePrompt}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {payrollDue && (
+        <div className={styles.overlay}>
+          <div className={styles.modal} role="dialog" aria-labelledby="payroll-title">
+            <p id="payroll-title" className={styles.modalTitle}>Folha salarial</p>
+            <p className={styles.modalBody}>
+              Chegou o dia 5 — hora de pagar a folha do mês.
+            </p>
+            <div className={styles.modalMeta}>
+              <span>Total</span>
+              <strong className={finance.balance < bill ? styles.modalDanger : undefined}>
+                {formatMoney(bill, finance.currency)}
+              </strong>
+            </div>
+            <div className={styles.modalMeta}>
+              <span>Caixa atual</span>
+              <strong>{formatMoney(finance.balance, finance.currency)}</strong>
+            </div>
+            {payrollBridge && (
+              <>
+                <p className={styles.modalWarn}>
+                  O caixa não cobre a folha (faltam{' '}
+                  {formatMoney(payrollBridge.shortfall, finance.currency)}). Você pode
+                  contratar um empréstimo-ponte de{' '}
+                  {formatMoney(payrollBridge.principal, finance.currency)} (120% da folha,
+                  juros {payrollBridge.interestRatePercent}%,{' '}
+                  {payrollBridge.installmentCount} parcelas) e pagar agora.
+                </p>
+                <div className={styles.modalMeta}>
+                  <span>Total a devolver</span>
+                  <strong>
+                    {formatMoney(payrollBridge.totalToRepay, finance.currency)}
+                  </strong>
+                </div>
+              </>
+            )}
+            {!payrollBridge && finance.balance < bill && (
+              <p className={styles.modalWarn}>
+                O caixa não cobre a folha. O saldo ficará negativo.
+              </p>
+            )}
+            {payrollBridge && (
+              <p className={styles.modalBody} style={{ fontSize: 12, opacity: 0.85 }}>
+                Pagar sem empréstimo zera o caixa e o valor faltante vira <strong>dívida</strong>.
+              </p>
+            )}
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btnSecondary} onClick={dismissPayroll}>
+                Depois (−{PAYROLL_DELAY_MORALE_HIT} moral)
+              </button>
+              {payrollBridge && (
+                <button
+                  type="button"
+                  className={styles.btnPrimary}
+                  onClick={() => payWagesWithBridgeLoan()}
+                >
+                  Emprestar e pagar
+                </button>
+              )}
+              <button
+                type="button"
+                className={styles.btnDanger}
+                onClick={payWages}
+                disabled={bill <= 0}
+              >
+                {payrollBridge ? 'Pagar (vira dívida)' : 'Pagar folha'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {transferPaymentsDue && dueTransferPayments.length > 0 && !payrollDue && (
+        <div className={styles.overlay}>
+          <div className={styles.modal} role="dialog" aria-labelledby="trf-pay-title">
+            <p id="trf-pay-title" className={styles.modalTitle}>Pagamento de transferência</p>
+            <p className={styles.modalBody}>
+              Há {dueTransferPayments.length} pagamento(s) vencido(s) no calendário.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '12px 0' }}>
+              {dueTransferPayments.map(p => (
+                <div key={p.id} className={styles.modalMeta} style={{ alignItems: 'center' }}>
+                  <span>
+                    {p.label}
+                    <br />
+                    <small style={{ opacity: 0.75 }}>venceu {p.dueDate}</small>
+                  </span>
+                  <strong className={p.direction === 'out' && finance.balance < p.amount ? styles.modalDanger : undefined}>
+                    {formatMoney(p.direction === 'out' ? -p.amount : p.amount, finance.currency)}
+                  </strong>
+                  <button
+                    type="button"
+                    className={styles.btnDanger}
+                    style={{ marginLeft: 8 }}
+                    onClick={() => payTransferPayment(p.id)}
+                  >
+                    {p.direction === 'out' ? 'Pagar' : 'Receber'}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className={styles.modalMeta}>
+              <span>Caixa atual</span>
+              <strong>{formatMoney(finance.balance, finance.currency)}</strong>
+            </div>
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btnSecondary} onClick={dismissTransferPayments}>
+                Depois
+              </button>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => navigate('/transferencias')}
+              >
+                Ver transferências
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {debtPaymentsDue && dueDebtInstallments.length > 0 && !payrollDue && !transferPaymentsDue && !loanPaymentsDue && (
+        <div className={styles.overlay}>
+          <div className={styles.modal} role="dialog" aria-labelledby="debt-pay-title">
+            <p id="debt-pay-title" className={styles.modalTitle}>Parcela de dívida</p>
+            <p className={styles.modalBody}>
+              Há {dueDebtInstallments.length} parcela(s) de dívida hoje. Ignorar aumenta o saldo
+              em ~{Math.round(DEBT_SKIP_INTEREST_RATE * 100)}% de juros.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '12px 0' }}>
+              {dueDebtInstallments.map(({ debt, amount }) => (
+                <div key={debt.id} className={styles.modalMeta} style={{ alignItems: 'center' }}>
+                  <span>
+                    {debt.label}
+                    <br />
+                    <small style={{ opacity: 0.75 }}>
+                      dia {debt.paymentDay} · resta{' '}
+                      {formatMoney(debt.remaining, finance.currency)}
+                    </small>
+                  </span>
+                  <strong className={finance.balance < amount ? styles.modalDanger : undefined}>
+                    {formatMoney(-amount, finance.currency)}
+                  </strong>
+                  <button
+                    type="button"
+                    className={styles.btnDanger}
+                    style={{ marginLeft: 8 }}
+                    onClick={() => payClubDebt(debt.id, amount, true)}
+                  >
+                    Pagar
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className={styles.modalMeta}>
+              <span>Caixa atual</span>
+              <strong>{formatMoney(finance.balance, finance.currency)}</strong>
+            </div>
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btnSecondary} onClick={dismissDebtPayments}>
+                Ignorar (+juros)
+              </button>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => navigate('/financas')}
+              >
+                Ver finanças
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loanPaymentsDue && dueLoanPayments.length > 0 && !payrollDue && !transferPaymentsDue && (
+        <div className={styles.overlay}>
+          <div className={styles.modal} role="dialog" aria-labelledby="loan-pay-title">
+            <p id="loan-pay-title" className={styles.modalTitle}>Parcela de empréstimo</p>
+            <p className={styles.modalBody}>
+              Há {dueLoanPayments.length} parcela(s) de empréstimo vencida(s).
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '12px 0' }}>
+              {dueLoanPayments.map(p => (
+                <div key={p.id} className={styles.modalMeta} style={{ alignItems: 'center' }}>
+                  <span>
+                    {p.label}
+                    <br />
+                    <small style={{ opacity: 0.75 }}>venceu {p.dueDate}</small>
+                  </span>
+                  <strong className={finance.balance < p.amount ? styles.modalDanger : undefined}>
+                    {formatMoney(-p.amount, finance.currency)}
+                  </strong>
+                  <button
+                    type="button"
+                    className={styles.btnDanger}
+                    style={{ marginLeft: 8 }}
+                    onClick={() => payLoanPayment(p.id)}
+                  >
+                    Pagar
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className={styles.modalMeta}>
+              <span>Caixa atual</span>
+              <strong>{formatMoney(finance.balance, finance.currency)}</strong>
+            </div>
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btnSecondary} onClick={dismissLoanPayments}>
+                Depois
+              </button>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => navigate('/financas')}
+              >
+                Ver finanças
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showWelcome && (
         <Tutorial

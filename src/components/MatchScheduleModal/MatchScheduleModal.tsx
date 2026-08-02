@@ -1,24 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import type { MatchLocation } from '../../types/Match';
+import type { MatchLocation, MatchSignificance } from '../../types/Match';
+import { MATCH_SIGNIFICANCE_OPTIONS } from '../../types/Match';
 import styles from './MatchScheduleModal.module.css';
+
+export interface MatchScheduleFormData {
+  opponent: string;
+  date: string;
+  location: MatchLocation;
+  competition: string;
+  significance: MatchSignificance;
+}
 
 interface MatchScheduleModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    opponent: string;
-    date: string;
-    location: MatchLocation;
-    competition: string;
-  }) => void;
+  onSubmit: (data: MatchScheduleFormData) => void;
   competitions: string[];
   initialDate?: string;
-  initialData?: {
-    opponent: string;
-    date: string;
-    location: MatchLocation;
-    competition: string;
-  };
+  initialData?: Partial<MatchScheduleFormData>;
   title?: string;
 }
 
@@ -32,9 +31,12 @@ export default function MatchScheduleModal({
   title = 'Agendar Partida',
 }: MatchScheduleModalProps) {
   const [opponent, setOpponent] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(
+    () => initialData?.date ?? initialDate ?? new Date().toISOString().slice(0, 10),
+  );
   const [location, setLocation] = useState<MatchLocation>('home');
   const [competition, setCompetition] = useState('');
+  const [significance, setSignificance] = useState<MatchSignificance>('normal');
   const wasOpen = useRef(false);
 
   // Só preenche o formulário ao abrir — evita resetar enquanto o usuário digita
@@ -42,14 +44,20 @@ export default function MatchScheduleModal({
   useEffect(() => {
     if (open && !wasOpen.current) {
       setOpponent(initialData?.opponent ?? '');
-      setDate(initialData?.date ?? initialDate ?? new Date().toISOString().split('T')[0]);
+      setDate(
+        initialData?.date ??
+          initialDate ??
+          new Date().toISOString().slice(0, 10),
+      );
       setLocation(initialData?.location ?? 'home');
       setCompetition(initialData?.competition ?? competitions[0] ?? '');
+      setSignificance(initialData?.significance ?? 'normal');
     }
     if (!open && wasOpen.current) {
       setOpponent('');
       setLocation('home');
       setCompetition('');
+      setSignificance('normal');
     }
     wasOpen.current = open;
   }, [open, initialData, initialDate, competitions]);
@@ -60,7 +68,7 @@ export default function MatchScheduleModal({
     e.preventDefault();
     const name = opponent.trim();
     if (!name || !competition) return;
-    onSubmit({ opponent: name, date, location, competition });
+    onSubmit({ opponent: name, date, location, competition, significance });
     onClose();
   }
 
@@ -98,6 +106,20 @@ export default function MatchScheduleModal({
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+          </div>
+          <div className={styles.field}>
+            <label>Tipo de partida</label>
+            <select
+              value={significance}
+              onChange={e => setSignificance(e.target.value as MatchSignificance)}
+            >
+              {MATCH_SIGNIFICANCE_OPTIONS.map(o => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
+            <p className={styles.hint}>
+              Define o tom das manchetes no ClubOSocial (clássico, título, rebaixamento…).
+            </p>
           </div>
           <div className={styles.actions}>
             <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>

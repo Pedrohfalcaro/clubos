@@ -62,6 +62,20 @@ export default function PulsePage() {
           />
         </label>
         <label className={styles.settingRow}>
+          <span>
+            Chance em dias sem jogo ({Math.round((pulse.settings.dailyEventChance ?? 0.2) * 100)}%)
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={50}
+            value={Math.round((pulse.settings.dailyEventChance ?? 0.2) * 100)}
+            onChange={e =>
+              updatePulseSettings({ dailyEventChance: Number(e.target.value) / 100 })
+            }
+          />
+        </label>
+        <label className={styles.settingRow}>
           <span>Animação de loading</span>
           <input
             type="checkbox"

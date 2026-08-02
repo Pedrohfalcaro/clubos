@@ -214,7 +214,8 @@ export default function ClubCreate() {
             </div>
           </div>
           <p className={styles.importHint}>
-            Prefere montar fora? Baixe o modelo, edite o JSON e importe aqui (mín. 11 jogadores).
+            Prefere montar fora? Baixe o modelo (inclui guia `_docs` com campos e personalidades do Pulse),
+            edite e importe aqui. Mín. 11 jogadores — JSON inválido é rejeitado.
           </p>
 
           {players.length > 0 && (

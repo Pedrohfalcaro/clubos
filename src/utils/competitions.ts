@@ -2,14 +2,16 @@ import type { CompetitionType, SeasonCompetition } from '../types/Competition';
 import { DEFAULT_COMPETITION_COLORS } from '../types/Competition';
 import { getCompetitionCategory } from './calendarHelpers';
 
-export const AVAILABLE_COMPETITIONS = [
-  'Campeonato Brasileiro',
-  'Copa do Brasil',
-  'Libertadores',
-  'Sul-Americana',
-  'Estadual',
-  'Amistoso',
+/** Presets do setup de carreira (LiveLife). */
+export const SETUP_COMPETITION_PRESETS = [
+  { name: 'Campeonato Nacional', type: 'league' as const, defaultChecked: true },
+  { name: 'Copa Nacional', type: 'cup' as const, defaultChecked: true },
+  { name: 'Campeonato Estadual', type: 'state' as const, defaultChecked: false },
+  { name: 'Copa Continental', type: 'continental' as const, defaultChecked: false },
 ] as const;
+
+/** @deprecated Prefer SETUP_COMPETITION_PRESETS */
+export const AVAILABLE_COMPETITIONS = SETUP_COMPETITION_PRESETS.map(p => p.name);
 
 export const COMPETITION_PALETTE = [
   '#3b82f6',

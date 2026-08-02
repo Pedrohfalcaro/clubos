@@ -29,6 +29,7 @@ export function recalculateFromMatches(
   const completed = matches.filter(m => m.status === 'completed');
   const statistics = emptyTeamStatistics();
 
+  const playerById = new Map(players.map(p => [p.id, p]));
   const playerStatsMap = new Map(
     players.map(p => [
       p.id,
@@ -38,6 +39,7 @@ export function recalculateFromMatches(
         goals: 0,
         assists: 0,
         cleanSheets: 0,
+        goalsConceded: 0,
         yellowCards: 0,
         redCards: 0,
       },
@@ -68,6 +70,9 @@ export function recalculateFromMatches(
       stats.matches += 1;
       stats.minutes += mins;
       if (cleanSheet && mins > 0) stats.cleanSheets += 1;
+      if (mins > 0 && playerById.get(pid)?.position === 'GK') {
+        stats.goalsConceded += match.goalsAgainst;
+      }
     }
 
     for (const goal of match.goals.filter(g => !g.isOwnGoal && g.playerId)) {

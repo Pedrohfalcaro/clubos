@@ -8,17 +8,17 @@ export const WELCOME_TUTORIAL: TutorialStep[] = [
   {
     section: 'ClubOS',
     title: 'Bem-vindo ao ClubOS!',
-    body: 'Gerencie seu clube de futebol: escalação, táticas, partidas e estatísticas da temporada.',
+    body: 'Gerencie seu clube: elenco, táticas, partidas, finanças e a narrativa LiveLife — um dia de cada vez.',
+  },
+  {
+    section: 'LiveLife',
+    title: 'Avançar Dia',
+    body: 'No Dashboard, o botão principal avança o calendário do jogo. No dia de partida você joga; no dia 5 paga a folha; em dias normais pode surgir um Pulse.',
   },
   {
     section: 'Começar',
     title: 'Nova carreira',
-    body: 'Escolha país, clube e manager para iniciar. Sua progressão fica salva automaticamente no navegador.',
-  },
-  {
-    section: 'Carregar',
-    title: 'Continuar',
-    body: 'Use Carregar para retomar a última carreira salva. Cada seção do menu tem um guia na primeira visita.',
+    body: 'Escolha clube, manager, data de início e competições. Premiações e estádio já vêm com templates — ajuste quando quiser.',
   },
 ];
 
@@ -27,14 +27,24 @@ export const SECTION_TUTORIALS: Record<string, TutorialStep[]> = {
     {
       section: 'Dashboard',
       title: 'Painel do clube',
-      body: 'Acompanhe a próxima partida, indicadores da temporada, artilheiros, assistências e resultados recentes.',
+      body: 'Acompanhe a data do jogo, próxima partida, indicadores e atalhos. O CTA principal é Avançar Dia.',
+    },
+    {
+      section: 'LiveLife',
+      title: 'Dia a dia',
+      body: 'Em dia de jogo: Pulse e coletiva pré. No dia 5: modal de folha. Sem partida: chance de evento Pulse diário.',
     },
   ],
   '/squad': [
     {
       section: 'Elenco',
       title: 'Gestão do elenco',
-      body: 'Veja todos os jogadores, posições, overall e status. Edite número, idade e defina titulares ou reservas.',
+      body: 'Veja jogadores, overall e status. Edite número, idade, salário, personalidade, moral e dias de lesão ou suspensão.',
+    },
+    {
+      section: 'Disponibilidade',
+      title: 'Lesões e suspensões',
+      body: 'Lesionados e suspensos não entram na súmula. A cada Avançar Dia a lesão perde 1 dia; vermelho suspende só naquela competição.',
     },
   ],
   '/tactics': [
@@ -67,58 +77,93 @@ export const SECTION_TUTORIALS: Record<string, TutorialStep[]> = {
     {
       section: 'Competições',
       title: 'Suas competições',
-      body: 'Confira os campeonatos e torneios em que seu clube disputa na temporada atual.',
+      body: 'Confira os campeonatos e torneios da temporada. Premiações e suspensões usam essas competições.',
+    },
+  ],
+  '/pulse': [
+    {
+      section: 'Pulse',
+      title: 'Eventos imprevisíveis',
+      body: 'O Pulse roda antes dos jogos e, com chance configurável, em dias normais ao Avançar Dia.',
+    },
+    {
+      section: 'Configurações',
+      title: 'Chance diária',
+      body: 'Em Configurações, ajuste a chance de evento em dias sem jogo (0–50%).',
     },
   ],
   '/financas': [
     {
       section: 'Financeiro',
       title: 'Controle financeiro',
-      body: 'Acompanhe o caixa, registre receitas e despesas, veja a folha salarial e configure premiações por competição.',
+      body: 'Caixa, extrato, folha e premiações. Ao finalizar partidas, bilheteria e prêmios entram sozinhos no extrato.',
+    },
+    {
+      section: 'Estádio',
+      title: 'Parâmetros do estádio',
+      body: 'Na aba Estádio configure capacidade, preços e custos. Sem isso configurado, a bilheteria automática não roda.',
     },
     {
       section: 'Folha',
       title: 'Folha salarial',
-      body: 'Na aba Folha salarial você vê o custo mensal de cada jogador. Use "Pagar folha" para registrar o débito no extrato.',
-    },
-    {
-      section: 'Premiações',
-      title: 'Premiações',
-      body: 'Configure valores de premiação por competição (vitória, empate, fase eliminatória, campeonato) e registre quando conquistar cada resultado.',
+      body: 'No dia 5 do mês do jogo o Dashboard pede o pagamento. Você também pode pagar pela aba Folha a qualquer momento.',
     },
   ],
   '/diretoria': [
     {
       section: 'Diretoria',
       title: 'Confiança da diretoria',
-      body: 'Sobe com vitórias (+3) e cai com derrotas (−4). Empates não mudam. Quanto menor a confiança, mais eventos ruins de diretoria no Pulse; quanto maior, mais chance de coisas boas.',
+      body: 'Sobe com vitórias e cai com derrotas. Quanto menor a confiança, mais eventos ruins no Pulse; quanto maior, mais chance de coisas boas.',
     },
     {
-      section: 'Torcida',
-      title: 'Moral da torcida',
-      body: 'Reage mais forte aos resultados: vitória +4, empate −1, derrota −5. Moral baixa favorece protestos e cobranças no Pulse; moral alta favorece apoio, festa e idolatria.',
-    },
-    {
-      section: 'Metas',
-      title: 'Metas da temporada',
-      body: 'Defina objetivos que a diretoria espera — posição no campeonato, limite de gastos, vendas de jogadores.',
+      section: 'LiveLife',
+      title: 'Tutorial & checklist',
+      body: 'Na aba LiveLife abra o guia, confira salários, premiações e estádio, e veja o changelog das versões.',
     },
     {
       section: 'Identidade',
       title: 'Editar o clube',
-      body: 'Altere nome, cores e descrição do clube a qualquer momento em Identidade do clube.',
+      body: 'Altere nome, cores, data base da carreira e faça backup ZIP do save.',
     },
   ],
   '/transferencias': [
     {
       section: 'Transferências',
       title: 'Mercado de transferências',
-      body: 'Gerencie contratações, vendas e empréstimos. Todas as operações atualizam o caixa automaticamente.',
+      body: 'Gerencie contratações, vendas e empréstimos. As operações atualizam o caixa e podem gerar manchete no ClubOSocial.',
     },
     {
       section: 'Observação',
       title: 'Lista de observação',
       body: 'Guarde jogadores que você está monitorando com clube, valor e notas. Converta em contratação quando a hora chegar.',
+    },
+  ],
+  '/social': [
+    {
+      section: 'ClubOSocial',
+      title: 'Feed do clube',
+      body: 'Manchetes pós-jogo, transferências e coletivas aparecem aqui. Você também pode publicar como técnico.',
+    },
+  ],
+  '/press-conference': [
+    {
+      section: 'Coletivas',
+      title: 'Imprensa',
+      body: 'Responda perguntas pré ou pós-jogo. Suas escolhas mexem em torcida, elenco e diretoria — e viram manchete.',
+    },
+  ],
+  '/manager': [
+    {
+      section: 'Manager',
+      title: 'Área pessoal',
+      body: 'Edite biografia, notas táticas e contatos. Acompanhe prêmios individuais e acesse a Sala de Troféus.',
+    },
+  ],
+  '/trofeus': [
+    {
+      section: 'Troféus',
+      title: 'Sala de Troféus',
+      body: 'Galeria de títulos e classificações. Ao avançar a temporada, o 1º lugar vira conquista registrada aqui.',
     },
   ],
 };

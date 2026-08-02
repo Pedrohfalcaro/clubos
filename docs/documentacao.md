@@ -13,8 +13,10 @@ O usuário joga as partidas normalmente no jogo e utiliza este sistema para gere
 - Categorias de Base
 - Históricos
 - Estatísticas
-- Eventos Aleatórios
-- Narrativas Dinâmicas
+- Eventos Aleatórios (Pulse)
+- Narrativas Dinâmicas e calendário contínuo (LiveLife v1.2)
+
+Guia de uso: [`guia-de-uso.md`](./guia-de-uso.md) · LiveLife: [`livelife-v1.2.md`](./livelife-v1.2.md)
 
 ---
 

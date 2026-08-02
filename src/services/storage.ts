@@ -9,12 +9,22 @@ import type { CareerMode } from '../types/CareerMode';
 import type { CareerPlayer } from '../types/CareerPlayer';
 import { createDefaultPulseState, type PulseState } from '../pulse';
 import type { ClubFinance } from '../types/Finance';
-import { createDefaultFinance } from '../types/Finance';
+import { createDefaultFinance, createDefaultStadiumConfig } from '../types/Finance';
+import { seedLiveLifeFinance } from '../utils/livelifeTemplates';
+import { migrateClubDebt } from '../utils/clubDebts';
+import { migrateClubSponsor } from '../utils/sponsors';
+import type { LiveLifeMeta } from '../types/LiveLife';
+import { createDefaultLiveLifeMeta } from '../types/LiveLife';
+import type { SocialState } from '../types/Social';
+import { createDefaultSocialState } from '../types/Social';
+import { isPersonality } from '../pulse/utils';
 import type { BoardState } from '../types/Board';
 import { createDefaultBoardState } from '../types/Board';
 import type { TransferState } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
 import type { SeasonArchive } from '../types/SeasonHistory';
+import { normalizeAchievements } from '../types/Achievement';
+import { nextDayAfterLastMatch } from '../utils/transferPayments';
 import { migrateTacticsPresets, normalizeMatchLineup } from '../utils/formations';
 import { recalculateFromMatches } from '../utils/matchStats';
 import {
@@ -50,6 +60,14 @@ export interface GameSave {
   board?: BoardState;
   transfers?: TransferState;
   seasonHistory?: SeasonArchive[];
+  /** Clock contínuo LiveLife (ISO `YYYY-MM-DD`). `null` = carreira antiga sem data. */
+  currentDate?: string | null;
+  /** Folha do dia 5 pendente de confirmação. */
+  payrollDue?: boolean;
+  /** Metadados LiveLife (onboarding, etc.). */
+  livelife?: LiveLifeMeta;
+  /** Feed ClubOSocial. */
+  social?: SocialState;
   savedAt: string;
   /** Slot de carreira (1–3) quando multi-save. */
   slotId?: SaveSlotId;
@@ -111,12 +129,18 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       }
     : createDefaultPulseState();
 
-  const playersRaw = (save.players ?? []).map(p => ({
+  const playersRaw = (save.players ?? []).map(p => {
+    const availability = p.availability ?? 'disponivel';
+    const needsCountdown =
+      (availability === 'lesionado' || availability === 'suspenso') &&
+      (p.injuryDaysRemaining == null || p.injuryDaysRemaining <= 0);
+    return {
     ...p,
     morale: p.morale ?? 70,
-    personality: p.personality ?? 'Disciplinado',
+    personality: isPersonality(p.personality) ? p.personality : 'Disciplinado',
     fatigue: p.fatigue ?? 0,
-    availability: p.availability ?? 'disponivel',
+    availability,
+    injuryDaysRemaining: needsCountdown ? 14 : p.injuryDaysRemaining,
     stats: {
       matches: p.stats?.matches ?? 0,
       minutes: p.stats?.minutes ?? 0,
@@ -135,13 +159,18 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       yellowCards: p.careerStats?.yellowCards ?? 0,
       redCards: p.careerStats?.redCards ?? 0,
     },
-  }));
+  };
+  });
 
   const team = save.team
     ? {
         ...save.team,
         primaryColor: save.team.primaryColor ?? '#7c3aed',
         secondaryColor: save.team.secondaryColor ?? '#e2e8f0',
+        mediaConfidence: save.team.mediaConfidence ?? 50,
+        supporterConfidence: save.team.supporterConfidence ?? 65,
+        boardConfidence: save.team.boardConfidence ?? 70,
+        achievements: normalizeAchievements(save.team.achievements, save.season ?? 1),
       }
     : save.team;
 
@@ -150,15 +179,28 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       ? recalculateFromMatches(team, playersRaw, matches).players
       : playersRaw;
 
-  // Migrate finance: if no finance saved, create from team.budget
-  const finance: ClubFinance = save.finance
+  const seasonCompetitions = migrateSeasonCompetitions(save.seasonCompetitions);
+
+  // Migrate finance: templates de estádio/premiação se vazios
+  const financeRaw: ClubFinance = save.finance
     ? {
-        ...createDefaultFinance(save.finance.balance),
+        ...createDefaultFinance(save.finance.balance, save.finance.currency ?? 'BRL'),
         ...save.finance,
         ledger: save.finance.ledger ?? [],
         prizeTable: save.finance.prizeTable ?? {},
+        loans: save.finance.loans ?? [],
+        loanPayments: save.finance.loanPayments ?? [],
+        debts: (save.finance.debts ?? []).map(d => migrateClubDebt(d)),
+        sponsors: (save.finance.sponsors ?? []).map(s => migrateClubSponsor(s)),
+        stadiumConfig: save.finance.stadiumConfig
+          ? {
+              ...createDefaultStadiumConfig(save.finance.currency ?? 'BRL'),
+              ...save.finance.stadiumConfig,
+            }
+          : undefined,
       }
     : createDefaultFinance(save.team?.budget ?? 5_000_000);
+  const finance = seedLiveLifeFinance(financeRaw, seasonCompetitions);
 
   // Migrate board
   const board: BoardState = save.board
@@ -168,6 +210,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
         goals: save.board.goals ?? [],
         confidenceHistory: save.board.confidenceHistory ?? [],
         supporterHistory: save.board.supporterHistory ?? [],
+        mediaHistory: save.board.mediaHistory ?? [],
       }
     : createDefaultBoardState();
 
@@ -176,8 +219,15 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     ? {
         watchlist: save.transfers.watchlist ?? [],
         history: save.transfers.history ?? [],
+        pendingPayments: save.transfers.pendingPayments ?? [],
       }
     : createDefaultTransferState();
+
+  // Carreiras antigas: clock = dia seguinte ao último jogo realizado
+  let currentDate = save.currentDate ?? null;
+  if (!currentDate) {
+    currentDate = nextDayAfterLastMatch(matches);
+  }
 
   const seasonHistory: SeasonArchive[] = save.seasonHistory ?? [];
   const tacticsMigrated = migrateTacticsPresets(
@@ -190,8 +240,10 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     ...save,
     version: '0.6.0',
     careerMode,
-    manager: save.manager ?? null,
-    seasonCompetitions: migrateSeasonCompetitions(save.seasonCompetitions),
+    manager: save.manager
+      ? { ...save.manager, awards: save.manager.awards ?? [] }
+      : null,
+    seasonCompetitions,
     tactics: tacticsMigrated.tactics,
     tacticsPresets: tacticsMigrated.tacticsPresets,
     activeTacticsId: tacticsMigrated.activeTacticsId,
@@ -204,6 +256,18 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     board,
     transfers,
     seasonHistory,
+    currentDate,
+    payrollDue: save.payrollDue ?? false,
+    livelife: {
+      ...createDefaultLiveLifeMeta(),
+      ...(save.livelife ?? {}),
+    },
+    social: {
+      ...createDefaultSocialState(team?.name ?? 'Clube'),
+      ...(save.social ?? {}),
+      activeArc: save.social?.activeArc ?? null,
+      arcHistory: save.social?.arcHistory ?? [],
+    },
   };
 
   if (careerMode === 'coach' && save.teamId && team) {

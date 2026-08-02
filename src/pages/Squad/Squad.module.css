@@ -208,7 +208,7 @@
 
 .histRow {
   display: grid;
-  grid-template-columns: 1.4fr 0.5fr repeat(7, 0.5fr);
+  grid-template-columns: 1.4fr 0.5fr repeat(8, 0.5fr);
   gap: 6px;
   padding: 9px 12px;
   border-bottom: 1px solid var(--border);
@@ -331,10 +331,9 @@
 }
 
 .tableHead,
-.tableRow,
-.editRow {
+.tableRow {
   display: grid;
-  grid-template-columns: 36px minmax(90px, 1.2fr) 44px 44px 36px 48px 48px 36px 36px 36px 96px 64px;
+  grid-template-columns: 36px minmax(90px, 1.2fr) 44px 44px 36px 48px 48px 36px 36px 36px 56px 96px 64px;
   align-items: center;
   padding: 10px 12px;
   gap: 6px;
@@ -383,11 +382,112 @@
 }
 
 .moraleMark {
+  position: relative;
   flex-shrink: 0;
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
-  cursor: default;
+  cursor: help;
+}
+
+.moraleMark::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.moraleMark:hover::after,
+.moraleMark:focus-visible::after {
+  opacity: 1;
+}
+
+.availBadge {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.availBadge:hover {
+  border-color: rgba(239, 68, 68, 0.7);
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.penaltyBox {
+  display: none;
+}
+
+.penaltyTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fca5a5;
+}
+
+.penaltyControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.penaltyBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-h);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.penaltyBtn:hover {
+  border-color: var(--accent-border);
+}
+
+.penaltyUnit {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.clearPenaltyBtn {
+  margin-left: auto;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.clearPenaltyBtn:hover {
+  border-color: rgba(34, 197, 94, 0.7);
 }
 
 .colAge,
@@ -407,6 +507,14 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+}
+
+.colRate {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
 }
 
 .notaBadge {
@@ -463,87 +571,207 @@
   color: var(--accent);
 }
 
-.editRow {
-  font-size: 13px;
-  background: var(--accent-bg);
-  border-bottom: 1px solid var(--border);
-}
-
-.editExtra {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--border);
-  margin-top: 4px;
-}
-
-.editExtra label {
+.editPanel {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  gap: 16px;
+  margin: 8px 10px 14px;
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--accent-border);
+  background:
+    linear-gradient(160deg, rgba(170, 59, 255, 0.1), transparent 50%),
+    var(--card-bg);
 }
 
-.editInputSm {
-  width: 100%;
-  padding: 4px 6px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text-h);
-  font-size: 12px;
-}
-
-.editNameInput {
-  width: 100%;
-  min-width: 0;
-  padding: 4px 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text-h);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.editSelect {
-  padding: 4px 6px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text-h);
-  font-size: 11px;
-}
-
-.editActions {
+.editPanelHead {
   display: flex;
-  gap: 4px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.editPanelEyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.editPanelTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-h);
+}
+
+.editPanelActions {
+  display: flex;
+  gap: 8px;
+}
+
+.editGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.editField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.editField:first-child {
+  grid-column: 1 / -1;
+}
+
+.editFieldInput {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+}
+
+.editFieldInput:focus {
+  border-color: var(--accent);
+}
+
+.availSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.availSectionTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-h);
+}
+
+.toggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.toggleLabel {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggleInput {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggleTrack {
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #3f3a4d;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.toggleTrack::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  transition: transform 0.15s;
+}
+
+.toggleInput:checked + .toggleTrack {
+  background: var(--accent);
+}
+
+.toggleInput:checked + .toggleTrack::after {
+  transform: translateX(16px);
+}
+
+.toggleText {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.penaltyHint {
+  font-size: 12px;
+  color: var(--text);
+  margin-right: 4px;
+}
+
+.penaltyValue {
+  width: 64px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
 }
 
 .saveBtn {
-  padding: 4px 8px;
-  font-size: 11px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 700;
   background: var(--accent);
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   color: #fff;
   cursor: pointer;
 }
 
 .cancelBtn {
-  padding: 4px 8px;
-  font-size: 14px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 8px;
   color: var(--text);
   cursor: pointer;
+}
+
+.cancelBtn:hover {
+  border-color: var(--text);
 }
 
 .mobileList {

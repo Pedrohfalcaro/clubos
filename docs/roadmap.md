@@ -2,7 +2,8 @@
 
 Este documento lista as seções e funcionalidades planejadas para o ClubOS, incluindo o que já está disponível e o que está em construção.
 
-> **Especificação detalhada do Modo Jogador:** ver [`modo-jogador.md`](./modo-jogador.md)
+> **LiveLife (v1.2):** [`livelife-v1.2.md`](./livelife-v1.2.md)  
+> **Modo Jogador:** [`modo-jogador.md`](./modo-jogador.md)
 
 ## Disponível agora
 
@@ -10,47 +11,51 @@ Este documento lista as seções e funcionalidades planejadas para o ClubOS, inc
 - Splash com logo e carregamento
 - Menu principal (Começar / Carregar)
 - Seleção de país (Brasil disponível)
-- Seleção de clube com barras visuais e informações do time
-- Configuração de manager e competições
+- Criação de clube (cores, elenco, import JSON)
+- Configuração de manager e competições (data LiveLife, premiações, moeda)
 - Tutorial introdutório na primeira carreira
 
+### LiveLife (v1.2)
+- [x] Calendário contínuo e **Avançar Dia**
+- [x] Lesões / suspensões temporais (por competição)
+- [x] Bilheteria + estádio + premiação automática
+- [x] Folha no dia 5
+- [x] Pulse diário
+- [x] Onboarding e changelog na Diretoria
+- [x] ClubOSocial, Coletivas, Manager, Sala de Troféus
+
 ### Dashboard
-- Visão geral do clube, próxima partida e estatísticas
+- Visão geral do clube, data do jogo, próxima partida e estatísticas
 
 ### Clube
-- **Elenco** — gestão de jogadores, números, idade, overall e status
-- **Tática** — 15 formações e 10 estilos de jogo, com arraste para posições e banco, escalação automática e troca de formação preservando o time
+- **Elenco** — gestão de jogadores, disponibilidade, moral/personalidade
+- **Tática** — 15 formações e 10 estilos de jogo
+- **Finanças** — caixa, extrato, folha, premiações, estádio
+- **Diretoria** — confiança, metas, identidade, LiveLife
+- **Transferências** — watchlist, compra/venda/empréstimo
+- **Sala de troféus** — títulos e classificações
 
 ### Jogos
-- **Registro de partida** — agendar e registrar resultados
-- **Calendário** — visualização de partidas
-- **Competições** — competições da temporada
-- **Jogar partida** — escalação com formação, eventos, notas e comentários
+- Registro de partida, calendário, competições, Pulse, jogar partida
+
+### Social / Manager
+- ClubOSocial, Coletivas, página pessoal do técnico
 
 ---
 
-## Próxima entrega — Modo Jogador (v0.3.0)
+## Próxima entrega — Modo Jogador (aprofundamento)
 
-### Fluxo inicial — Jogador
-- [ ] Escolha de carreira após "Começar": **Jogador** ou **Treinador**
-- [ ] Setup em 3 passos: criar jogador → clube atual (manual) → competições
-- [ ] Sem base de clubes — dados 100% do usuário e do save
-- [ ] Carregar save detecta o modo automaticamente
-
-### Navegação do jogador
-- [ ] Dashboard pessoal (OVR, stats, contrato, próxima partida)
+### Fluxo e navegação
+- [ ] Dashboard pessoal completo (OVR, stats, contrato, próxima partida)
 - [ ] Registro de partida com foco no desempenho individual
 - [ ] Calendário e competições da temporada
 - [ ] Perfil, contrato, evolução e histórico de clubes
-
-### Exclusivo do treinador (não aparece no jogador)
-- Base de clubes (`teams.json` / `players.json`)
-- Elenco, tática, finanças do clube, transferências, diretoria
 
 ### WIP futuro no jogador
 - Relacionamentos (técnico, torcida, colegas)
 - Manchetes e redes sociais pessoais
 - Conquistas e seleção nacional
+- Clock LiveLife sincronizado com lesões do atleta
 
 ---
 
@@ -59,31 +64,13 @@ Este documento lista as seções e funcionalidades planejadas para o ClubOS, inc
 | Seção | Descrição prevista |
 |-------|-------------------|
 | Treinamento | Sessões de treino, evolução de atributos e condição física |
-| Transferências | Mercado, negociações, empréstimos e vendas |
-| Diretoria | Relacionamento com conselho, metas impostas e confiança |
-| Finanças | Orçamento, salários, receitas de bilheteria e patrocínios |
-| Sala de troféus | Histórico de conquistas do clube e do manager |
+| Perfil social dos jogadores | Humor e relações além do painel do Elenco |
 
 ---
 
-## Em construção — Social
+## Pós-MVP LiveLife
 
-| Seção | Descrição prevista |
-|-------|-------------------|
-| Redes sociais | Posts, engajamento da torcida e repercussão |
-| Manchetes | Notícias simuladas sobre o clube e jogadores |
-| Coletivas | Entrevistas coletivas pré e pós-jogo |
-| Jogadores | Perfil social dos atletas, humor e relações |
-
----
-
-## Em construção — Manager
-
-| Seção | Descrição prevista |
-|-------|-------------------|
-| Pessoal | Perfil do técnico, estilo e reputação |
-| Metas | Objetivos da diretoria e da torcida |
-| Conquistas | Troféus pessoais e marcos da carreira |
+Ver [`MELHORIAS_FUTURAS.md`](../LiveLife%20-%20Desenvolvimento/MELHORIAS_FUTURAS.md): patrocínios dinâmicos, CT, empréstimos bancários, avançar até próximo evento, etc.
 
 ---
 
@@ -106,8 +93,10 @@ Este documento lista as seções e funcionalidades planejadas para o ClubOS, inc
 
 ---
 
-## Versão atual do save
+## Versão do produto / save
 
-`0.2.0` — inclui táticas, tutorial, manager e competições da temporada.
-
-`0.3.0` (planejado) — modo jogador com `careerMode` e `careerPlayer`; saves antigos migrados como treinador.
+| Versão | Conteúdo |
+|--------|----------|
+| `0.2.x` | Base treinador: táticas, tutorial, manager, competições |
+| `0.3.x` | Modo jogador (`careerMode` / `careerPlayer`) |
+| **`1.2` LiveLife** | Clock contínuo, economia por partida, LIFE (social/coletivas/troféus) |

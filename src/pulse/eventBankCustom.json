@@ -1,0 +1,352 @@
+{
+  "BANK": [
+    {
+      "id": "atl_moral_cabeca_baixa",
+      "categoria": "atleta",
+      "raridade": "comum",
+      "titulo": "Cabeça baixa no CT",
+      "descricao": "{{atleta}} treinou sem brilho e mal falou com os companheiros. O clima pessoal está no fundo do poço.",
+      "tags": { "precisaAtleta": true, "status": ["disponivel"], "moralMax": 40 },
+      "efeitos": { "moral": -6, "fadiga": 4 },
+      "cooldown": 7
+    },
+    {
+      "id": "atl_pedido_ajuda_tecnico",
+      "categoria": "atleta",
+      "raridade": "incomum",
+      "titulo": "Pedido de conversa",
+      "descricao": "{{atleta}} pediu para falar a sós com o técnico. Saiu do gabinete um pouco mais leve.",
+      "tags": { "precisaAtleta": true, "moralMax": 45 },
+      "efeitos": { "moral": 10 },
+      "cooldown": 10
+    },
+    {
+      "id": "atl_grupo_whats_apoio",
+      "categoria": "atleta",
+      "raridade": "comum",
+      "titulo": "Apoio no grupão",
+      "descricao": "Os titulares mandaram áudios de incentivo para {{atleta}} no WhatsApp do elenco. Fez diferença.",
+      "tags": { "precisaAtleta": true, "moralMax": 50 },
+      "efeitos": { "moral": 8 },
+      "cooldown": 8
+    },
+    {
+      "id": "tor_critica_artilheiro_sumiu",
+      "categoria": "torcida",
+      "raridade": "incomum",
+      "titulo": "Torcida cobra o atacante",
+      "descricao": "Faixas e gritos miram {{atleta}}: muitos jogos, zero gols. A pressão na arquibancada é cruel.",
+      "tags": {
+        "precisaAtleta": true,
+        "formDryAttack": true,
+        "minMatches": 8,
+        "maxGoals": 0,
+        "posicoes": ["ATA", "PE", "PD"]
+      },
+      "efeitos": { "moral": -12, "supporterConfidence": -3 },
+      "cooldown": 9
+    },
+    {
+      "id": "imp_coluna_seca_ataque",
+      "categoria": "imprensa",
+      "raridade": "incomum",
+      "titulo": "Coluna: 'atacante fantasma'",
+      "descricao": "Um colunista ironizou a seca de {{atleta}} — jogos sem balançar a rede. A reportagem viralizou.",
+      "tags": {
+        "precisaAtleta": true,
+        "formDryAttack": true,
+        "minMatches": 8,
+        "maxGoals": 0,
+        "posicoes": ["ATA", "PE", "PD", "ME"]
+      },
+      "efeitos": { "moral": -10 },
+      "cooldown": 10
+    },
+    {
+      "id": "imp_elogio_reacao",
+      "categoria": "imprensa",
+      "raridade": "comum",
+      "titulo": "Imprensa destaca a entrega",
+      "descricao": "Mesmo sem gol, {{atleta}} foi elogiado pela intensidade. A moral sobe com o reconhecimento.",
+      "tags": { "precisaAtleta": true, "personalidades": ["Disciplinado", "Líder", "Ambicioso"] },
+      "efeitos": { "moral": 7, "mediaConfidence": 1 },
+      "cooldown": 8
+    },
+    {
+      "id": "imp_pacote_negativo",
+      "categoria": "imprensa",
+      "raridade": "incomum",
+      "titulo": "Pacote negativo nas redes",
+      "descricao": "Portais e influenciadores empilharam críticas ao {{clube}}: escalação, atitude e bastidores. O tom é hostil.",
+      "tags": { "precisaAtleta": false },
+      "efeitos": { "moral": -4, "supporterConfidence": -2, "mediaConfidence": -5 },
+      "cooldown": 7
+    },
+    {
+      "id": "imp_vazamento_vestiario",
+      "categoria": "imprensa",
+      "raridade": "raro",
+      "titulo": "Vazamento do vestiário",
+      "descricao": "Uma reportagem alega clima tenso no {{clube}} e cita conversas internas. A imprensa adora o drama.",
+      "tags": { "precisaAtleta": true },
+      "efeitos": { "moral": -14, "boardConfidence": -2, "mediaConfidence": -6 },
+      "cooldown": 14
+    },
+    {
+      "id": "imp_charge_tecnico",
+      "categoria": "imprensa",
+      "raridade": "comum",
+      "titulo": "Charge do técnico viraliza",
+      "descricao": "Uma charge ironizando o comando do {{clube}} bombou. A brincadeira dói mais do que parece.",
+      "tags": { "precisaAtleta": false },
+      "efeitos": { "moral": -3, "mediaConfidence": -3 },
+      "cooldown": 6
+    },
+    {
+      "id": "fin_bingo_torcida",
+      "categoria": "financeiro",
+      "raridade": "comum",
+      "titulo": "Bingo da torcida organizada",
+      "descricao": "A organizada fez um bingo beneficente e repassou parte da renda ao clube.",
+      "tags": { "precisaAtleta": false },
+      "efeitos": { "caixa": 85000 },
+      "cooldown": 12
+    },
+    {
+      "id": "fin_venda_camisas_pico",
+      "categoria": "financeiro",
+      "raridade": "incomum",
+      "titulo": "Estoque de camisas esgotou",
+      "descricao": "Uma onda de vendas na loja oficial encheu o caixa do {{clube}}.",
+      "tags": { "precisaAtleta": false },
+      "efeitos": { "caixa": 220000 },
+      "cooldown": 14
+    },
+    {
+      "id": "fin_multa_federacao",
+      "categoria": "financeiro",
+      "raridade": "incomum",
+      "titulo": "Multa da federação",
+      "descricao": "Atraso em documentação gerou multa administrativa. Dor no bolso.",
+      "tags": { "precisaAtleta": false },
+      "efeitos": { "caixa": -95000 },
+      "cooldown": 16
+    },
+    {
+      "id": "fin_conta_operacional",
+      "categoria": "financeiro",
+      "raridade": "comum",
+      "titulo": "Conta operacional do CT",
+      "descricao": "Manutenção do gramado e equipamentos estouraram a previsão do mês.",
+      "tags": { "precisaAtleta": false },
+      "efeitos": { "caixa": -48000 },
+      "cooldown": 10
+    },
+    {
+      "id": "fin_patrocinio_flash",
+      "categoria": "financeiro",
+      "raridade": "raro",
+      "titulo": "Patrocínio relâmpago",
+      "descricao": "Uma marca regional fechou ativação rápida com o {{clube}}.",
+      "tags": { "precisaAtleta": false },
+      "efeitos": { "caixa": 350000 },
+      "cooldown": 20
+    },
+    {
+      "id": "fin_streamer_doacao",
+      "categoria": "financeiro",
+      "raridade": "comum",
+      "titulo": "Live de torcedor arrecada",
+      "descricao": "Um streamer doou a arrecadação da live noturna. Quantia modesta, mas simbólica.",
+      "tags": { "precisaAtleta": false },
+      "efeitos": { "caixa": 28000 },
+      "cooldown": 11
+    },
+    {
+      "id": "fin_indenizacao_vidro",
+      "categoria": "financeiro",
+      "raridade": "incomum",
+      "titulo": "Ônibus e vidro quebrado",
+      "descricao": "Pedra na janela do ônibus em deslocamento. Seguradora cobre só parte — o clube paga o resto.",
+      "tags": { "precisaAtleta": false },
+      "efeitos": { "caixa": -62000 },
+      "cooldown": 15
+    },
+    {
+      "id": "les_treino_entorse",
+      "categoria": "lesao",
+      "raridade": "incomum",
+      "titulo": "Entorse no treino",
+      "descricao": "{{atleta}} torceu o tornozelo num coletinho. Departamento médico recomenda pausa.",
+      "tags": { "precisaAtleta": true, "status": ["disponivel"] },
+      "efeitos": { "moral": -7, "status": "lesionado", "gravidade": "leve" },
+      "cooldown": 9
+    },
+    {
+      "id": "les_treino_choque",
+      "categoria": "lesao",
+      "raridade": "raro",
+      "titulo": "Choque forte no coletivo",
+      "descricao": "{{atleta}} saiu de maca após um embate no treino. Exames vão definir o tempo fora.",
+      "tags": { "precisaAtleta": true, "status": ["disponivel"] },
+      "efeitos": { "moral": -10, "status": "lesionado", "gravidade": "media" },
+      "cooldown": 14
+    },
+    {
+      "id": "les_cãibra_series",
+      "categoria": "lesao",
+      "raridade": "comum",
+      "titulo": "Cãibras no treino físico",
+      "descricao": "{{atleta}} trancou nas séries e foi poupado do restante da atividade.",
+      "tags": { "precisaAtleta": true, "status": ["disponivel"] },
+      "efeitos": { "moral": -3, "fadiga": 12, "status": "indisponivel", "gravidade": "leve", "diasFora": 2 },
+      "cooldown": 7
+    },
+    {
+      "id": "esc_balada_viral",
+      "categoria": "escandalo",
+      "raridade": "incomum",
+      "titulo": "Balada até tarde",
+      "descricao": "{{atleta}} apareceu em story de balada na madrugada — véspera de concentração. Diretoria não gostou.",
+      "tags": {
+        "precisaAtleta": true,
+        "status": ["disponivel"],
+        "personalidades": ["Vaidoso", "Temperamental", "Ambicioso", "Promessa"]
+      },
+      "efeitos": { "moral": -14, "fadiga": 18, "caixa": -25000, "boardConfidence": -2, "supporterConfidence": -3 },
+      "cooldown": 14
+    },
+    {
+      "id": "esc_motel_flagra",
+      "categoria": "escandalo",
+      "raridade": "raro",
+      "titulo": "Flagra no motel",
+      "descricao": "Fotos de {{atleta}} saindo de um motel viralizaram em grupos de fofoca. O clube abre sindicância discreta.",
+      "tags": {
+        "precisaAtleta": true,
+        "personalidades": ["Vaidoso", "Temperamental", "Ambicioso"]
+      },
+      "efeitos": { "moral": -22, "caixa": -80000, "boardConfidence": -4, "supporterConfidence": -5 },
+      "cooldown": 22
+    },
+    {
+      "id": "esc_karaokê_desafinado",
+      "categoria": "escandalo",
+      "raridade": "comum",
+      "titulo": "Karaokê desafinado",
+      "descricao": "{{atleta}} cantou no aniversário do elenco… e o vídeo vazou. Engraçado para uns, constrangedor para ele.",
+      "tags": { "precisaAtleta": true },
+      "efeitos": { "moral": -4 },
+      "cooldown": 12
+    },
+    {
+      "id": "atl_gato_no_ct",
+      "categoria": "atleta",
+      "raridade": "comum",
+      "titulo": "Gato invadiu o CT",
+      "descricao": "Um gato entrou no campo durante o treino. {{atleta}} parou tudo para fazer carinho — o elenco derreteu de rir.",
+      "tags": { "precisaAtleta": true },
+      "efeitos": { "moral": 6 },
+      "cooldown": 15
+    },
+    {
+      "id": "atl_tiktok_dancinha",
+      "categoria": "imprensa",
+      "raridade": "comum",
+      "titulo": "Dancinha viral",
+      "descricao": "{{atleta}} postou uma dancinha no TikTok e virou trend. Marca pessoal em alta.",
+      "tags": {
+        "precisaAtleta": true,
+        "personalidades": ["Vaidoso", "Promessa", "Ambicioso"],
+        "idades": ["jovem", "pico"]
+      },
+      "efeitos": { "moral": 8, "caixa": 15000 },
+      "cooldown": 10
+    },
+    {
+      "id": "atl_amigo_secreto_ct",
+      "categoria": "atleta",
+      "raridade": "comum",
+      "titulo": "Amigo secreto do elenco",
+      "descricao": "{{atleta}} tirou o presente mais criativo do amigo secreto. Rendeu aplausos no refeitório.",
+      "tags": { "precisaAtleta": true },
+      "efeitos": { "moral": 5 },
+      "cooldown": 18
+    },
+    {
+      "id": "esc_live_reclama_banco",
+      "categoria": "escandalo",
+      "raridade": "incomum",
+      "titulo": "Live reclamando do banco",
+      "descricao": "{{atleta}} deixou escapar na live que está 'insatisfeito com os minutos'. A diretoria pediu explicações.",
+      "tags": {
+        "precisaAtleta": true,
+        "personalidades": ["Ambicioso", "Temperamental", "Vaidoso"],
+        "moralMax": 55
+      },
+      "efeitos": { "moral": -11 },
+      "cooldown": 13
+    },
+    {
+      "id": "atl_jantar_familia",
+      "categoria": "familia",
+      "raridade": "comum",
+      "titulo": "Jantar em família",
+      "descricao": "{{atleta}} recebeu a família na cidade e voltou ao CT com o ânimo renovado.",
+      "tags": { "precisaAtleta": true, "moralMax": 60 },
+      "efeitos": { "moral": 9 },
+      "cooldown": 10
+    },
+    {
+      "id": "dir_bonus_moral",
+      "categoria": "diretoria",
+      "raridade": "incomum",
+      "titulo": "Bônus por entrega",
+      "descricao": "A diretoria liberou um bônus simbólico a {{atleta}} por desempenho e postura.",
+      "tags": { "precisaAtleta": true, "moralMin": 55 },
+      "efeitos": { "moral": 7, "caixa": -40000 },
+      "cooldown": 16
+    },
+    {
+      "id": "tor_mosaico_carinho",
+      "categoria": "torcida",
+      "raridade": "incomum",
+      "titulo": "Mosaico de apoio",
+      "descricao": "A torcida prepara mosaico com o nome de {{atleta}}. O gesto aquece o vestiário.",
+      "tags": { "precisaAtleta": true, "moralMax": 55 },
+      "efeitos": { "moral": 11, "supporterConfidence": 4 },
+      "cooldown": 14
+    }
+  ],
+  "IMPACTOS": {
+    "atl_moral_cabeca_baixa": ["Moral de {{atleta}} caiu", "Clima pessoal abatido"],
+    "atl_pedido_ajuda_tecnico": ["Moral de {{atleta}} sobe", "Vínculo com a comissão reforçado"],
+    "atl_grupo_whats_apoio": ["Moral de {{atleta}} sobe", "Elenco solidário"],
+    "tor_critica_artilheiro_sumiu": ["Moral de {{atleta}} despenca", "Pressão da torcida"],
+    "imp_coluna_seca_ataque": ["Crítica na imprensa", "Moral de {{atleta}} cai"],
+    "imp_elogio_reacao": ["Elogio na mídia", "Moral de {{atleta}} sobe"],
+    "imp_pacote_negativo": ["Imprensa hostil", "Relação com a mídia piora"],
+    "imp_vazamento_vestiario": ["Vazamento na imprensa", "Moral de {{atleta}} cai", "Mídia irritada"],
+    "imp_charge_tecnico": ["Charge viral", "Relação com a mídia −"],
+    "fin_bingo_torcida": ["Caixa + R$ 85 mil"],
+    "fin_venda_camisas_pico": ["Caixa + R$ 220 mil", "Merchandising em alta"],
+    "fin_multa_federacao": ["Caixa − R$ 95 mil", "Multa administrativa"],
+    "fin_conta_operacional": ["Caixa − R$ 48 mil"],
+    "fin_patrocinio_flash": ["Caixa + R$ 350 mil", "Receita comercial"],
+    "fin_streamer_doacao": ["Caixa + R$ 28 mil"],
+    "fin_indenizacao_vidro": ["Caixa − R$ 62 mil"],
+    "les_treino_entorse": ["{{atleta}} lesionado (leve)", "Moral abalada"],
+    "les_treino_choque": ["{{atleta}} lesionado", "Fora por período médio"],
+    "les_cãibra_series": ["{{atleta}} indisponível por 2 dias", "Fadiga alta"],
+    "esc_balada_viral": ["Escândalo de conduta", "Moral e caixa afetados", "Fadiga sobe"],
+    "esc_motel_flagra": ["Escândalo pesado", "Moral de {{atleta}} em queda livre", "Multa interna"],
+    "esc_karaokê_desafinado": ["Constrangimento leve", "Moral de {{atleta}} −"],
+    "atl_gato_no_ct": ["Moral de {{atleta}} sobe", "Momento leve no CT"],
+    "atl_tiktok_dancinha": ["Moral sobe", "Pequena receita de marca"],
+    "atl_amigo_secreto_ct": ["Moral de {{atleta}} sobe"],
+    "esc_live_reclama_banco": ["Polêmica interna", "Moral de {{atleta}} cai"],
+    "atl_jantar_familia": ["Moral de {{atleta}} sobe"],
+    "dir_bonus_moral": ["Moral sobe", "Caixa − bônus"],
+    "tor_mosaico_carinho": ["Moral de {{atleta}} sobe forte", "Apoio da torcida"]
+  }
+}

@@ -511,3 +511,172 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+.modalWide {
+  max-width: 480px;
+}
+
+.tabDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  vertical-align: middle;
+}
+
+.liveLifeWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.liveLifeIntro {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.liveLifeActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.liveLifeBadgeOk {
+  font-size: 12px;
+  font-weight: 700;
+  color: #22c55e;
+}
+
+.checkList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.checkOk {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.checkPending {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.checkText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.checkText strong {
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.checkText span {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.checkLink {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.changelogList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.changelogItem {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.changelogItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.changelogHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.changelogVer {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.changelogTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.changelogBody {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.guideList {
+  margin: 0;
+  padding: 0 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guideList li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.guideList strong {
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.guideList span {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+}

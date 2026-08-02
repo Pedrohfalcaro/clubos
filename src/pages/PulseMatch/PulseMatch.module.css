@@ -24,6 +24,35 @@
   color: var(--pulse-text);
 }
 
+/** Overlay fullscreen com a mesma identidade visual do Pulse. */
+.overlayPage {
+  --pulse-red: #c41e3a;
+  --pulse-red-deep: #8b1024;
+  --pulse-red-soft: rgba(196, 30, 58, 0.14);
+  --pulse-bg: #14080c;
+  --pulse-card: #1f0e14;
+  --pulse-border: #4a1a28;
+  --pulse-text: #c9a8b2;
+  --pulse-text-h: #ffe8ee;
+  --pulse-display: 'Bebas Neue', Impact, sans-serif;
+  --pulse-body: 'IBM Plex Sans', system-ui, sans-serif;
+
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  min-height: 100svh;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(196, 30, 58, 0.35), transparent 60%),
+    linear-gradient(180deg, #1a0a10 0%, var(--pulse-bg) 55%, #0a0608 100%);
+  font-family: var(--pulse-body);
+  color: var(--pulse-text);
+}
+
 .shell {
   width: 100%;
   max-width: 480px;

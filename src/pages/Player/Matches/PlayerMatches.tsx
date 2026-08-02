@@ -90,6 +90,7 @@ export default function PlayerMatches() {
           location: editingMatch.location,
           competition: editingMatch.competition,
         } : undefined}
+        initialDate={state.currentDate ?? undefined}
       />
 
       <section className={styles.section}>

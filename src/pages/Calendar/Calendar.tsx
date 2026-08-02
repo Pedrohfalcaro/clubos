@@ -11,7 +11,15 @@ import {
   shortLocation,
 } from '../../utils/calendarHelpers';
 import { competitionNames, resolveCompetitionColor } from '../../utils/competitions';
+import { clampPaymentDay } from '../../utils/clubDebts';
+import { sponsorTierLabel } from '../../utils/sponsors';
+import { formatMoney } from '../../utils/finance';
 import { resultLetter } from '../../utils/matchTimeline';
+import {
+  formatWindowRange,
+  getActiveTransferWindow,
+  isDateInTransferWindow,
+} from '../../utils/transferWindow';
 import styles from './Calendar.module.css';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -37,7 +45,9 @@ function letterClass(result: Match['result']): string {
 export default function Calendar() {
   const navigate = useNavigate();
   const { state, scheduleMatch } = useGame();
-  const [viewDate, setViewDate] = useState(() => getInitialCalendarDate(state.matches));
+  const [viewDate, setViewDate] = useState(() =>
+    getInitialCalendarDate(state.matches, state.currentDate),
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
   const [recapMatch, setRecapMatch] = useState<Match | null>(null);
@@ -49,12 +59,75 @@ export default function Calendar() {
   const matchesByDate = useMemo(() => {
     const map = new Map<string, Match[]>();
     for (const m of state.matches) {
-      const list = map.get(m.date) ?? [];
+      const key = m.date.slice(0, 10);
+      const list = map.get(key) ?? [];
       list.push(m);
-      map.set(m.date, list);
+      map.set(key, list);
     }
     return map;
   }, [state.matches]);
+
+  const paymentsByDate = useMemo(() => {
+    const map = new Map<string, typeof state.transfers.pendingPayments>();
+    for (const p of state.transfers.pendingPayments ?? []) {
+      if (p.status !== 'pending') continue;
+      const key = p.dueDate.slice(0, 10);
+      const list = map.get(key) ?? [];
+      list.push(p);
+      map.set(key, list);
+    }
+    return map;
+  }, [state.transfers.pendingPayments]);
+
+  const loanPaysByDate = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof state.finance.loanPayments>>();
+    for (const p of state.finance.loanPayments ?? []) {
+      if (p.status !== 'pending') continue;
+      const key = p.dueDate.slice(0, 10);
+      const list = map.get(key) ?? [];
+      list.push(p);
+      map.set(key, list);
+    }
+    return map;
+  }, [state.finance.loanPayments]);
+
+  const presentationsByDate = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }[]>();
+    for (const p of state.players) {
+      if (!p.availableFrom) continue;
+      const key = p.availableFrom.slice(0, 10);
+      const list = map.get(key) ?? [];
+      list.push({ id: p.id, name: p.name });
+      map.set(key, list);
+    }
+    return map;
+  }, [state.players]);
+
+  const debtsByDay = useMemo(() => {
+    const map = new Map<number, NonNullable<typeof state.finance.debts>>();
+    for (const d of state.finance.debts ?? []) {
+      if (d.status !== 'active' || d.remaining <= 0) continue;
+      const day = clampPaymentDay(d.paymentDay);
+      const list = map.get(day) ?? [];
+      list.push(d);
+      map.set(day, list);
+    }
+    return map;
+  }, [state.finance.debts]);
+
+  const sponsorsByDay = useMemo(() => {
+    const map = new Map<number, NonNullable<typeof state.finance.sponsors>>();
+    for (const s of state.finance.sponsors ?? []) {
+      if (s.status !== 'active' || s.monthlyFee <= 0) continue;
+      const day = clampPaymentDay(s.paymentDay);
+      const list = map.get(day) ?? [];
+      list.push(s);
+      map.set(day, list);
+    }
+    return map;
+  }, [state.finance.sponsors]);
+
+  const gameToday = state.currentDate?.slice(0, 10) ?? null;
 
   const calendarDays = useMemo(() => {
     const firstDay = new Date(year, month, 1);
@@ -93,7 +166,10 @@ export default function Calendar() {
     <div className={styles.page}>
       <header className={styles.header}>
         <h1 className={styles.title}>Calendário</h1>
-        <p className={styles.sub}>Partidas agendadas e realizadas por mês</p>
+        <p className={styles.sub}>
+          Partidas, folha (dia 5), janela de mercado, transferências, empréstimos e apresentações
+          {gameToday ? ` · dia atual ${gameToday}` : ''}
+        </p>
       </header>
 
       <div className={styles.calendarNav}>
@@ -111,16 +187,40 @@ export default function Calendar() {
 
           const dateKey = toDateKey(date);
           const dayMatches = matchesByDate.get(dateKey) ?? [];
-          const isToday = dateKey === toDateKey(new Date());
-          const hasMatches = dayMatches.length > 0;
+          const dayPays = paymentsByDate.get(dateKey) ?? [];
+          const dayLoans = loanPaysByDate.get(dateKey) ?? [];
+          const dayPresent = presentationsByDate.get(dateKey) ?? [];
+          const dayDebts = debtsByDay.get(date.getDate()) ?? [];
+          const daySponsors = sponsorsByDay.get(date.getDate()) ?? [];
+          const isPayrollDay = date.getDate() === 5;
+          const windowOpenDay = isDateInTransferWindow(dateKey);
+          const windowInfo = getActiveTransferWindow(dateKey);
+          const isWindowStart =
+            windowOpenDay &&
+            !isDateInTransferWindow(
+              toDateKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1)),
+            );
+          const isRealToday = dateKey === toDateKey(new Date());
+          const isGameDay = gameToday === dateKey;
+          const hasEvents =
+            dayMatches.length > 0 ||
+            dayPays.length > 0 ||
+            dayLoans.length > 0 ||
+            dayPresent.length > 0 ||
+            dayDebts.length > 0 ||
+            daySponsors.length > 0 ||
+            isPayrollDay ||
+            isWindowStart;
 
           return (
             <div
               key={key}
               className={[
                 styles.day,
-                isToday ? styles.dayToday : '',
-                hasMatches ? styles.dayHasMatch : '',
+                isGameDay ? styles.dayGameClock : '',
+                isRealToday ? styles.dayToday : '',
+                hasEvents ? styles.dayHasMatch : '',
+                windowOpenDay ? styles.dayWindow : '',
               ].filter(Boolean).join(' ')}
             >
               <div className={styles.dayHeader}>
@@ -174,7 +274,112 @@ export default function Calendar() {
                     </button>
                   );
                 })}
-                {!hasMatches && (
+                {isPayrollDay && (
+                  <button
+                    type="button"
+                    className={styles.payrollCard}
+                    onClick={() => navigate('/financas')}
+                    title="Folha salarial — dia 5"
+                  >
+                    <span className={styles.payrollTag}>Folha</span>
+                    <span className={styles.transferName}>Pagamento salarial</span>
+                    <span className={styles.transferMeta}>Todo dia 5</span>
+                  </button>
+                )}
+                {isWindowStart && windowInfo && (
+                  <button
+                    type="button"
+                    className={styles.windowCard}
+                    onClick={() => navigate('/transferencias')}
+                    title={windowInfo.label}
+                  >
+                    <span className={styles.windowTag}>Mercado</span>
+                    <span className={styles.transferName}>{windowInfo.label}</span>
+                    <span className={styles.transferMeta}>{formatWindowRange(windowInfo)}</span>
+                  </button>
+                )}
+                {dayPays.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={styles.transferCard}
+                    onClick={() => navigate('/transferencias')}
+                    title={p.label}
+                  >
+                    <span className={styles.transferTag}>
+                      {p.direction === 'out' ? 'Pagamento' : 'Recebimento'}
+                    </span>
+                    <span className={styles.transferName}>{p.playerName}</span>
+                    <span className={styles.transferMeta}>
+                      {p.installmentTotal > 1
+                        ? `${p.installmentIndex}/${p.installmentTotal}`
+                        : 'à vista'}
+                    </span>
+                  </button>
+                ))}
+                {dayLoans.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={styles.loanCard}
+                    onClick={() => navigate('/financas')}
+                    title={p.label}
+                  >
+                    <span className={styles.loanTag}>Empréstimo</span>
+                    <span className={styles.transferName}>{p.label}</span>
+                    <span className={styles.transferMeta}>
+                      {p.installmentTotal > 1
+                        ? `${p.installmentIndex}/${p.installmentTotal}`
+                        : 'única'}
+                    </span>
+                  </button>
+                ))}
+                {dayDebts.map(d => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    className={styles.debtCard}
+                    onClick={() => navigate('/financas')}
+                    title={d.label}
+                  >
+                    <span className={styles.debtTag}>Dívida</span>
+                    <span className={styles.transferName}>{d.label}</span>
+                    <span className={styles.transferMeta}>
+                      {formatMoney(-Math.min(d.remaining, d.monthlyInstallment), state.finance.currency)}
+                    </span>
+                  </button>
+                ))}
+                {daySponsors.map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={styles.sponsorCard}
+                    onClick={() => navigate('/financas')}
+                    title={s.brand}
+                  >
+                    <span className={styles.sponsorTag}>Patrocínio</span>
+                    <span className={styles.transferName}>
+                      {sponsorTierLabel(s.tier)} · {s.brand}
+                    </span>
+                    <span className={styles.transferMeta}>
+                      {formatMoney(s.monthlyFee, state.finance.currency)}
+                    </span>
+                  </button>
+                ))}
+                {dayPresent.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={styles.presentCard}
+                    onClick={() => navigate('/squad')}
+                    title={`Apresentação: ${p.name}`}
+                  >
+                    <span className={styles.presentTag}>Apresentação</span>
+                    <span className={styles.transferName}>{p.name}</span>
+                    <span className={styles.transferMeta}>Disponível no elenco</span>
+                  </button>
+                ))}
+                {!hasEvents && (
                   <button
                     type="button"
                     className={styles.emptyDayBtn}
@@ -228,6 +433,29 @@ export default function Calendar() {
           <span className={styles.legendItem}>✈️ Fora</span>
           <span className={styles.legendItem}>— Neutro</span>
         </div>
+        <div className={styles.legendGroup}>
+          <span className={styles.legendTitle}>Outros</span>
+          <span className={styles.legendItem}>
+            <span className={styles.legendPayroll}>FOLHA</span>
+            Folha (dia 5)
+          </span>
+          <span className={styles.legendItem}>
+            <span className={styles.legendTransfer}>$ TRF</span>
+            Transferência
+          </span>
+          <span className={styles.legendItem}>
+            <span className={styles.legendWindow}>JANELA</span>
+            Mercado aberto
+          </span>
+          <span className={styles.legendItem}>
+            <span className={styles.legendLoan}>EMP</span>
+            Empréstimo
+          </span>
+          <span className={styles.legendItem}>
+            <span className={styles.legendPresent}>APR</span>
+            Apresentação
+          </span>
+        </div>
       </div>
 
       <MatchScheduleModal
@@ -235,7 +463,7 @@ export default function Calendar() {
         onClose={() => setModalOpen(false)}
         onSubmit={data => scheduleMatch(data)}
         competitions={competitionNames(comps)}
-        initialDate={selectedDate}
+        initialDate={selectedDate || state.currentDate || undefined}
         title="Agendar Partida"
       />
 

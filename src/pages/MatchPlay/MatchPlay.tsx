@@ -21,9 +21,12 @@ import { getHomeAway } from '../../utils/matchStats';
 import {
   getFormationPreset,
   isLineupComplete,
+  lineupWarnings,
   remapFormation,
   resolveTactics,
 } from '../../utils/formations';
+import { isPlayerBlockedFromLineup } from '../../types/Player';
+import type { Player } from '../../types/Player';
 import { defaultMinute, uid } from '../../utils/matchEvents';
 import {
   buildAssistEvents,
@@ -36,7 +39,7 @@ import {
 } from '../../utils/matchPlayHelpers';
 import { kitColorForLocation, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
 import MatchSummaryStep, { buildRatingsArray } from './MatchSummaryStep';
-import MatchResultStep, { isResultStepValid } from './MatchResultStep';
+import MatchResultStep, { areInjuriesValid, isResultStepValid } from './MatchResultStep';
 import ScoreStep from './steps/ScoreStep';
 import TeamGoalsStep from './steps/TeamGoalsStep';
 import OpponentGoalsStep from './steps/OpponentGoalsStep';
@@ -87,6 +90,23 @@ function stepLabel(step: Step): string {
   }
 }
 
+function sanitizeLineup(
+  draft: TacticsDraft,
+  players: Player[],
+  competition?: string | null,
+  gameDate?: string | null,
+): TacticsDraft {
+  const ok = (id: string) => {
+    const p = players.find(x => x.id === id);
+    return !!p && !isPlayerBlockedFromLineup(p, competition, gameDate);
+  };
+  return {
+    ...draft,
+    formation: draft.formation.filter(f => ok(f.playerId)),
+    bench: draft.bench.filter(ok),
+  };
+}
+
 export default function MatchPlay() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
@@ -99,12 +119,29 @@ export default function MatchPlay() {
 
   const [step, setStep] = useState<Step>('lineup');
 
+  const matchCompetition = match?.competition ?? null;
+
   // A escalação da partida parte do que já foi registrado nela, ou da tática salva
+  // (atletas lesionados/suspensos nesta competição são removidos automaticamente)
+  const gameDate = state.currentDate;
   const [lineup, setLineup] = useState<TacticsDraft>(() =>
-    resolveTactics(match?.lineup ?? state.tactics, players),
+    sanitizeLineup(
+      resolveTactics(match?.lineup ?? state.tactics, players),
+      players,
+      match?.competition,
+      state.currentDate,
+    ),
   );
   const { formationKey, style, formation, bench } = lineup;
   const preset = getFormationPreset(formationKey);
+  const availabilityWarnings = lineupWarnings(
+    formation,
+    formationKey,
+    players,
+    bench,
+    matchCompetition,
+    gameDate,
+  ).filter(w => w.kind === 'availability');
 
   const [goalsFor, setGoalsFor] = useState(match?.goalsFor ?? 0);
   const [goalsAgainst, setGoalsAgainst] = useState(match?.goalsAgainst ?? 0);
@@ -151,7 +188,13 @@ export default function MatchPlay() {
 
   const homeAway = match ? getHomeAway(teamName, { ...match, goalsFor, goalsAgainst }) : null;
   const starters = formation.map(f => f.playerId);
-  const lineupValid = isLineupComplete(formation, formationKey, players) && bench.length <= 9;
+  const lineupValid =
+    isLineupComplete(formation, formationKey, players, matchCompetition, gameDate) &&
+    bench.length <= 9 &&
+    !bench.some(id => {
+      const p = players.find(x => x.id === id);
+      return !!p && isPlayerBlockedFromLineup(p, matchCompetition, gameDate);
+    });
 
   const homeGoals = homeAway?.homeTeam === teamName ? goalsFor : goalsAgainst;
   const awayGoals = homeAway?.awayTeam === teamName ? goalsFor : goalsAgainst;
@@ -249,7 +292,7 @@ export default function MatchPlay() {
       playerMatches,
       lineup: { formation, bench, formationKey, style },
       substitutions: teamSubs,
-      injuries,
+      injuries: injuries.filter(i => !!i.playerId && !!i.returnDate),
       opponentGoalScorers: opponentGoalsText(opponentGoals) || undefined,
       description: description.trim() || undefined,
       playerRatings: buildRatingsArray(ratings),
@@ -257,21 +300,27 @@ export default function MatchPlay() {
       worstPlayerId: worstPlayerId ?? undefined,
     };
 
-    if (isEdit) updateCompletedMatch(input);
-    else completeMatch(input);
-    navigate('/dashboard');
+    if (isEdit) {
+      updateCompletedMatch(input);
+      navigate('/dashboard');
+    } else {
+      completeMatch(input);
+      navigate(`/press-conference?ctx=post&matchId=${match.id}`);
+    }
   }
 
   function canContinue(): boolean {
     if (step === 'lineup') return lineupValid;
     if (step === 'score' && liveMode) {
       return (
-        isResultStepValid(goalsFor, teamGoals) &&
+        isResultStepValid(goalsFor, teamGoals, injuries) &&
         isOpponentGoalsValid(goalsAgainst, opponentGoals)
       );
     }
     if (step === 'teamGoals') return isTeamGoalsValid(goalsFor, teamGoals);
     if (step === 'opponentGoals') return isOpponentGoalsValid(goalsAgainst, opponentGoals);
+    if (step === 'events') return areInjuriesValid(injuries);
+    if (step === 'ratings' || step === 'recap') return areInjuriesValid(injuries);
     return true;
   }
 
@@ -361,7 +410,16 @@ export default function MatchPlay() {
                     const id = e.target.value;
                     if (!id) return;
                     const preset = state.tacticsPresets.find(p => p.id === id);
-                    if (preset) setLineup(resolveTactics(preset, players));
+                    if (preset) {
+                      setLineup(
+                        sanitizeLineup(
+                          resolveTactics(preset, players),
+                          players,
+                          matchCompetition,
+                          gameDate,
+                        ),
+                      );
+                    }
                   }}
                 >
                   <option value="">Usar tática…</option>
@@ -394,8 +452,16 @@ export default function MatchPlay() {
               kitColor={lineupKitColor}
               primaryColor={state.team?.primaryColor ?? DEFAULT_PRIMARY}
               secondaryColor={state.team?.secondaryColor ?? DEFAULT_SECONDARY}
+              competition={matchCompetition}
             />
           </div>
+          {availabilityWarnings.length > 0 && (
+            <ul className={styles.lineupWarnList}>
+              {availabilityWarnings.map((w, i) => (
+                <li key={i}>{w.message}</li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 

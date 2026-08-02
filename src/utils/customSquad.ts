@@ -85,6 +85,7 @@ export function createBlankTeam(
     fans: 50_000,
     boardConfidence: 70,
     supporterConfidence: 65,
+    mediaConfidence: 50,
     primaryColor: colors?.primaryColor ?? DEFAULT_PRIMARY,
     secondaryColor: colors?.secondaryColor ?? DEFAULT_SECONDARY,
     statistics: {

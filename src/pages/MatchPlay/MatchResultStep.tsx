@@ -17,6 +17,8 @@ import type {
 } from '../../types/Match';
 import { defaultMinute, formatMinute, uid } from '../../utils/matchEvents';
 import { getFieldPlayerIds, isPlayerOnField } from '../../utils/matchPlayHelpers';
+import { addDaysIso } from '../../livelife';
+import { useGame } from '../../context/GameContext';
 import styles from './MatchResultStep.module.css';
 
 interface MatchResultStepProps {
@@ -65,6 +67,7 @@ function teamGoalSummary(g: TeamGoalEntry, players: Player[]): string {
 }
 
 export default function MatchResultStep(props: MatchResultStepProps) {
+  const { state } = useGame();
   const {
     teamName, opponentName, homeTeam, awayTeam, isTeamHome,
     goalsFor, goalsAgainst, onGoalsForChange, onGoalsAgainstChange,
@@ -389,8 +392,10 @@ export default function MatchResultStep(props: MatchResultStepProps) {
       {onInjuriesChange && (
         <div className={styles.cardSection}>
           {injuries.map(inj => {
-            const complete = !!inj.playerId;
-            const summary = `${formatMinute(inj.minute)} · ✚ ${inj.playerName || '—'}${inj.note ? ` · ${inj.note}` : ''}`;
+            const complete = !!inj.playerId && !!inj.returnDate;
+            const summary = complete
+              ? `${formatMinute(inj.minute)} · ${inj.playerName} · retorno ${new Date(`${inj.returnDate}T12:00:00`).toLocaleDateString('pt-BR')}${inj.note ? ` · ${inj.note}` : ''}`
+              : `${formatMinute(inj.minute)} · Lesão incompleta — selecione o jogador`;
             return (
               <CollapsibleEventBlock
                 key={inj.id}
@@ -410,6 +415,7 @@ export default function MatchResultStep(props: MatchResultStepProps) {
                       }
                     />
                   </div>
+                  <span className={styles.fieldLabel}>Jogador *</span>
                   <SearchableSelect
                     options={fieldOptions}
                     value={inj.playerId}
@@ -422,7 +428,26 @@ export default function MatchResultStep(props: MatchResultStepProps) {
                         ),
                       );
                     }}
-                    placeholder="Jogador lesionado..."
+                    placeholder="Selecionar atleta lesionado..."
+                  />
+                  {!inj.playerId && (
+                    <span className={styles.injuryError}>Obrigatório escolher o jogador</span>
+                  )}
+                  <label className={styles.fieldLabel} htmlFor={`inj-return-${inj.id}`}>
+                    Retorno previsto *
+                  </label>
+                  <input
+                    id={`inj-return-${inj.id}`}
+                    className={styles.textInput}
+                    type="date"
+                    value={inj.returnDate ?? ''}
+                    onChange={e =>
+                      onInjuriesChange(
+                        injuries.map(x =>
+                          x.id === inj.id ? { ...x, returnDate: e.target.value } : x,
+                        ),
+                      )
+                    }
                   />
                   <input
                     className={styles.textInput}
@@ -440,17 +465,24 @@ export default function MatchResultStep(props: MatchResultStepProps) {
           })}
           <button
             type="button"
-            className={styles.subBtn}
+            className={styles.injuryBtn}
             onClick={() => {
               const id = uid();
+              const base = state.currentDate ?? new Date().toISOString().slice(0, 10);
               onInjuriesChange([
                 ...injuries,
-                { id, playerId: '', playerName: '', minute: defaultMinute() },
+                {
+                  id,
+                  playerId: '',
+                  playerName: '',
+                  minute: defaultMinute(),
+                  returnDate: addDaysIso(base, 14),
+                },
               ]);
               setExpandedIds(prev => new Set(prev).add(id));
             }}
           >
-            ✚ Lesão
+            Registrar lesão
           </button>
         </div>
       )}
@@ -705,9 +737,25 @@ export default function MatchResultStep(props: MatchResultStepProps) {
   );
 }
 
-export function isResultStepValid(goalsFor: number, teamGoals: TeamGoalEntry[]): boolean {
-  if (goalsFor === 0) return teamGoals.length === 0 || teamGoals.every(g => g.type === 'own' ? !!g.opponentScorerName?.trim() : !!g.playerId);
-  return teamGoals.length === goalsFor && teamGoals.every(g =>
-    g.type === 'own' ? !!g.opponentScorerName?.trim() : !!g.playerId,
-  );
+export function isResultStepValid(
+  goalsFor: number,
+  teamGoals: TeamGoalEntry[],
+  injuries: TeamInjuryEntry[] = [],
+): boolean {
+  const goalsOk =
+    goalsFor === 0
+      ? teamGoals.length === 0 ||
+        teamGoals.every(g =>
+          g.type === 'own' ? !!g.opponentScorerName?.trim() : !!g.playerId,
+        )
+      : teamGoals.length === goalsFor &&
+        teamGoals.every(g =>
+          g.type === 'own' ? !!g.opponentScorerName?.trim() : !!g.playerId,
+        );
+  const injuriesOk = injuries.every(i => !!i.playerId && !!i.returnDate);
+  return goalsOk && injuriesOk;
+}
+
+export function areInjuriesValid(injuries: TeamInjuryEntry[]): boolean {
+  return injuries.every(i => !!i.playerId && !!i.returnDate);
 }

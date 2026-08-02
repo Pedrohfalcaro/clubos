@@ -471,6 +471,47 @@
   margin: 0;
 }
 
+.stadiumHint {
+  margin: 16px 0 0;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.stadiumCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stadiumIntro {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.stadiumGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 560px) {
+  .stadiumGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.stadiumUnit {
+  font-size: 11px;
+  color: var(--text);
+}
+
 .formGroup {
   display: flex;
   flex-direction: column;

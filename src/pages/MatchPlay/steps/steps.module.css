@@ -264,6 +264,20 @@
   line-height: 1;
 }
 
+.eventIconInjury {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .eventList {
   display: flex;
   flex-direction: column;
@@ -282,6 +296,20 @@
 
 .eventItemIcon {
   font-size: 18px;
+  flex-shrink: 0;
+}
+
+.eventItemIconInjury {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  font-size: 14px;
+  font-weight: 800;
   flex-shrink: 0;
 }
 
@@ -330,6 +358,26 @@
   font-size: 14px;
   font-weight: 700;
   color: var(--text-h);
+}
+
+.formSheetHint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.fieldError {
+  font-size: 12px;
+  color: #f87171;
+  font-weight: 600;
+}
+
+.eventItemError {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #f87171;
+  font-weight: 600;
 }
 
 .formActions {

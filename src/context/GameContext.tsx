@@ -9,6 +9,9 @@ import type { Team } from '../types/Team';
 import type { Player } from '../types/Player';
 import type { Match, ScheduleMatchInput, CompleteMatchInput } from '../types/Match';
 import type { Manager } from '../types/Manager';
+import type { TeamAchievement } from '../types/Achievement';
+import { computeSeasonClosingAchievements } from '../utils/achievements';
+import { uid } from '../utils/matchEvents';
 import type { SavedTactics, TacticsPreset } from '../types/Tactics';
 import { MAX_TACTICS_PRESETS } from '../types/Tactics';
 import type { CareerMode, SetupStep } from '../types/CareerMode';
@@ -17,12 +20,11 @@ import { createDefaultCareerPlayer, emptyPlayerStats } from '../types/CareerPlay
 import type { CompletePlayerMatchInput } from '../types/PlayerMatchPerformance';
 import { clearGame, type GameSave } from '../services/storage';
 import { calcResult, recalculateFromMatches } from '../utils/matchStats';
-import { applyMatchMoraleToPlayers } from '../utils/squadMorale';
+import { applyDailySquadMoraleDrift, applyMatchMoraleToPlayers } from '../utils/squadMorale';
 import {
-  BOARD_RESULT_DELTA,
-  SUPPORTER_RESULT_DELTA,
+  calcMatchClimateDeltas,
   clampConfidence,
-  resultConfidenceReason,
+  dailyClimateDrift,
 } from '../utils/clubConfidence';
 import {
   createTacticsPresetId,
@@ -38,18 +40,73 @@ import {
   createDefaultPulseState,
   generatePulse,
   playerToPulseAthlete,
+  rollDailyPulse,
+  type PulseHistoryEntry,
   type PulseSettings,
   type PulseState,
 } from '../pulse';
-import type { ClubFinance, FinanceLedgerEntry } from '../types/Finance';
+import type {
+  ClubDebt,
+  ClubFinance,
+  ClubLoan,
+  ClubLoanPayment,
+  ClubSponsor,
+  Currency,
+  FinanceLedgerEntry,
+  PrizeTableEntry,
+  SponsorBonusClause,
+  SponsorTier,
+  StadiumConfig,
+} from '../types/Finance';
 import { createDefaultFinance } from '../types/Finance';
+import {
+  createClubLoanPackage,
+  loanPaymentsDueOnDate,
+  suggestPayrollBridgeLoan,
+} from '../utils/clubLoans';
+import {
+  applyDebtPayment,
+  applyPayrollDelayMorale,
+  createClubDebt,
+  createOverdraftDebt,
+  debtsWithInstallmentDue,
+  skipDebtInstallment,
+} from '../utils/clubDebts';
+import {
+  applyMonthlySponsorPayments,
+  createClubSponsor,
+  hasActiveTier,
+  renewSponsor,
+  settleSponsorsForSeason,
+} from '../utils/sponsors';
+import { seedLiveLifeFinance } from '../utils/livelifeTemplates';
+import type { LiveLifeMeta } from '../types/LiveLife';
+import { createDefaultLiveLifeMeta } from '../types/LiveLife';
+import type { SocialPost, SocialState } from '../types/Social';
+import { createDefaultSocialState } from '../types/Social';
+import { buildMatchHeadline } from '../utils/socialHeadlines';
+import { buildTransferHeadline } from '../utils/transferHeadlines';
+import { currencySymbol } from '../types/Finance';
+import { newSocialPost } from '../types/Social';
+import type { PressConferenceDeltas, PressContext } from '../types/PressConference';
+import { nextPressFriction } from '../pressconference';
+import { contextLabel } from '../utils/pressTriggers';
+import { clearArcPendingPress, tickStoryArc } from '../utils/storyArcs';
 import type { BoardState, BoardGoal } from '../types/Board';
 import { createDefaultBoardState } from '../types/Board';
-import type { TransferState, WatchlistPlayer, TransferRecord } from '../types/Transfer';
+import type {
+  TransferState,
+  WatchlistPlayer,
+  TransferRecord,
+  TransferPayment,
+} from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
+import { paymentsDueOnDate } from '../utils/transferPayments';
+import { isDateInTransferWindow } from '../utils/transferWindow';
 import type { SeasonArchive } from '../types/SeasonHistory';
 import { emptyTeamStats } from '../types/SeasonHistory';
-import { newLedgerEntry, wageBill } from '../utils/finance';
+import { newLedgerEntry, wageBill, calcGateRevenue, applyMatchPrize } from '../utils/finance';
+import { advanceDay as computeAdvanceDay, findMatchOnDate, applyMatchAvailability, addDaysIso } from '../livelife';
 import { useAuth } from './AuthContext';
 import { emptyPlayerStats as emptySquadStats } from '../types/Player';
 import type { SaveSlotId } from '../services/saveSlots';
@@ -83,6 +140,24 @@ export interface GameState {
   seasonHistory: SeasonArchive[];
   /** Slot de save ativo desta carreira (1–3). */
   saveSlotId: SaveSlotId;
+  /** Clock contínuo LiveLife (ISO `YYYY-MM-DD`). `null` = não ativado. */
+  currentDate: string | null;
+  /** Folha do dia 5 pendente de confirmação. */
+  payrollDue: boolean;
+  /** Modal de dados LiveLife após carregar/iniciar carreira (não persiste). */
+  liveLifePromptPending: boolean;
+  /** Evento Pulse diário pendente de exibição (não persiste no save). */
+  pendingDailyPulse: PulseHistoryEntry | null;
+  /** Metadados LiveLife persistidos (onboarding, etc.). */
+  livelife: LiveLifeMeta;
+  /** Feed ClubOSocial. */
+  social: SocialState;
+  /** Popup de parcelas de transferência vencidas (não persiste). */
+  transferPaymentsDue: boolean;
+  /** Popup de parcelas de empréstimo bancário (não persiste). */
+  loanPaymentsDue: boolean;
+  /** Popup de parcela mensal de dívida (não persiste). */
+  debtPaymentsDue: boolean;
 }
 
 type GameAction =
@@ -90,7 +165,30 @@ type GameAction =
   | { type: 'SET_COACH_COUNTRY'; country: string }
   | { type: 'SET_CUSTOM_CLUB'; team: Team; players: Player[] }
   | { type: 'SET_MANAGER'; manager: Manager }
-  | { type: 'START_CAREER'; manager: Manager; seasonCompetitions: SeasonCompetition[] }
+  | { type: 'UPDATE_MANAGER'; updates: Partial<Manager> }
+  | { type: 'ADD_ACHIEVEMENT'; achievement: TeamAchievement }
+  | { type: 'REMOVE_ACHIEVEMENT'; achievementId: string }
+  | {
+      type: 'START_CAREER';
+      manager: Manager;
+      seasonCompetitions: SeasonCompetition[];
+      startDate: string;
+      currency?: Currency;
+      prizeTable?: Record<string, PrizeTableEntry>;
+      stadiumConfig?: StadiumConfig;
+      openingDebt?: {
+        amount: number;
+        monthlyInstallment: number;
+        paymentDay?: number;
+        label?: string;
+      };
+    }
+  | { type: 'DISMISS_LIVELIFE_PROMPT' }
+  | { type: 'DISMISS_DAILY_PULSE' }
+  | { type: 'COMPLETE_LIVELIFE_ONBOARDING' }
+  | { type: 'ADVANCE_DAY' }
+  | { type: 'REWIND_DAY' }
+  | { type: 'SET_CURRENT_DATE'; date: string }
   | { type: 'SET_CAREER_PLAYER'; player: Partial<CareerPlayer> }
   | { type: 'SET_PLAYER_CLUB'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number }
   | { type: 'FINISH_PLAYER_SETUP'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number; mainCompetition: string }
@@ -103,7 +201,15 @@ type GameAction =
   | { type: 'ADD_INJURY'; injury: Omit<InjuryEntry, 'id'> }
   | { type: 'REMOVE_INJURY'; injuryId: string }
   | { type: 'ADVANCE_SEASON' }
-  | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue'>> }
+  | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft'>> }
+  | {
+      type: 'RENEW_PLAYER_CONTRACT';
+      playerId: string;
+      years: number;
+      newSalary: number;
+      signingBonus?: number;
+      ledgerEntry?: FinanceLedgerEntry;
+    }
   | { type: 'ADD_PLAYER'; player: Player }
   | { type: 'REMOVE_PLAYER'; playerId: string }
   | { type: 'SCHEDULE_MATCH'; match: Match }
@@ -118,12 +224,32 @@ type GameAction =
   | { type: 'SET_ACTIVE_TACTICS'; id: string }
   | { type: 'APPLY_PULSE'; matchId: string }
   | { type: 'UPDATE_PULSE_SETTINGS'; settings: Partial<PulseSettings> }
+  | { type: 'ADD_SOCIAL_POST'; post: SocialPost }
+  | { type: 'MARK_SOCIAL_SEEN' }
+  | {
+      type: 'APPLY_PRESS_CONFERENCE';
+      context: PressContext;
+      matchId?: string;
+      deltas: PressConferenceDeltas;
+      headline: string;
+      playerMorale?: { playerId: string; delta: number }[];
+      aggressiveCount?: number;
+      specialDoneKey?: string;
+    }
   | { type: 'LOAD_SAVE'; state: Omit<GameState, 'started' | 'setupStep' | 'pendingTeam' | 'pendingPlayers' | 'pendingCoachCountry' | 'pendingCareerPlayer'> }
   | { type: 'COMPLETE_TUTORIAL' }
   | { type: 'RESET' }
   // Finance
   | { type: 'APPLY_LEDGER'; entry: FinanceLedgerEntry }
   | { type: 'PAY_WAGES' }
+  | {
+      type: 'PAY_WAGES_WITH_BRIDGE_LOAN';
+      loan: ClubLoan;
+      payments: ClubLoanPayment[];
+      creditEntry: FinanceLedgerEntry;
+      wageEntry: FinanceLedgerEntry;
+    }
+  | { type: 'DISMISS_PAYROLL' }
   | { type: 'SET_PRIZE_TABLE'; competition: string; prize: { win?: number; draw?: number; knockout?: number; champion?: number } }
   | { type: 'UPDATE_FINANCE'; updates: Partial<ClubFinance> }
   // Board
@@ -136,7 +262,37 @@ type GameAction =
   | { type: 'ADD_WATCHLIST'; player: WatchlistPlayer }
   | { type: 'REMOVE_WATCHLIST'; playerId: string }
   | { type: 'UPDATE_WATCHLIST'; playerId: string; updates: Partial<WatchlistPlayer> }
-  | { type: 'EXECUTE_TRANSFER'; record: TransferRecord; newPlayer?: Player; removedPlayerId?: string; ledgerEntries: FinanceLedgerEntry[] };
+  | {
+      type: 'EXECUTE_TRANSFER';
+      record: TransferRecord;
+      newPlayer?: Player;
+      removedPlayerId?: string;
+      ledgerEntries: FinanceLedgerEntry[];
+      pendingPayments?: TransferPayment[];
+    }
+  | { type: 'UPDATE_TRANSFER_RECORD'; transferId: string; updates: Partial<TransferRecord> }
+  | { type: 'PAY_TRANSFER_PAYMENT'; paymentId: string; ledgerEntry: FinanceLedgerEntry }
+  | { type: 'DISMISS_TRANSFER_PAYMENTS' }
+  | {
+      type: 'TAKE_CLUB_LOAN';
+      loan: ClubLoan;
+      payments: ClubLoanPayment[];
+      creditEntry: FinanceLedgerEntry;
+    }
+  | { type: 'PAY_LOAN_PAYMENT'; paymentId: string; ledgerEntry: FinanceLedgerEntry }
+  | { type: 'DISMISS_LOAN_PAYMENTS' }
+  | { type: 'ADD_CLUB_DEBT'; debt: ClubDebt }
+  | {
+      type: 'PAY_CLUB_DEBT';
+      debtId: string;
+      amount: number;
+      ledgerEntry: FinanceLedgerEntry;
+      asMonthlyInstallment?: boolean;
+    }
+  | { type: 'DISMISS_DEBT_PAYMENTS' }
+  | { type: 'ADD_CLUB_SPONSOR'; sponsor: ClubSponsor }
+  | { type: 'RENEW_CLUB_SPONSOR'; sponsorId: string; extraSeasons?: number }
+  | { type: 'TERMINATE_CLUB_SPONSOR'; sponsorId: string; ledgerEntry?: FinanceLedgerEntry };
 
 interface GameContextValue {
   state: GameState;
@@ -144,7 +300,31 @@ interface GameContextValue {
   setCoachCountry: (country: string) => void;
   setCustomClub: (team: Team, players: Player[]) => void;
   setManager: (manager: Manager) => void;
-  startCareer: (seasonCompetitions: string[] | SeasonCompetition[], slotId?: SaveSlotId) => void;
+  updateManager: (updates: Partial<Manager>) => void;
+  addAchievement: (achievement: Omit<TeamAchievement, 'id'> & { id?: string }) => void;
+  removeAchievement: (achievementId: string) => void;
+  startCareer: (
+    seasonCompetitions: string[] | SeasonCompetition[],
+    slotId?: SaveSlotId,
+    startDate?: string,
+    options?: {
+      currency?: Currency;
+      prizeTable?: Record<string, PrizeTableEntry>;
+      stadiumConfig?: StadiumConfig;
+      openingDebt?: {
+        amount: number;
+        monthlyInstallment: number;
+        paymentDay?: number;
+        label?: string;
+      };
+    },
+  ) => void;
+  dismissLiveLifePrompt: () => void;
+  dismissDailyPulse: () => void;
+  completeLiveLifeOnboarding: () => void;
+  advanceDay: () => { matchId: string | null };
+  rewindDay: () => void;
+  setCurrentDate: (date: string) => void;
   setCareerPlayer: (data: Partial<CareerPlayer>) => void;
   setPlayerClub: (data: {
     club: ClubInfo;
@@ -175,7 +355,7 @@ interface GameContextValue {
   advanceSeason: () => void;
   updatePlayer: (
     playerId: string,
-    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue'>>,
+    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft'>>,
   ) => void;
   addPlayer: (player: Player) => void;
   removePlayer: (playerId: string) => void;
@@ -192,6 +372,17 @@ interface GameContextValue {
   setActiveTactics: (id: string) => void;
   rollPulseForMatch: (matchId: string) => void;
   updatePulseSettings: (settings: Partial<PulseSettings>) => void;
+  addSocialPost: (post: SocialPost) => void;
+  markSocialSeen: () => void;
+  applyPressConference: (input: {
+    context: PressContext;
+    matchId?: string;
+    deltas: PressConferenceDeltas;
+    headline: string;
+    playerMorale?: { playerId: string; delta: number }[];
+    aggressiveCount?: number;
+    specialDoneKey?: string;
+  }) => void;
   completeTutorial: () => void;
   resetGame: () => void;
   getTeamPlayers: () => Player[];
@@ -200,6 +391,7 @@ interface GameContextValue {
   // Finance
   applyLedger: (entry: FinanceLedgerEntry) => void;
   payWages: () => void;
+  dismissPayroll: () => void;
   setPrizeTable: (competition: string, prize: { win?: number; draw?: number; knockout?: number; champion?: number }) => void;
   updateFinance: (updates: Partial<ClubFinance>) => void;
   // Board
@@ -212,7 +404,54 @@ interface GameContextValue {
   addWatchlist: (player: WatchlistPlayer) => void;
   removeWatchlist: (playerId: string) => void;
   updateWatchlist: (playerId: string, updates: Partial<WatchlistPlayer>) => void;
-  executeTransfer: (record: TransferRecord, newPlayer?: Player, removedPlayerId?: string, ledgerEntries?: FinanceLedgerEntry[]) => void;
+  executeTransfer: (
+    record: TransferRecord,
+    newPlayer?: Player,
+    removedPlayerId?: string,
+    ledgerEntries?: FinanceLedgerEntry[],
+    pendingPayments?: TransferPayment[],
+  ) => void;
+  updateTransferRecord: (transferId: string, updates: Partial<TransferRecord>) => void;
+  payTransferPayment: (paymentId: string) => void;
+  dismissTransferPayments: () => void;
+  renewPlayerContract: (input: {
+    playerId: string;
+    years: number;
+    newSalary: number;
+    signingBonus?: number;
+  }) => void;
+  takeClubLoan: (input: {
+    principal: number;
+    interestRatePercent: number;
+    installmentCount: number;
+    firstPaymentDate: string;
+    notes?: string;
+  }) => void;
+  /** Empréstimo-ponte (120% da folha) + pagamento da folha, quando o caixa não cobre. */
+  payWagesWithBridgeLoan: () => boolean;
+  payLoanPayment: (paymentId: string) => void;
+  dismissLoanPayments: () => void;
+  addClubDebt: (input: {
+    amount: number;
+    monthlyInstallment: number;
+    paymentDay: number;
+    label?: string;
+  }) => void;
+  payClubDebt: (debtId: string, amount: number, asMonthlyInstallment?: boolean) => void;
+  /** Ignora parcelas do dia: aplica juros e fecha o mês. */
+  dismissDebtPayments: () => void;
+  addClubSponsor: (input: {
+    brand: string;
+    tier: SponsorTier;
+    monthlyFee: number;
+    seasons: number;
+    paymentDay: number;
+    minLeaguePosition?: number;
+    terminationFee?: number;
+    bonuses?: Omit<SponsorBonusClause, 'id'>[];
+  }) => boolean;
+  renewClubSponsor: (sponsorId: string, extraSeasons?: number) => void;
+  terminateClubSponsor: (sponsorId: string) => void;
 }
 
 const initialState: GameState = {
@@ -241,6 +480,15 @@ const initialState: GameState = {
   transfers: createDefaultTransferState(),
   seasonHistory: [],
   saveSlotId: '1',
+  currentDate: null,
+  payrollDue: false,
+  liveLifePromptPending: false,
+  pendingDailyPulse: null,
+  livelife: createDefaultLiveLifeMeta(),
+  social: createDefaultSocialState(),
+  transferPaymentsDue: false,
+  loanPaymentsDue: false,
+  debtPaymentsDue: false,
 };
 
 function updatePlayerFromMatch(
@@ -303,10 +551,61 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_MANAGER':
       return { ...state, setupStep: 'competitions', manager: action.manager };
 
+    case 'UPDATE_MANAGER': {
+      if (!state.manager) return state;
+      return { ...state, manager: { ...state.manager, ...action.updates } };
+    }
+
+    case 'ADD_ACHIEVEMENT': {
+      if (!state.team) return state;
+      const list = [...(state.team.achievements ?? []), action.achievement];
+      return {
+        ...state,
+        team: { ...state.team, achievements: list },
+      };
+    }
+
+    case 'REMOVE_ACHIEVEMENT': {
+      if (!state.team) return state;
+      return {
+        ...state,
+        team: {
+          ...state.team,
+          achievements: (state.team.achievements ?? []).filter(a => a.id !== action.achievementId),
+        },
+      };
+    }
+
     case 'START_CAREER': {
       if (!state.pendingTeam || state.pendingPlayers.length === 0) return state;
       const team = state.pendingTeam;
       const players = state.pendingPlayers.map(p => ({ ...p, teamId: team.id }));
+      const currency = action.currency ?? 'BRL';
+      const baseFinance = createDefaultFinance(team.budget ?? 5_000_000, currency);
+      const opening =
+        action.openingDebt &&
+        action.openingDebt.amount > 0 &&
+        action.openingDebt.monthlyInstallment > 0
+          ? [
+              createClubDebt({
+                amount: action.openingDebt.amount,
+                monthlyInstallment: action.openingDebt.monthlyInstallment,
+                paymentDay: action.openingDebt.paymentDay ?? 5,
+                label: action.openingDebt.label ?? 'Dívida de abertura',
+                source: 'manual',
+                createdAt: action.startDate.slice(0, 10),
+              }),
+            ]
+          : [];
+      const finance = seedLiveLifeFinance(
+        {
+          ...baseFinance,
+          prizeTable: action.prizeTable ?? {},
+          stadiumConfig: action.stadiumConfig ?? baseFinance.stadiumConfig,
+          debts: opening,
+        },
+        action.seasonCompetitions,
+      );
       return {
         ...state,
         started: true,
@@ -329,12 +628,33 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         activeTacticsId: null,
         tutorialCompleted: false,
         pulse: createDefaultPulseState(),
-        finance: createDefaultFinance(team.budget ?? 5_000_000),
+        finance,
         board: createDefaultBoardState(),
         transfers: createDefaultTransferState(),
         seasonHistory: [],
+        currentDate: action.startDate.slice(0, 10),
+        payrollDue: false,
+        transferPaymentsDue: false,
+        loanPaymentsDue: false,
+        debtPaymentsDue: false,
+        liveLifePromptPending: true,
+        pendingDailyPulse: null,
+        livelife: createDefaultLiveLifeMeta(),
+        social: createDefaultSocialState(team.name),
       };
     }
+
+    case 'DISMISS_LIVELIFE_PROMPT':
+      return { ...state, liveLifePromptPending: false };
+
+    case 'DISMISS_DAILY_PULSE':
+      return { ...state, pendingDailyPulse: null };
+
+    case 'COMPLETE_LIVELIFE_ONBOARDING':
+      return {
+        ...state,
+        livelife: { ...state.livelife, onboardingComplete: true },
+      };
 
     case 'SET_CAREER_PLAYER': {
       const base = state.pendingCareerPlayer ?? {};
@@ -578,6 +898,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         const players = state.players.map(p => ({
           ...p,
           age: p.age + 1,
+          contractYearsLeft:
+            p.contractYearsLeft != null
+              ? Math.max(0, p.contractYearsLeft - 1)
+              : p.contractYearsLeft,
           careerStats: {
             matches: (p.careerStats?.matches ?? 0) + (p.stats.matches ?? 0),
             minutes: (p.careerStats?.minutes ?? 0) + (p.stats.minutes ?? 0),
@@ -595,21 +919,76 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             ? { ...g, status: 'failed' as const }
             : g,
         );
+
+        const closing = computeSeasonClosingAchievements({
+          teamName: state.team.name,
+          season: state.season,
+          matches: state.matches,
+          competitions: state.seasonCompetitions,
+          existing: state.team.achievements ?? [],
+        });
+
+        let manager = state.manager;
+        if (manager && closing.managerAwards.length) {
+          manager = {
+            ...manager,
+            awards: [...(manager.awards ?? []), ...closing.managerAwards],
+          };
+        }
+
+        const titlePosts = closing.newTitles.map(t =>
+          newSocialPost({
+            date: new Date().toISOString().slice(0, 10),
+            type: 'headline',
+            content: `${state.team!.name} campeão: ${t.competition} (${t.season})`,
+            body: `Título registrado na Sala de Troféus ao fechar a temporada ${state.season}.`,
+            headlineStyle: 'journalistic',
+            author: 'Gazeta ClubOS',
+            likes: 140 + Math.floor(Math.random() * 200),
+          }),
+        );
+
+        const closeDate = new Date().toISOString().slice(0, 10);
+        const sponsorSettle = settleSponsorsForSeason({
+          sponsors: state.finance.sponsors ?? [],
+          teamName: state.team.name,
+          season: state.season,
+          matches: state.matches,
+          competitions: state.seasonCompetitions,
+          players: state.players,
+          titlesWon: closing.newTitles.map(t => t.competition),
+          gameDate: closeDate,
+        });
+        const sponsorDelta = sponsorSettle.entries.reduce((s, e) => s + e.amount, 0);
+        const financeBalance = state.finance.balance + sponsorDelta;
+
         return {
           ...state,
           season: newSeason,
           players,
           seasonHistory: [...state.seasonHistory, archive],
+          manager,
+          finance: {
+            ...state.finance,
+            balance: financeBalance,
+            sponsors: sponsorSettle.sponsors,
+            ledger:
+              sponsorSettle.entries.length > 0
+                ? [...sponsorSettle.entries, ...state.finance.ledger]
+                : state.finance.ledger,
+          },
           team: {
             ...state.team,
+            budget: financeBalance,
             statistics: emptyTeamStats(),
+            achievements: closing.achievements,
           },
           board: {
             ...state.board,
             goals,
             confidenceHistory: [
               {
-                date: new Date().toISOString().slice(0, 10),
+                date: closeDate,
                 value: state.team.boardConfidence,
                 reason: `Início da temporada ${newSeason}`,
               },
@@ -617,13 +996,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             ].slice(0, 50),
             supporterHistory: [
               {
-                date: new Date().toISOString().slice(0, 10),
+                date: closeDate,
                 value: state.team.supporterConfidence,
                 reason: `Início da temporada ${newSeason}`,
               },
               ...(state.board.supporterHistory ?? []),
             ].slice(0, 50),
           },
+          social:
+            titlePosts.length > 0
+              ? {
+                  ...state.social,
+                  posts: [...titlePosts, ...state.social.posts].slice(0, 200),
+                  unseenCount: state.social.unseenCount + titlePosts.length,
+                }
+              : state.social,
           pulse: {
             ...state.pulse,
             rolledMatchIds: [],
@@ -662,6 +1049,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
                 date: action.updates.date,
                 location: action.updates.location,
                 competition: action.updates.competition,
+                significance: action.updates.significance ?? m.significance ?? 'normal',
               }
             : m,
         ),
@@ -669,7 +1057,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'COMPLETE_MATCH': {
       if (!state.team) return state;
-      const injuredIds = new Set((action.input.injuries ?? []).map(i => i.playerId));
       const result = calcResult(action.input.goalsFor, action.input.goalsAgainst);
       const updatedMatches = state.matches.map(m =>
         m.id === action.input.matchId
@@ -694,20 +1081,43 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             }
           : m,
       );
-      const playersWithInjury = state.players.map(p =>
-        injuredIds.has(p.id) ? { ...p, availability: 'lesionado' as const } : p,
-      );
+      const matchComp =
+        state.matches.find(m => m.id === action.input.matchId)?.competition ?? null;
+      const playersWithInjury = applyMatchAvailability(state.players, {
+        injuries: action.input.injuries,
+        cards: action.input.cards,
+        gameDate: state.currentDate,
+        competition: matchComp,
+      });
       const recalculated = recalculateFromMatches(state.team, playersWithInjury, updatedMatches);
       const completedMatch = updatedMatches.find(m => m.id === action.input.matchId);
       const playersWithMorale = completedMatch
         ? applyMatchMoraleToPlayers(recalculated.players, completedMatch)
         : recalculated.players;
 
-      // Board + torcida reagem ao resultado
-      const confReason = resultConfidenceReason(result);
-      const boardDelta = BOARD_RESULT_DELTA[result];
-      const fanDelta = SUPPORTER_RESULT_DELTA[result];
-      const dateStr = new Date().toISOString().slice(0, 10);
+      // Board + torcida — motor dinâmico (margem, mando, importância, sequência)
+      const dateStr = (state.currentDate ?? new Date().toISOString()).slice(0, 10);
+      const recentResults = state.matches
+        .filter(m => m.status === 'completed' && m.result && m.id !== action.input.matchId)
+        .slice()
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 5)
+        .map(m => m.result!);
+      const scheduledMeta = state.matches.find(m => m.id === action.input.matchId);
+      const climate = calcMatchClimateDeltas({
+        result,
+        goalsFor: action.input.goalsFor,
+        goalsAgainst: action.input.goalsAgainst,
+        location: scheduledMeta?.location ?? 'home',
+        significance: scheduledMeta?.significance ?? 'normal',
+        recentResults,
+        boardConfidence: recalculated.team?.boardConfidence ?? state.team.boardConfidence,
+        supporterConfidence:
+          recalculated.team?.supporterConfidence ?? state.team.supporterConfidence,
+      });
+      const boardDelta = climate.board;
+      const fanDelta = climate.supporter;
+      const confReason = climate.reason;
 
       const newBoardConf = clampConfidence(
         (recalculated.team?.boardConfidence ?? state.team.boardConfidence) + boardDelta,
@@ -744,19 +1154,240 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           }
         : recalculated.team;
 
+      // Bilheteria + premiação automática (LiveLife)
+      const matchForFinance = completedMatch ?? {
+        id: action.input.matchId,
+        location: state.matches.find(m => m.id === action.input.matchId)?.location ?? 'home',
+        opponent: state.matches.find(m => m.id === action.input.matchId)?.opponent ?? 'Adversário',
+        competition: state.matches.find(m => m.id === action.input.matchId)?.competition ?? '',
+        result,
+      };
+      const gateEntries = teamWithConf
+        ? calcGateRevenue(matchForFinance, teamWithConf, state.finance, state.season, dateStr)
+        : [];
+      const prizeEntry = applyMatchPrize(
+        { ...matchForFinance, result },
+        state.finance,
+        state.season,
+        dateStr,
+      );
+      const financeEntries = prizeEntry ? [...gateEntries, prizeEntry] : gateEntries;
+      const financeDelta = financeEntries.reduce((s, e) => s + e.amount, 0);
+      const nextFinance =
+        financeEntries.length > 0
+          ? {
+              ...state.finance,
+              balance: state.finance.balance + financeDelta,
+              ledger: [...financeEntries, ...state.finance.ledger],
+            }
+          : state.finance;
+      const teamWithBudget =
+        teamWithConf && financeEntries.length > 0
+          ? { ...teamWithConf, budget: nextFinance.balance }
+          : teamWithConf;
+
+      // Manchete ClubOSocial
+      const scheduled = state.matches.find(m => m.id === action.input.matchId);
+      const motmName = action.input.motmPlayerId
+        ? state.players.find(p => p.id === action.input.motmPlayerId)?.name
+        : undefined;
+      const headlineMatch = {
+        id: action.input.matchId,
+        opponent: scheduled?.opponent ?? 'Adversário',
+        competition: scheduled?.competition ?? '',
+        goalsFor: action.input.goalsFor,
+        goalsAgainst: action.input.goalsAgainst,
+        location: scheduled?.location ?? 'home' as const,
+        result,
+        significance: scheduled?.significance ?? 'normal',
+        goals: action.input.goals,
+        assists: action.input.assists,
+        cards: action.input.cards,
+        motmPlayerId: action.input.motmPlayerId,
+        motmName,
+      };
+      const headline = buildMatchHeadline({
+        match: headlineMatch,
+        teamName: state.team.name,
+        gameDate: dateStr,
+        result,
+      });
+      const social: SocialState = {
+        ...state.social,
+        posts: [headline, ...state.social.posts].slice(0, 200),
+        unseenCount: state.social.unseenCount + 1,
+      };
+
       return {
         ...state,
         matches: updatedMatches,
         ...recalculated,
         players: playersWithMorale,
-        team: teamWithConf ?? recalculated.team,
+        team: teamWithBudget ?? recalculated.team,
         board: updatedBoard,
+        finance: nextFinance,
+        social,
+      };
+    }
+
+    case 'ADD_SOCIAL_POST': {
+      return {
+        ...state,
+        social: {
+          ...state.social,
+          posts: [action.post, ...state.social.posts].slice(0, 200),
+          unseenCount: state.social.unseenCount + 1,
+        },
+      };
+    }
+
+    case 'MARK_SOCIAL_SEEN':
+      return {
+        ...state,
+        social: { ...state.social, unseenCount: 0 },
+      };
+
+    case 'APPLY_PRESS_CONFERENCE': {
+      if (!state.team) return state;
+      const dateStr = (state.currentDate ?? new Date().toISOString()).slice(0, 10);
+      const {
+        deltas,
+        headline,
+        context,
+        matchId,
+        playerMorale = [],
+        aggressiveCount = 0,
+        specialDoneKey,
+      } = action;
+
+      const newBoard = clampConfidence(
+        (state.team.boardConfidence ?? 50) + deltas.boardConfidence,
+      );
+      const newFans = clampConfidence(
+        (state.team.supporterConfidence ?? 50) + deltas.supporterConfidence,
+      );
+      const newMedia = clampConfidence(
+        (state.team.mediaConfidence ?? 50) + (deltas.mediaConfidence ?? 0),
+      );
+      const pressFriction = nextPressFriction(
+        state.livelife.pressFriction,
+        aggressiveCount,
+      );
+
+      let board = state.board;
+      const reason = `Coletiva: ${headline.slice(0, 60)}`;
+      if (deltas.boardConfidence !== 0) {
+        board = {
+          ...board,
+          confidenceHistory: [
+            { date: dateStr, value: newBoard, reason },
+            ...board.confidenceHistory,
+          ].slice(0, 50),
+        };
+      }
+      if (deltas.supporterConfidence !== 0) {
+        board = {
+          ...board,
+          supporterHistory: [
+            { date: dateStr, value: newFans, reason },
+            ...(board.supporterHistory ?? []),
+          ].slice(0, 50),
+        };
+      }
+      if ((deltas.mediaConfidence ?? 0) !== 0) {
+        board = {
+          ...board,
+          mediaHistory: [
+            { date: dateStr, value: newMedia, reason },
+            ...(board.mediaHistory ?? []),
+          ].slice(0, 50),
+        };
+      }
+
+      const moraleDelta = deltas.squadMorale;
+      const targeted = new Map(playerMorale.map(p => [p.playerId, p.delta]));
+      const players =
+        moraleDelta === 0 && targeted.size === 0
+          ? state.players
+          : state.players.map(p => {
+              if (p.availability === 'lesionado' || p.status === 'Aposentado') return p;
+              const extra = targeted.get(p.id) ?? 0;
+              const d = moraleDelta + extra;
+              if (d === 0) return p;
+              return {
+                ...p,
+                morale: Math.max(0, Math.min(100, Math.round((p.morale ?? 70) + d))),
+              };
+            });
+
+      const fmt = (n: number) => `${n >= 0 ? '+' : ''}${n}`;
+      const targetNote =
+        playerMorale.length > 0
+          ? ` · Reforço ${playerMorale.map(p => fmt(p.delta)).join('/')}`
+          : '';
+      const frictionNote =
+        pressFriction >= 40 ? ` · Atrito imprensa ${pressFriction}` : '';
+      const post = newSocialPost({
+        date: dateStr,
+        type: 'headline',
+        content: headline,
+        body: `Coletiva ${contextLabel(context)}. Torcida ${fmt(deltas.supporterConfidence)} · Elenco ${fmt(deltas.squadMorale)} · Diretoria ${fmt(deltas.boardConfidence)} · Mídia ${fmt(deltas.mediaConfidence ?? 0)}${targetNote}${frictionNote}.`,
+        headlineStyle: 'journalistic',
+        author: 'Gazeta ClubOS',
+        matchId,
+        likes: 90 + Math.floor(Math.random() * 160),
+      });
+
+      const preDates = [...(state.livelife.pressPreDoneDates ?? [])];
+      const postIds = [...(state.livelife.pressPostDoneMatchIds ?? [])];
+      const specialKeys = [...(state.livelife.pressSpecialDoneKeys ?? [])];
+      if (context === 'pre_match' && matchId) {
+        const m = state.matches.find(x => x.id === matchId);
+        const d = (m?.date ?? dateStr).slice(0, 10);
+        if (!preDates.includes(d)) preDates.push(d);
+      }
+      if (context === 'post_match' && matchId && !postIds.includes(matchId)) {
+        postIds.push(matchId);
+      }
+      if (specialDoneKey && !specialKeys.includes(specialDoneKey)) {
+        specialKeys.push(specialDoneKey);
+      }
+
+      const clearPending =
+        context === 'story_arc' ||
+        Boolean(state.social.activeArc?.pendingPress);
+      const nextActiveArc = clearPending
+        ? clearArcPendingPress(state.social.activeArc)
+        : state.social.activeArc ?? null;
+
+      return {
+        ...state,
+        team: {
+          ...state.team,
+          boardConfidence: newBoard,
+          supporterConfidence: newFans,
+          mediaConfidence: newMedia,
+        },
+        board,
+        players,
+        social: {
+          ...state.social,
+          activeArc: nextActiveArc,
+          posts: [post, ...state.social.posts].slice(0, 200),
+          unseenCount: state.social.unseenCount + 1,
+        },
+        livelife: {
+          ...state.livelife,
+          pressPreDoneDates: preDates.slice(-40),
+          pressPostDoneMatchIds: postIds.slice(-80),
+          pressFriction,
+          pressSpecialDoneKeys: specialKeys.slice(-60),
+        },
       };
     }
 
     case 'UPDATE_COMPLETED_MATCH': {
       if (!state.team) return state;
-      const injuredIds = new Set((action.input.injuries ?? []).map(i => i.playerId));
       const updatedMatches = state.matches.map(m =>
         m.id === action.input.matchId
           ? {
@@ -779,9 +1410,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             }
           : m,
       );
-      const playersWithInjury = state.players.map(p =>
-        injuredIds.has(p.id) ? { ...p, availability: 'lesionado' as const } : p,
-      );
+      const matchComp =
+        state.matches.find(m => m.id === action.input.matchId)?.competition ?? null;
+      const playersWithInjury = applyMatchAvailability(state.players, {
+        injuries: action.input.injuries,
+        cards: action.input.cards,
+        gameDate: state.currentDate,
+        competition: matchComp,
+        tickSuspensions: false,
+      });
       const recalculated = recalculateFromMatches(state.team, playersWithInjury, updatedMatches);
       return { ...state, matches: updatedMatches, ...recalculated };
     }
@@ -925,6 +1562,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.team) return state;
       if (state.pulse.rolledMatchIds.includes(action.matchId)) return state;
 
+      const recentResults = state.matches
+        .filter(m => m.status === 'completed' && m.result)
+        .slice()
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 5)
+        .map(m => m.result!);
+
       const output = generatePulse({
         club: {
           id: state.team.id,
@@ -932,27 +1576,108 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           temporadaAtual: state.season,
           boardConfidence: state.team.boardConfidence,
           supporterConfidence: state.team.supporterConfidence,
+          mediaConfidence: state.team.mediaConfidence ?? 50,
         },
         athletes: state.players.map(playerToPulseAthlete),
         pulseState: state.pulse,
         matchId: action.matchId,
+        recentResults,
       });
 
       const players = state.players.map(p => {
         const patch = output.athletePatches.find(x => x.id === p.id);
         if (!patch) return p;
+        const nextAvail = patch.availability ?? p.availability;
+        const outDays = patch.injuryDaysRemaining;
+        const cleared = nextAvail === 'disponivel';
         return {
           ...p,
           morale: patch.moral ?? p.morale,
           fatigue: patch.fadiga ?? p.fatigue,
-          availability: patch.availability ?? p.availability,
+          availability: nextAvail,
+          injuryDaysRemaining: cleared
+            ? undefined
+            : outDays != null
+              ? outDays
+              : p.injuryDaysRemaining,
+          suspensionMatchesRemaining: cleared ? undefined : p.suspensionMatchesRemaining,
+          suspensionCompetition: cleared ? undefined : p.suspensionCompetition,
         };
       });
+
+      let finance = state.finance;
+      let team = state.team;
+      let board = state.board;
+      const pulseDate = (state.currentDate ?? new Date().toISOString()).slice(0, 10);
+
+      if (output.financePatch && output.financePatch.amount !== 0) {
+        const entry = newLedgerEntry(
+          output.financePatch.amount >= 0 ? 'other_in' : 'other_out',
+          output.financePatch.amount,
+          output.financePatch.label,
+          state.season,
+          undefined,
+          state.currentDate ?? undefined,
+        );
+        finance = {
+          ...finance,
+          balance: finance.balance + entry.amount,
+          ledger: [entry, ...finance.ledger],
+        };
+        team = { ...team, budget: finance.balance };
+      }
+
+      if (output.climatePatch && team) {
+        const bDelta = output.climatePatch.board ?? 0;
+        const fDelta = output.climatePatch.supporter ?? 0;
+        const mDelta = output.climatePatch.media ?? 0;
+        if (bDelta || fDelta || mDelta) {
+          const newBoard = clampConfidence((team.boardConfidence ?? 50) + bDelta);
+          const newFans = clampConfidence((team.supporterConfidence ?? 50) + fDelta);
+          const newMedia = clampConfidence((team.mediaConfidence ?? 50) + mDelta);
+          team = {
+            ...team,
+            boardConfidence: newBoard,
+            supporterConfidence: newFans,
+            mediaConfidence: newMedia,
+          };
+          if (bDelta) {
+            board = {
+              ...board,
+              confidenceHistory: [
+                { date: pulseDate, value: newBoard, reason: output.climatePatch.reason },
+                ...board.confidenceHistory,
+              ].slice(0, 50),
+            };
+          }
+          if (fDelta) {
+            board = {
+              ...board,
+              supporterHistory: [
+                { date: pulseDate, value: newFans, reason: output.climatePatch.reason },
+                ...(board.supporterHistory ?? []),
+              ].slice(0, 50),
+            };
+          }
+          if (mDelta) {
+            board = {
+              ...board,
+              mediaHistory: [
+                { date: pulseDate, value: newMedia, reason: output.climatePatch.reason },
+                ...(board.mediaHistory ?? []),
+              ].slice(0, 50),
+            };
+          }
+        }
+      }
 
       return {
         ...state,
         players,
         pulse: output.pulseState,
+        finance,
+        team,
+        board,
       };
     }
 
@@ -967,6 +1692,351 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'COMPLETE_TUTORIAL':
       return { ...state, tutorialCompleted: true };
+
+    case 'ADVANCE_DAY': {
+      if (!state.currentDate) return state;
+      const result = computeAdvanceDay({
+        currentDate: state.currentDate,
+        matches: state.matches,
+        players: state.players,
+      });
+      const dayOfMonth = Number(result.nextDate.slice(8, 10));
+      const payrollDue =
+        state.payrollDue || (dayOfMonth === 5 && wageBill(state.players) > 0);
+      const transferPaymentsDue =
+        state.transferPaymentsDue ||
+        paymentsDueOnDate(state.transfers.pendingPayments ?? [], result.nextDate).length > 0;
+      const loanPaymentsDue =
+        state.loanPaymentsDue ||
+        loanPaymentsDueOnDate(state.finance.loanPayments ?? [], result.nextDate).length > 0;
+      const debtPaymentsDue =
+        state.debtPaymentsDue ||
+        debtsWithInstallmentDue(state.finance.debts ?? [], result.nextDate).length > 0;
+
+      let players = applyDailySquadMoraleDrift(result.players);
+      // Apresentação de atletas contratados
+      players = players.map(p => {
+        if (!p.availableFrom) return p;
+        if (p.availableFrom.slice(0, 10) > result.nextDate) return p;
+        return {
+          ...p,
+          availableFrom: undefined,
+          availability:
+            p.availability === 'lesionado' || p.availability === 'suspenso'
+              ? p.availability
+              : 'disponivel',
+        };
+      });
+      let pulse = state.pulse;
+      let pendingDailyPulse: PulseHistoryEntry | null = null;
+      let finance = state.finance;
+      let team = state.team;
+      let board = state.board;
+
+      // Cotas mensais de patrocínio no dia configurado de cada contrato
+      if ((finance.sponsors?.length ?? 0) > 0) {
+        const paid = applyMonthlySponsorPayments(
+          finance.sponsors ?? [],
+          result.nextDate,
+          state.season,
+        );
+        if (paid.entries.length > 0) {
+          const credit = paid.entries.reduce((s, e) => s + e.amount, 0);
+          const newBalance = finance.balance + credit;
+          finance = {
+            ...finance,
+            balance: newBalance,
+            sponsors: paid.sponsors,
+            ledger: [...paid.entries, ...finance.ledger],
+          };
+          if (team) team = { ...team, budget: newBalance };
+        }
+      }
+
+      // Pulse diário: só se o novo dia não for dia de jogo e houver time
+      const nextHasMatch = findMatchOnDate(state.matches, result.nextDate);
+      if (!nextHasMatch && state.team) {
+        // Oscilação natural do clima em dias sem jogo
+        if (team) {
+          const drift = dailyClimateDrift({
+            boardConfidence: team.boardConfidence ?? 50,
+            supporterConfidence: team.supporterConfidence ?? 50,
+            mediaConfidence: team.mediaConfidence ?? 50,
+          });
+          if (drift.board || drift.supporter || drift.media) {
+            const newBoard = clampConfidence((team.boardConfidence ?? 50) + drift.board);
+            const newFans = clampConfidence((team.supporterConfidence ?? 50) + drift.supporter);
+            const newMedia = clampConfidence((team.mediaConfidence ?? 50) + drift.media);
+            team = {
+              ...team,
+              boardConfidence: newBoard,
+              supporterConfidence: newFans,
+              mediaConfidence: newMedia,
+            };
+            if (drift.board && drift.reason) {
+              board = {
+                ...board,
+                confidenceHistory: [
+                  { date: result.nextDate, value: newBoard, reason: drift.reason },
+                  ...board.confidenceHistory,
+                ].slice(0, 50),
+              };
+            }
+            if (drift.supporter && drift.reason) {
+              board = {
+                ...board,
+                supporterHistory: [
+                  { date: result.nextDate, value: newFans, reason: drift.reason },
+                  ...(board.supporterHistory ?? []),
+                ].slice(0, 50),
+              };
+            }
+            if (drift.media && drift.reason) {
+              board = {
+                ...board,
+                mediaHistory: [
+                  { date: result.nextDate, value: newMedia, reason: drift.reason },
+                  ...(board.mediaHistory ?? []),
+                ].slice(0, 50),
+              };
+            }
+          }
+        }
+
+        const rolled = rollDailyPulse({
+          team: team ?? state.team,
+          players,
+          pulseState: state.pulse,
+          season: state.season,
+          matches: state.matches,
+        });
+        if (rolled) {
+          pulse = rolled.output.pulseState;
+          pendingDailyPulse = rolled.entry;
+          players = players.map(p => {
+            const patch = rolled.output.athletePatches.find(x => x.id === p.id);
+            if (!patch) return p;
+            const nextAvail = patch.availability ?? p.availability;
+            const outDays = patch.injuryDaysRemaining;
+            const cleared = nextAvail === 'disponivel';
+            return {
+              ...p,
+              morale: patch.moral ?? p.morale,
+              fatigue: patch.fadiga ?? p.fatigue,
+              availability: nextAvail,
+              injuryDaysRemaining: cleared
+                ? undefined
+                : outDays != null
+                  ? outDays
+                  : p.injuryDaysRemaining,
+              suspensionMatchesRemaining: cleared ? undefined : p.suspensionMatchesRemaining,
+              suspensionCompetition: cleared ? undefined : p.suspensionCompetition,
+            };
+          });
+          if (rolled.output.financePatch && rolled.output.financePatch.amount !== 0) {
+            const entry = newLedgerEntry(
+              rolled.output.financePatch.amount >= 0 ? 'other_in' : 'other_out',
+              rolled.output.financePatch.amount,
+              rolled.output.financePatch.label,
+              state.season,
+              undefined,
+              result.nextDate,
+            );
+            finance = {
+              ...finance,
+              balance: finance.balance + entry.amount,
+              ledger: [entry, ...finance.ledger],
+            };
+            team = team ? { ...team, budget: finance.balance } : team;
+          }
+          if (rolled.output.climatePatch && team) {
+            const bDelta = rolled.output.climatePatch.board ?? 0;
+            const fDelta = rolled.output.climatePatch.supporter ?? 0;
+            const mDelta = rolled.output.climatePatch.media ?? 0;
+            if (bDelta || fDelta || mDelta) {
+              const newBoard = clampConfidence((team.boardConfidence ?? 50) + bDelta);
+              const newFans = clampConfidence((team.supporterConfidence ?? 50) + fDelta);
+              const newMedia = clampConfidence((team.mediaConfidence ?? 50) + mDelta);
+              team = {
+                ...team,
+                boardConfidence: newBoard,
+                supporterConfidence: newFans,
+                mediaConfidence: newMedia,
+              };
+              if (bDelta) {
+                board = {
+                  ...board,
+                  confidenceHistory: [
+                    {
+                      date: result.nextDate,
+                      value: newBoard,
+                      reason: rolled.output.climatePatch.reason,
+                    },
+                    ...board.confidenceHistory,
+                  ].slice(0, 50),
+                };
+              }
+              if (fDelta) {
+                board = {
+                  ...board,
+                  supporterHistory: [
+                    {
+                      date: result.nextDate,
+                      value: newFans,
+                      reason: rolled.output.climatePatch.reason,
+                    },
+                    ...(board.supporterHistory ?? []),
+                  ].slice(0, 50),
+                };
+              }
+              if (mDelta) {
+                board = {
+                  ...board,
+                  mediaHistory: [
+                    {
+                      date: result.nextDate,
+                      value: newMedia,
+                      reason: rolled.output.climatePatch.reason,
+                    },
+                    ...(board.mediaHistory ?? []),
+                  ].slice(0, 50),
+                };
+              }
+            }
+          }
+        }
+      }
+
+      // Story Arcs — capítulos no ClubOSocial ao avançar o dia
+      let social = state.social;
+      {
+        const recentResults = state.matches
+          .filter(m => m.status === 'completed' && m.result)
+          .slice()
+          .sort((a, b) => b.date.localeCompare(a.date))
+          .slice(0, 5)
+          .map(m => m.result!);
+        const arcTick = tickStoryArc({
+          today: result.nextDate,
+          activeArc: state.social.activeArc,
+          history: state.social.arcHistory,
+          recentResults,
+          players,
+          boardConfidence: team?.boardConfidence ?? state.team?.boardConfidence ?? 50,
+          mediaConfidence: team?.mediaConfidence ?? state.team?.mediaConfidence ?? 50,
+          pressFriction: state.livelife.pressFriction ?? 0,
+          hasMatchToday: Boolean(nextHasMatch),
+        });
+
+        if (arcTick.newPost || arcTick.started || arcTick.completed || arcTick.activeArc !== state.social.activeArc) {
+          social = {
+            ...social,
+            activeArc: arcTick.activeArc,
+            arcHistory: arcTick.history,
+            posts: arcTick.newPost
+              ? [arcTick.newPost, ...social.posts].slice(0, 200)
+              : social.posts,
+            unseenCount: arcTick.newPost
+              ? social.unseenCount + 1
+              : social.unseenCount,
+          };
+        }
+
+        const d = arcTick.deltas;
+        if (team && (d.board || d.media || d.supporter || d.squadMorale)) {
+          const newBoard = clampConfidence((team.boardConfidence ?? 50) + d.board);
+          const newFans = clampConfidence((team.supporterConfidence ?? 50) + d.supporter);
+          const newMedia = clampConfidence((team.mediaConfidence ?? 50) + d.media);
+          team = {
+            ...team,
+            boardConfidence: newBoard,
+            supporterConfidence: newFans,
+            mediaConfidence: newMedia,
+          };
+          if (d.board) {
+            board = {
+              ...board,
+              confidenceHistory: [
+                {
+                  date: result.nextDate,
+                  value: newBoard,
+                  reason: arcTick.newPost?.content?.slice(0, 60) ?? 'Story Arc',
+                },
+                ...board.confidenceHistory,
+              ].slice(0, 50),
+            };
+          }
+          if (d.supporter) {
+            board = {
+              ...board,
+              supporterHistory: [
+                {
+                  date: result.nextDate,
+                  value: newFans,
+                  reason: 'Story Arc',
+                },
+                ...(board.supporterHistory ?? []),
+              ].slice(0, 50),
+            };
+          }
+          if (d.media) {
+            board = {
+              ...board,
+              mediaHistory: [
+                {
+                  date: result.nextDate,
+                  value: newMedia,
+                  reason: 'Story Arc',
+                },
+                ...(board.mediaHistory ?? []),
+              ].slice(0, 50),
+            };
+          }
+          if (d.squadMorale) {
+            players = players.map(p => {
+              if (p.availability === 'lesionado' || p.status === 'Aposentado') return p;
+              return {
+                ...p,
+                morale: Math.max(
+                  0,
+                  Math.min(100, Math.round((p.morale ?? 70) + d.squadMorale)),
+                ),
+              };
+            });
+          }
+        }
+      }
+
+      return {
+        ...state,
+        currentDate: result.nextDate,
+        players,
+        pulse,
+        payrollDue,
+        transferPaymentsDue,
+        loanPaymentsDue,
+        debtPaymentsDue,
+        pendingDailyPulse,
+        finance,
+        team,
+        board,
+        social,
+      };
+    }
+
+    case 'REWIND_DAY': {
+      if (!state.currentDate) return state;
+      return {
+        ...state,
+        currentDate: addDaysIso(state.currentDate, -1),
+      };
+    }
+
+    case 'SET_CURRENT_DATE': {
+      const date = action.date.slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return state;
+      return { ...state, currentDate: date };
+    }
 
     case 'LOAD_SAVE': {
       const tacticsState = migrateTacticsPresets(
@@ -990,8 +2060,47 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         pulse: action.state.pulse ?? createDefaultPulseState(),
         finance: action.state.finance ?? createDefaultFinance(),
         board: action.state.board ?? createDefaultBoardState(),
-        transfers: action.state.transfers ?? createDefaultTransferState(),
+        transfers: {
+          ...createDefaultTransferState(),
+          ...(action.state.transfers ?? {}),
+          pendingPayments: action.state.transfers?.pendingPayments ?? [],
+        },
         seasonHistory: action.state.seasonHistory ?? [],
+        currentDate: action.state.currentDate ?? null,
+        payrollDue: action.state.payrollDue ?? false,
+        transferPaymentsDue: Boolean(
+          action.state.currentDate &&
+            paymentsDueOnDate(
+              action.state.transfers?.pendingPayments ?? [],
+              action.state.currentDate,
+            ).length,
+        ),
+        loanPaymentsDue: Boolean(
+          action.state.currentDate &&
+            loanPaymentsDueOnDate(
+              action.state.finance?.loanPayments ?? [],
+              action.state.currentDate,
+            ).length,
+        ),
+        debtPaymentsDue: Boolean(
+          action.state.currentDate &&
+            debtsWithInstallmentDue(
+              action.state.finance?.debts ?? [],
+              action.state.currentDate,
+            ).length,
+        ),
+        liveLifePromptPending: true,
+        pendingDailyPulse: null,
+        livelife: {
+          ...createDefaultLiveLifeMeta(),
+          ...(action.state.livelife ?? {}),
+        },
+        social: {
+          ...createDefaultSocialState(action.state.team?.name ?? 'Clube'),
+          ...(action.state.social ?? {}),
+          activeArc: action.state.social?.activeArc ?? null,
+          arcHistory: action.state.social?.arcHistory ?? [],
+        },
       };
     }
 
@@ -1016,20 +2125,66 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'PAY_WAGES': {
       const bill = wageBill(state.players);
-      if (bill <= 0) return state;
-      const entry = newLedgerEntry('wage', -bill, 'Folha salarial', state.season);
-      const newBalance = state.finance.balance - bill;
+      if (bill <= 0) return { ...state, payrollDue: false };
+      const gameDate = state.currentDate ?? new Date().toISOString().slice(0, 10);
+      const entry = newLedgerEntry(
+        'wage',
+        -bill,
+        'Folha salarial',
+        state.season,
+        undefined,
+        gameDate,
+      );
+      let newBalance = state.finance.balance - bill;
+      let debts = [...(state.finance.debts ?? [])];
+      const ledger = [entry, ...state.finance.ledger];
+      if (newBalance < 0) {
+        debts = [createOverdraftDebt(-newBalance, gameDate), ...debts];
+        newBalance = 0;
+      }
       const updatedTeam = state.team ? { ...state.team, budget: newBalance } : state.team;
       return {
         ...state,
+        payrollDue: false,
         team: updatedTeam,
         finance: {
           ...state.finance,
           balance: newBalance,
-          ledger: [entry, ...state.finance.ledger],
+          ledger,
+          debts,
         },
       };
     }
+
+    case 'PAY_WAGES_WITH_BRIDGE_LOAN': {
+      const { loan, payments, creditEntry, wageEntry } = action;
+      const newBalance =
+        state.finance.balance + creditEntry.amount + wageEntry.amount;
+      return {
+        ...state,
+        payrollDue: false,
+        team: state.team ? { ...state.team, budget: newBalance } : state.team,
+        finance: {
+          ...state.finance,
+          balance: newBalance,
+          ledger: [wageEntry, creditEntry, ...state.finance.ledger],
+          loans: [loan, ...(state.finance.loans ?? [])],
+          loanPayments: [...(state.finance.loanPayments ?? []), ...payments],
+        },
+        loanPaymentsDue:
+          state.loanPaymentsDue ||
+          (state.currentDate
+            ? loanPaymentsDueOnDate(payments, state.currentDate).length > 0
+            : false),
+      };
+    }
+
+    case 'DISMISS_PAYROLL':
+      return {
+        ...state,
+        payrollDue: false,
+        players: applyPayrollDelayMorale(state.players),
+      };
 
     case 'SET_PRIZE_TABLE': {
       return {
@@ -1099,18 +2254,22 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
 
     case 'EXECUTE_TRANSFER': {
-      const { record, newPlayer, removedPlayerId, ledgerEntries } = action;
+      const { record, newPlayer, removedPlayerId, ledgerEntries, pendingPayments = [] } = action;
+      const dealDate = (state.currentDate ?? record.date).slice(0, 10);
+      if (!isDateInTransferWindow(dealDate)) {
+        return state; // fora da janela: só renovações
+      }
       let players = state.players;
       let finance = state.finance;
 
-      if (removedPlayerId) {
+      if (removedPlayerId && record.type === 'sell') {
         players = players.filter(p => p.id !== removedPlayerId);
       }
       if (newPlayer) {
         players = [...players, newPlayer];
       }
       if (record.type === 'loan_out' && removedPlayerId) {
-        players = state.players.map(p =>
+        players = players.map(p =>
           p.id === removedPlayerId ? { ...p, status: 'Emprestado' as const } : p,
         );
       }
@@ -1125,19 +2284,274 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const updatedTeam = state.team ? { ...state.team, budget: newBalance } : state.team;
       finance = { ...finance, balance: newBalance, ledger: newLedger };
 
-      // Remove from watchlist if converted from there
       const watchlist = state.transfers.watchlist.filter(w => w.id !== record.playerId);
+      const today = (state.currentDate ?? new Date().toISOString()).slice(0, 10);
+      const dueNow = paymentsDueOnDate(pendingPayments, today);
+
+      const headline = buildTransferHeadline({
+        record,
+        teamName: state.team?.name ?? 'Clube',
+        currencySymbol: currencySymbol(finance.currency),
+        gameDate: today,
+      });
 
       return {
         ...state,
         players,
         team: updatedTeam,
         finance,
+        transferPaymentsDue: state.transferPaymentsDue || dueNow.length > 0,
         transfers: {
           ...state.transfers,
           watchlist,
           history: [record, ...state.transfers.history],
+          pendingPayments: [
+            ...(state.transfers.pendingPayments ?? []),
+            ...pendingPayments,
+          ],
         },
+        social: {
+          ...state.social,
+          posts: [headline, ...state.social.posts].slice(0, 200),
+          unseenCount: state.social.unseenCount + 1,
+        },
+      };
+    }
+
+    case 'UPDATE_TRANSFER_RECORD': {
+      return {
+        ...state,
+        transfers: {
+          ...state.transfers,
+          history: state.transfers.history.map(r =>
+            r.id === action.transferId ? { ...r, ...action.updates } : r,
+          ),
+        },
+      };
+    }
+
+    case 'PAY_TRANSFER_PAYMENT': {
+      const payment = (state.transfers.pendingPayments ?? []).find(p => p.id === action.paymentId);
+      if (!payment || payment.status === 'paid') return state;
+
+      const entry = action.ledgerEntry;
+      const newBalance = state.finance.balance + entry.amount;
+      const pendingPayments = (state.transfers.pendingPayments ?? []).map(p =>
+        p.id === action.paymentId
+          ? { ...p, status: 'paid' as const, ledgerEntryId: entry.id }
+          : p,
+      );
+      const stillDue = state.currentDate
+        ? paymentsDueOnDate(pendingPayments, state.currentDate).length > 0
+        : false;
+
+      return {
+        ...state,
+        finance: {
+          ...state.finance,
+          balance: newBalance,
+          ledger: [entry, ...state.finance.ledger],
+        },
+        team: state.team ? { ...state.team, budget: newBalance } : state.team,
+        transferPaymentsDue: stillDue,
+        transfers: {
+          ...state.transfers,
+          pendingPayments,
+          history: state.transfers.history.map(r =>
+            r.id === payment.transferId
+              ? { ...r, ledgerEntryIds: [...r.ledgerEntryIds, entry.id] }
+              : r,
+          ),
+        },
+      };
+    }
+
+    case 'DISMISS_TRANSFER_PAYMENTS':
+      return { ...state, transferPaymentsDue: false };
+
+    case 'RENEW_PLAYER_CONTRACT': {
+      const player = state.players.find(p => p.id === action.playerId);
+      if (!player) return state;
+      const years = Math.max(1, Math.round(action.years));
+      const newSalary = Math.max(0, Math.round(action.newSalary));
+      let finance = state.finance;
+      if (action.ledgerEntry) {
+        const newBalance = finance.balance + action.ledgerEntry.amount;
+        finance = {
+          ...finance,
+          balance: newBalance,
+          ledger: [action.ledgerEntry, ...finance.ledger],
+        };
+      }
+      return {
+        ...state,
+        players: state.players.map(p =>
+          p.id === action.playerId
+            ? { ...p, salary: newSalary, contractYearsLeft: years }
+            : p,
+        ),
+        finance,
+        team: state.team ? { ...state.team, budget: finance.balance } : state.team,
+      };
+    }
+
+    case 'TAKE_CLUB_LOAN': {
+      const { loan, payments, creditEntry } = action;
+      const newBalance = state.finance.balance + creditEntry.amount;
+      return {
+        ...state,
+        finance: {
+          ...state.finance,
+          balance: newBalance,
+          ledger: [creditEntry, ...state.finance.ledger],
+          loans: [loan, ...(state.finance.loans ?? [])],
+          loanPayments: [...(state.finance.loanPayments ?? []), ...payments],
+        },
+        team: state.team ? { ...state.team, budget: newBalance } : state.team,
+        loanPaymentsDue:
+          state.loanPaymentsDue ||
+          (state.currentDate
+            ? loanPaymentsDueOnDate(payments, state.currentDate).length > 0
+            : false),
+      };
+    }
+
+    case 'PAY_LOAN_PAYMENT': {
+      const payment = (state.finance.loanPayments ?? []).find(p => p.id === action.paymentId);
+      if (!payment || payment.status === 'paid') return state;
+      const entry = action.ledgerEntry;
+      const newBalance = state.finance.balance + entry.amount;
+      const loanPayments = (state.finance.loanPayments ?? []).map(p =>
+        p.id === action.paymentId
+          ? { ...p, status: 'paid' as const, ledgerEntryId: entry.id }
+          : p,
+      );
+      const loanFullyPaid = loanPayments
+        .filter(p => p.loanId === payment.loanId)
+        .every(p => p.status === 'paid');
+      const loans = (state.finance.loans ?? []).map(l =>
+        l.id === payment.loanId && loanFullyPaid ? { ...l, status: 'paid' as const } : l,
+      );
+      const stillDue = state.currentDate
+        ? loanPaymentsDueOnDate(loanPayments, state.currentDate).length > 0
+        : false;
+      return {
+        ...state,
+        finance: {
+          ...state.finance,
+          balance: newBalance,
+          ledger: [entry, ...state.finance.ledger],
+          loanPayments,
+          loans,
+        },
+        team: state.team ? { ...state.team, budget: newBalance } : state.team,
+        loanPaymentsDue: stillDue,
+      };
+    }
+
+    case 'DISMISS_LOAN_PAYMENTS':
+      return { ...state, loanPaymentsDue: false };
+
+    case 'ADD_CLUB_DEBT': {
+      return {
+        ...state,
+        finance: {
+          ...state.finance,
+          debts: [action.debt, ...(state.finance.debts ?? [])],
+        },
+      };
+    }
+
+    case 'PAY_CLUB_DEBT': {
+      const debt = (state.finance.debts ?? []).find(d => d.id === action.debtId);
+      if (!debt || debt.status === 'paid' || debt.remaining <= 0) return state;
+      const gameDate = state.currentDate ?? action.ledgerEntry.date;
+      const updated = applyDebtPayment(debt, action.amount, gameDate, {
+        asMonthlyInstallment: action.asMonthlyInstallment,
+      });
+      const paid = debt.remaining - updated.remaining;
+      if (paid <= 0) return state;
+      const entry =
+        action.ledgerEntry.amount === -paid
+          ? action.ledgerEntry
+          : { ...action.ledgerEntry, amount: -paid };
+      const newBalance = state.finance.balance + entry.amount;
+      const debts = (state.finance.debts ?? []).map(d =>
+        d.id === action.debtId ? updated : d,
+      );
+      const stillDue = state.currentDate
+        ? debtsWithInstallmentDue(debts, state.currentDate).length > 0
+        : false;
+      return {
+        ...state,
+        finance: {
+          ...state.finance,
+          balance: newBalance,
+          ledger: [entry, ...state.finance.ledger],
+          debts,
+        },
+        team: state.team ? { ...state.team, budget: newBalance } : state.team,
+        debtPaymentsDue: stillDue,
+      };
+    }
+
+    case 'DISMISS_DEBT_PAYMENTS': {
+      if (!state.currentDate) return { ...state, debtPaymentsDue: false };
+      const dueIds = new Set(
+        debtsWithInstallmentDue(state.finance.debts ?? [], state.currentDate).map(
+          x => x.debt.id,
+        ),
+      );
+      if (dueIds.size === 0) return { ...state, debtPaymentsDue: false };
+      const debts = (state.finance.debts ?? []).map(d =>
+        dueIds.has(d.id) ? skipDebtInstallment(d, state.currentDate!) : d,
+      );
+      return {
+        ...state,
+        debtPaymentsDue: false,
+        finance: { ...state.finance, debts },
+      };
+    }
+
+    case 'ADD_CLUB_SPONSOR': {
+      if (hasActiveTier(state.finance.sponsors, action.sponsor.tier)) return state;
+      return {
+        ...state,
+        finance: {
+          ...state.finance,
+          sponsors: [action.sponsor, ...(state.finance.sponsors ?? [])],
+        },
+      };
+    }
+
+    case 'RENEW_CLUB_SPONSOR': {
+      const sponsors = (state.finance.sponsors ?? []).map(s =>
+        s.id === action.sponsorId ? renewSponsor(s, action.extraSeasons ?? 1) : s,
+      );
+      return { ...state, finance: { ...state.finance, sponsors } };
+    }
+
+    case 'TERMINATE_CLUB_SPONSOR': {
+      const sponsor = (state.finance.sponsors ?? []).find(s => s.id === action.sponsorId);
+      if (!sponsor || sponsor.status !== 'active') return state;
+      const sponsors = (state.finance.sponsors ?? []).map(s =>
+        s.id === action.sponsorId
+          ? { ...s, status: 'terminated' as const, seasonsRemaining: 0 }
+          : s,
+      );
+      if (!action.ledgerEntry) {
+        return { ...state, finance: { ...state.finance, sponsors } };
+      }
+      const newBalance = state.finance.balance + action.ledgerEntry.amount;
+      return {
+        ...state,
+        finance: {
+          ...state.finance,
+          balance: newBalance,
+          sponsors,
+          ledger: [action.ledgerEntry, ...state.finance.ledger],
+        },
+        team: state.team ? { ...state.team, budget: newBalance } : state.team,
       };
     }
 
@@ -1181,6 +2595,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         board: s.board,
         transfers: s.transfers,
         seasonHistory: s.seasonHistory,
+        currentDate: s.currentDate,
+        payrollDue: s.payrollDue,
+        livelife: s.livelife,
+        social: s.social,
         slotId,
       };
     }
@@ -1192,6 +2610,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         season: s.season,
         seasonCompetitions: s.seasonCompetitions,
         tutorialCompleted: s.tutorialCompleted,
+        currentDate: s.currentDate,
+        payrollDue: s.payrollDue,
+        livelife: s.livelife,
+        social: s.social,
         slotId,
       };
     }
@@ -1279,19 +2701,89 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_MANAGER', manager });
   }
 
+  function updateManager(updates: Partial<Manager>) {
+    dispatch({ type: 'UPDATE_MANAGER', updates });
+  }
+
+  function addAchievement(achievement: Omit<TeamAchievement, 'id'> & { id?: string }) {
+    dispatch({
+      type: 'ADD_ACHIEVEMENT',
+      achievement: {
+        ...achievement,
+        id: achievement.id ?? uid(),
+        awardedAt: achievement.awardedAt ?? new Date().toISOString().slice(0, 10),
+      },
+    });
+  }
+
+  function removeAchievement(achievementId: string) {
+    dispatch({ type: 'REMOVE_ACHIEVEMENT', achievementId });
+  }
+
   function startCareer(
     seasonCompetitions: string[] | SeasonCompetition[],
     slotId: SaveSlotId = activeSlotId,
+    startDate?: string,
+    options?: {
+      currency?: Currency;
+      prizeTable?: Record<string, PrizeTableEntry>;
+      stadiumConfig?: StadiumConfig;
+      openingDebt?: {
+        amount: number;
+        monthlyInstallment: number;
+        paymentDay?: number;
+        label?: string;
+      };
+    },
   ) {
     if (!state.pendingTeam || !state.manager || state.pendingPlayers.length === 0) return;
     const comps = migrateSeasonCompetitions(seasonCompetitions);
+    const date =
+      (startDate && startDate.slice(0, 10)) ||
+      `${state.season}-01-01`;
     setActiveSlot(slotId);
     dispatch({ type: 'SET_SAVE_SLOT', slotId });
     dispatch({
       type: 'START_CAREER',
       manager: state.manager,
       seasonCompetitions: comps,
+      startDate: date,
+      currency: options?.currency,
+      prizeTable: options?.prizeTable,
+      stadiumConfig: options?.stadiumConfig,
+      openingDebt: options?.openingDebt,
     });
+  }
+
+  function dismissLiveLifePrompt() {
+    dispatch({ type: 'DISMISS_LIVELIFE_PROMPT' });
+  }
+
+  function dismissDailyPulse() {
+    dispatch({ type: 'DISMISS_DAILY_PULSE' });
+  }
+
+  function completeLiveLifeOnboarding() {
+    dispatch({ type: 'COMPLETE_LIVELIFE_ONBOARDING' });
+  }
+
+  function advanceDay(): { matchId: string | null } {
+    if (!state.currentDate) return { matchId: null };
+    const todayMatch = findMatchOnDate(state.matches, state.currentDate);
+    if (todayMatch) {
+      return { matchId: todayMatch.id };
+    }
+    dispatch({ type: 'ADVANCE_DAY' });
+    return { matchId: null };
+  }
+
+  function rewindDay() {
+    if (!state.currentDate) return;
+    dispatch({ type: 'REWIND_DAY' });
+  }
+
+  function setCurrentDate(date: string) {
+    dispatch({ type: 'SET_CURRENT_DATE', date });
   }
 
   function setCareerPlayer(data: Partial<CareerPlayer>) {
@@ -1367,7 +2859,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   function updatePlayer(
     playerId: string,
-    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue'>>,
+    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft'>>,
   ) {
     dispatch({ type: 'UPDATE_PLAYER', playerId, updates });
   }
@@ -1398,6 +2890,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       cards: [],
       playerMatches: [],
       season: state.season,
+      significance: input.significance ?? 'normal',
     };
     dispatch({ type: 'SCHEDULE_MATCH', match });
     return id;
@@ -1422,6 +2915,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       cards: [],
       playerMatches: [],
       season: state.season,
+      significance: input.significance ?? 'normal',
     };
     dispatch({ type: 'SCHEDULE_MATCH', match });
     return id;
@@ -1484,6 +2978,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'UPDATE_PULSE_SETTINGS', settings });
   }
 
+  function addSocialPost(post: SocialPost) {
+    dispatch({ type: 'ADD_SOCIAL_POST', post });
+  }
+
+  function markSocialSeen() {
+    dispatch({ type: 'MARK_SOCIAL_SEEN' });
+  }
+
+  function applyPressConference(input: {
+    context: PressContext;
+    matchId?: string;
+    deltas: PressConferenceDeltas;
+    headline: string;
+    playerMorale?: { playerId: string; delta: number }[];
+    aggressiveCount?: number;
+    specialDoneKey?: string;
+  }) {
+    forceCloudRef.current = true;
+    dispatch({ type: 'APPLY_PRESS_CONFERENCE', ...input });
+  }
+
   async function loadSavedGame(slotId: SaveSlotId = activeSlotId): Promise<CareerMode | null> {
     const save = await fetchCloudSave(slotId);
     if (!save) return null;
@@ -1512,6 +3027,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
           transfers: createDefaultTransferState(),
           seasonHistory: [],
           saveSlotId: slotId,
+          currentDate: save.currentDate ?? null,
+          payrollDue: save.payrollDue ?? false,
+          transferPaymentsDue: false,
+          loanPaymentsDue: false,
+          debtPaymentsDue: false,
+          liveLifePromptPending: false,
+          pendingDailyPulse: null,
+          livelife: {
+            ...createDefaultLiveLifeMeta(),
+            ...(save.livelife ?? {}),
+          },
+          social: {
+            ...createDefaultSocialState(),
+            ...(save.social ?? {}),
+            activeArc: save.social?.activeArc ?? null,
+            arcHistory: save.social?.arcHistory ?? [],
+          },
         },
       });
       return 'player';
@@ -1526,6 +3058,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         save.tacticsPresets,
         save.activeTacticsId,
       );
+      const comps = migrateSeasonCompetitions(save.seasonCompetitions);
+      const finance = seedLiveLifeFinance(
+        save.finance ?? createDefaultFinance(save.team.budget ?? 5_000_000),
+        comps,
+      );
       dispatch({
         type: 'LOAD_SAVE',
         state: {
@@ -1533,7 +3070,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           teamId: save.teamId,
           team: recalculated.team,
           manager: save.manager ?? null,
-          seasonCompetitions: migrateSeasonCompetitions(save.seasonCompetitions),
+          seasonCompetitions: comps,
           players: recalculated.players,
           matches,
           season: save.season,
@@ -1543,11 +3080,41 @@ export function GameProvider({ children }: { children: ReactNode }) {
           careerPlayer: null,
           tutorialCompleted: save.tutorialCompleted ?? false,
           pulse: save.pulse ?? createDefaultPulseState(),
-          finance: save.finance ?? createDefaultFinance(save.team.budget ?? 5_000_000),
+          finance,
           board: save.board ?? createDefaultBoardState(),
-          transfers: save.transfers ?? createDefaultTransferState(),
+          transfers: {
+            ...createDefaultTransferState(),
+            ...(save.transfers ?? {}),
+            pendingPayments: save.transfers?.pendingPayments ?? [],
+          },
           seasonHistory: save.seasonHistory ?? [],
           saveSlotId: slotId,
+          currentDate: save.currentDate ?? null,
+          payrollDue: save.payrollDue ?? false,
+          transferPaymentsDue: Boolean(
+            save.currentDate &&
+              paymentsDueOnDate(save.transfers?.pendingPayments ?? [], save.currentDate).length,
+          ),
+          loanPaymentsDue: Boolean(
+            save.currentDate &&
+              loanPaymentsDueOnDate(save.finance?.loanPayments ?? [], save.currentDate).length,
+          ),
+          debtPaymentsDue: Boolean(
+            save.currentDate &&
+              debtsWithInstallmentDue(finance.debts ?? [], save.currentDate).length,
+          ),
+          liveLifePromptPending: true,
+          pendingDailyPulse: null,
+          livelife: {
+            ...createDefaultLiveLifeMeta(),
+            ...(save.livelife ?? {}),
+          },
+          social: {
+            ...createDefaultSocialState(save.team.name),
+            ...(save.social ?? {}),
+            activeArc: save.social?.activeArc ?? null,
+            arcHistory: save.social?.arcHistory ?? [],
+          },
         },
       });
       return 'coach';
@@ -1579,6 +3146,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         board: state.board,
         transfers: state.transfers,
         seasonHistory: state.seasonHistory,
+        currentDate: state.currentDate,
+        payrollDue: state.payrollDue,
+        livelife: state.livelife,
+        social: state.social,
         slotId: state.saveSlotId,
       };
     }
@@ -1592,6 +3163,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         season: state.season,
         seasonCompetitions: state.seasonCompetitions,
         tutorialCompleted: state.tutorialCompleted,
+        currentDate: state.currentDate,
+        payrollDue: state.payrollDue,
+        livelife: state.livelife,
+        social: state.social,
         slotId: state.saveSlotId,
       };
     }
@@ -1623,6 +3198,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   function payWages() {
     dispatch({ type: 'PAY_WAGES' });
+  }
+
+  function dismissPayroll() {
+    dispatch({ type: 'DISMISS_PAYROLL' });
   }
 
   function setPrizeTable(competition: string, prize: { win?: number; draw?: number; knockout?: number; champion?: number }) {
@@ -1669,8 +3248,252 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'UPDATE_WATCHLIST', playerId, updates });
   }
 
-  function executeTransfer(record: TransferRecord, newPlayer?: Player, removedPlayerId?: string, ledgerEntries?: FinanceLedgerEntry[]) {
-    dispatch({ type: 'EXECUTE_TRANSFER', record, newPlayer, removedPlayerId, ledgerEntries: ledgerEntries ?? [] });
+  function executeTransfer(
+    record: TransferRecord,
+    newPlayer?: Player,
+    removedPlayerId?: string,
+    ledgerEntries?: FinanceLedgerEntry[],
+    pendingPayments?: TransferPayment[],
+  ) {
+    forceCloudRef.current = true;
+    dispatch({
+      type: 'EXECUTE_TRANSFER',
+      record,
+      newPlayer,
+      removedPlayerId,
+      ledgerEntries: ledgerEntries ?? [],
+      pendingPayments,
+    });
+  }
+
+  function updateTransferRecord(transferId: string, updates: Partial<TransferRecord>) {
+    forceCloudRef.current = true;
+    dispatch({ type: 'UPDATE_TRANSFER_RECORD', transferId, updates });
+  }
+
+  function payTransferPayment(paymentId: string) {
+    const payment = state.transfers.pendingPayments?.find(p => p.id === paymentId);
+    if (!payment || payment.status === 'paid') return;
+    const amount = payment.direction === 'in' ? payment.amount : -payment.amount;
+    const entry = newLedgerEntry(
+      'transfer_fee',
+      amount,
+      payment.label,
+      state.season,
+      { relatedTransferId: payment.transferId },
+      state.currentDate ?? undefined,
+    );
+    forceCloudRef.current = true;
+    dispatch({ type: 'PAY_TRANSFER_PAYMENT', paymentId, ledgerEntry: entry });
+  }
+
+  function dismissTransferPayments() {
+    dispatch({ type: 'DISMISS_TRANSFER_PAYMENTS' });
+  }
+
+  function renewPlayerContract(input: {
+    playerId: string;
+    years: number;
+    newSalary: number;
+    signingBonus?: number;
+  }) {
+    const bonus = Math.max(0, Math.round(input.signingBonus ?? 0));
+    const ledgerEntry =
+      bonus > 0
+        ? newLedgerEntry(
+            'wage',
+            -bonus,
+            `Bônus de renovação`,
+            state.season,
+            undefined,
+            state.currentDate ?? undefined,
+          )
+        : undefined;
+    forceCloudRef.current = true;
+    dispatch({
+      type: 'RENEW_PLAYER_CONTRACT',
+      playerId: input.playerId,
+      years: input.years,
+      newSalary: input.newSalary,
+      signingBonus: bonus || undefined,
+      ledgerEntry,
+    });
+  }
+
+  function takeClubLoan(input: {
+    principal: number;
+    interestRatePercent: number;
+    installmentCount: number;
+    firstPaymentDate: string;
+    notes?: string;
+  }) {
+    const pack = createClubLoanPackage(input);
+    const creditEntry = newLedgerEntry(
+      'loan_credit',
+      pack.creditAmount,
+      `Empréstimo bancário (+${pack.loan.interestRate}% juros)`,
+      state.season,
+      undefined,
+      state.currentDate ?? undefined,
+    );
+    forceCloudRef.current = true;
+    dispatch({
+      type: 'TAKE_CLUB_LOAN',
+      loan: pack.loan,
+      payments: pack.payments,
+      creditEntry,
+    });
+  }
+
+  function payWagesWithBridgeLoan(): boolean {
+    const bill = wageBill(state.players);
+    const gameDate = state.currentDate ?? new Date().toISOString().slice(0, 10);
+    const suggestion = suggestPayrollBridgeLoan({
+      balance: state.finance.balance,
+      wageBill: bill,
+      gameDate,
+    });
+    if (!suggestion) return false;
+    const pack = createClubLoanPackage({
+      principal: suggestion.principal,
+      interestRatePercent: suggestion.interestRatePercent,
+      installmentCount: suggestion.installmentCount,
+      firstPaymentDate: suggestion.firstPaymentDate,
+      notes: 'Empréstimo-ponte — folha dia 5',
+    });
+    const creditEntry = newLedgerEntry(
+      'loan_credit',
+      pack.creditAmount,
+      `Empréstimo-ponte folha (+${pack.loan.interestRate}% juros)`,
+      state.season,
+      undefined,
+      gameDate,
+    );
+    const wageEntry = newLedgerEntry(
+      'wage',
+      -bill,
+      'Folha salarial',
+      state.season,
+      undefined,
+      gameDate,
+    );
+    forceCloudRef.current = true;
+    dispatch({
+      type: 'PAY_WAGES_WITH_BRIDGE_LOAN',
+      loan: pack.loan,
+      payments: pack.payments,
+      creditEntry,
+      wageEntry,
+    });
+    return true;
+  }
+
+  function payLoanPayment(paymentId: string) {
+    const payment = state.finance.loanPayments?.find(p => p.id === paymentId);
+    if (!payment || payment.status === 'paid') return;
+    const entry = newLedgerEntry(
+      'loan_repay',
+      -payment.amount,
+      payment.label,
+      state.season,
+      undefined,
+      state.currentDate ?? undefined,
+    );
+    forceCloudRef.current = true;
+    dispatch({ type: 'PAY_LOAN_PAYMENT', paymentId, ledgerEntry: entry });
+  }
+
+  function addClubDebt(input: {
+    amount: number;
+    monthlyInstallment: number;
+    paymentDay: number;
+    label?: string;
+  }) {
+    if (input.amount < 1 || input.monthlyInstallment < 1) return;
+    const debt = createClubDebt({
+      amount: input.amount,
+      monthlyInstallment: input.monthlyInstallment,
+      paymentDay: input.paymentDay,
+      label: input.label,
+      source: 'manual',
+      createdAt: state.currentDate ?? new Date().toISOString().slice(0, 10),
+    });
+    forceCloudRef.current = true;
+    dispatch({ type: 'ADD_CLUB_DEBT', debt });
+  }
+
+  function payClubDebt(debtId: string, amount: number, asMonthlyInstallment?: boolean) {
+    const debt = state.finance.debts?.find(d => d.id === debtId);
+    if (!debt || debt.status === 'paid' || amount < 1) return;
+    const pay = Math.min(debt.remaining, Math.round(amount));
+    const entry = newLedgerEntry(
+      'debt_repay',
+      -pay,
+      `Dívida: ${debt.label}`,
+      state.season,
+      undefined,
+      state.currentDate ?? undefined,
+    );
+    forceCloudRef.current = true;
+    dispatch({
+      type: 'PAY_CLUB_DEBT',
+      debtId,
+      amount: pay,
+      ledgerEntry: entry,
+      asMonthlyInstallment,
+    });
+  }
+
+  function dismissDebtPayments() {
+    dispatch({ type: 'DISMISS_DEBT_PAYMENTS' });
+  }
+
+  function addClubSponsor(input: {
+    brand: string;
+    tier: SponsorTier;
+    monthlyFee: number;
+    seasons: number;
+    paymentDay: number;
+    minLeaguePosition?: number;
+    terminationFee?: number;
+    bonuses?: Omit<SponsorBonusClause, 'id'>[];
+  }): boolean {
+    if (hasActiveTier(state.finance.sponsors, input.tier)) return false;
+    const sponsor = createClubSponsor({
+      ...input,
+      startSeason: state.season,
+    });
+    forceCloudRef.current = true;
+    dispatch({ type: 'ADD_CLUB_SPONSOR', sponsor });
+    return true;
+  }
+
+  function renewClubSponsor(sponsorId: string, extraSeasons = 1) {
+    forceCloudRef.current = true;
+    dispatch({ type: 'RENEW_CLUB_SPONSOR', sponsorId, extraSeasons });
+  }
+
+  function terminateClubSponsor(sponsorId: string) {
+    const sponsor = state.finance.sponsors?.find(s => s.id === sponsorId);
+    if (!sponsor || sponsor.status !== 'active') return;
+    const fee = sponsor.terminationFee;
+    const ledgerEntry =
+      fee > 0
+        ? newLedgerEntry(
+            'other_out',
+            -fee,
+            `Rescisão antecipada: ${sponsor.brand}`,
+            state.season,
+            undefined,
+            state.currentDate ?? undefined,
+          )
+        : undefined;
+    forceCloudRef.current = true;
+    dispatch({ type: 'TERMINATE_CLUB_SPONSOR', sponsorId, ledgerEntry });
+  }
+
+  function dismissLoanPayments() {
+    dispatch({ type: 'DISMISS_LOAN_PAYMENTS' });
   }
 
   return (
@@ -1681,7 +3504,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setCoachCountry,
         setCustomClub,
         setManager,
+        updateManager,
+        addAchievement,
+        removeAchievement,
         startCareer,
+        dismissLiveLifePrompt,
+        dismissDailyPulse,
+        completeLiveLifeOnboarding,
+        advanceDay,
+        rewindDay,
+        setCurrentDate,
         setCareerPlayer,
         setPlayerClub,
         finishPlayerSetup,
@@ -1711,6 +3543,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setActiveTactics,
         rollPulseForMatch,
         updatePulseSettings,
+        addSocialPost,
+        markSocialSeen,
+        applyPressConference,
         loadSavedGame,
         completeTutorial,
         resetGame,
@@ -1719,6 +3554,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         getSaveSnapshot,
         applyLedger,
         payWages,
+        dismissPayroll,
         setPrizeTable,
         updateFinance,
         updateBoard,
@@ -1730,6 +3566,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
         removeWatchlist,
         updateWatchlist,
         executeTransfer,
+        updateTransferRecord,
+        payTransferPayment,
+        dismissTransferPayments,
+        renewPlayerContract,
+        takeClubLoan,
+        payWagesWithBridgeLoan,
+        payLoanPayment,
+        dismissLoanPayments,
+        addClubDebt,
+        payClubDebt,
+        dismissDebtPayments,
+        addClubSponsor,
+        renewClubSponsor,
+        terminateClubSponsor,
       }}
     >
       {children}

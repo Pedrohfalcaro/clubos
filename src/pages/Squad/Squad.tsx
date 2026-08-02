@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../context/GameContext';
-import type { PlayerStatus } from '../../types/Player';
+import type { Player, PlayerStatus } from '../../types/Player';
+import { availabilityStatusLabel } from '../../types/Player';
 import {
   scopeOptions,
   playerStatsForScope,
@@ -10,6 +11,12 @@ import {
 import { calcPlayerAverageRating } from '../../utils/matchStats';
 import { ratingColor } from '../../utils/matchEvents';
 import { getMatchPlayingTime } from '../../utils/playingTime';
+import {
+  formatMinutesPerParticipation,
+  formatCleanSheetPct,
+} from '../../utils/livelifeTemplates';
+import { competitionNames } from '../../utils/competitions';
+import { PERSONALIDADES, isPersonality } from '../../pulse/utils';
 import styles from './Squad.module.css';
 
 const POSITION_ORDER = ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'CF', 'ST'];
@@ -48,11 +55,12 @@ function formatAvg(rating: number | null): string {
 
 function moraleMeta(morale: number): { label: string; color: string; title: string } {
   const m = Math.max(0, Math.min(100, Math.round(morale)));
-  if (m >= 80) return { label: '▲', color: 'var(--success)', title: `Moral alta (${m})` };
-  if (m >= 60) return { label: '●', color: '#22c55e', title: `Moral boa (${m})` };
-  if (m >= 40) return { label: '●', color: 'var(--warning)', title: `Moral média (${m})` };
-  if (m >= 20) return { label: '▼', color: '#f97316', title: `Moral baixa (${m})` };
-  return { label: '▼', color: 'var(--danger)', title: `Moral péssima (${m})` };
+  const tip = `Moral: ${m}/100`;
+  if (m >= 80) return { label: '▲', color: 'var(--success)', title: `${tip} · alta` };
+  if (m >= 60) return { label: '●', color: '#22c55e', title: `${tip} · boa` };
+  if (m >= 40) return { label: '●', color: 'var(--warning)', title: `${tip} · média` };
+  if (m >= 20) return { label: '▼', color: '#f97316', title: `${tip} · baixa` };
+  return { label: '▼', color: 'var(--danger)', title: `${tip} · péssima` };
 }
 
 type CompFilter = 'all' | string;
@@ -62,6 +70,7 @@ interface PlayerCompStats {
   goals: number;
   assists: number;
   cleanSheets: number;
+  goalsConceded: number;
   minutes: number;
 }
 
@@ -101,6 +110,7 @@ export default function Squad() {
         goals: 0,
         assists: 0,
         cleanSheets: 0,
+        goalsConceded: 0,
         minutes: 0,
       };
       byComp.set(competition, {
@@ -108,10 +118,12 @@ export default function Squad() {
         goals: prev.goals + (patch.goals ?? 0),
         assists: prev.assists + (patch.assists ?? 0),
         cleanSheets: prev.cleanSheets + (patch.cleanSheets ?? 0),
+        goalsConceded: prev.goalsConceded + (patch.goalsConceded ?? 0),
         minutes: prev.minutes + (patch.minutes ?? 0),
       });
     }
 
+    const playerById = new Map(state.players.map(p => [p.id, p]));
     for (const match of state.matches.filter(m => m.status === 'completed')) {
       const playingTime = getMatchPlayingTime(match);
       const played = new Set(playingTime.keys());
@@ -121,10 +133,12 @@ export default function Squad() {
       const cleanSheet = match.goalsAgainst === 0;
       for (const playerId of played) {
         const mins = playingTime.get(playerId) ?? 0;
+        const isGk = playerById.get(playerId)?.position === 'GK';
         bump(playerId, match.competition, {
           matches: 1,
           minutes: mins,
           cleanSheets: cleanSheet && mins > 0 ? 1 : 0,
+          goalsConceded: isGk && mins > 0 ? match.goalsAgainst : 0,
         });
       }
       for (const goal of match.goals ?? []) {
@@ -137,7 +151,7 @@ export default function Squad() {
       }
     }
     return map;
-  }, [state.matches]);
+  }, [state.matches, state.players]);
 
   const compSummaries = useMemo(() => {
     return state.seasonCompetitions.map(comp => {
@@ -246,6 +260,52 @@ export default function Squad() {
     setEditingId(null);
   }
 
+  function clearAvailability(playerId: string) {
+    updatePlayer(playerId, {
+      availability: 'disponivel',
+      injuryDaysRemaining: undefined,
+      suspensionMatchesRemaining: undefined,
+      suspensionCompetition: undefined,
+    });
+  }
+
+  const competitionOptions = competitionNames(state.seasonCompetitions);
+
+  function adjustAvailabilityDays(player: Player, delta: number) {
+    if (player.availability === 'suspenso') {
+      const next = Math.max(0, (player.suspensionMatchesRemaining ?? 1) + delta);
+      if (next <= 0) {
+        clearAvailability(player.id);
+        return;
+      }
+      updatePlayer(player.id, { suspensionMatchesRemaining: next });
+      return;
+    }
+    if (player.availability === 'lesionado' || player.availability === 'indisponivel') {
+      const next = Math.max(0, (player.injuryDaysRemaining ?? 1) + delta);
+      if (next <= 0) {
+        clearAvailability(player.id);
+        return;
+      }
+      updatePlayer(player.id, { injuryDaysRemaining: next });
+    }
+  }
+
+  function setAvailabilityDays(player: Player, value: number) {
+    const days = Math.max(0, Math.round(value));
+    if (days <= 0) {
+      clearAvailability(player.id);
+      return;
+    }
+    if (player.availability === 'suspenso') {
+      updatePlayer(player.id, { suspensionMatchesRemaining: days });
+      return;
+    }
+    if (player.availability === 'lesionado' || player.availability === 'indisponivel') {
+      updatePlayer(player.id, { injuryDaysRemaining: days });
+    }
+  }
+
   function displayStats(playerId: string) {
     const avg = calcPlayerAverageRating(
       playerId,
@@ -260,6 +320,7 @@ export default function Squad() {
         goals: p?.stats.goals ?? 0,
         assists: p?.stats.assists ?? 0,
         cleanSheets: p?.stats.cleanSheets ?? 0,
+        goalsConceded: p?.stats.goalsConceded ?? 0,
         avg,
       };
     }
@@ -270,6 +331,7 @@ export default function Squad() {
       goals: s?.goals ?? 0,
       assists: s?.assists ?? 0,
       cleanSheets: s?.cleanSheets ?? 0,
+      goalsConceded: s?.goalsConceded ?? 0,
       avg,
     };
   }
@@ -350,6 +412,7 @@ export default function Squad() {
                 <span>G</span>
                 <span>A</span>
                 <span title="Sem sofrer gols">SG</span>
+                <span title="Linha: min÷(G+A) · GK: %SG">Ef.</span>
                 <span>CA</span>
                 <span>CV</span>
               </div>
@@ -362,6 +425,14 @@ export default function Squad() {
                   <span>{stats.goals}</span>
                   <span>{stats.assists}</span>
                   <span>{stats.cleanSheets ?? 0}</span>
+                  <span>
+                    {p.position === 'GK'
+                      ? (() => {
+                          const pct = formatCleanSheetPct(stats.cleanSheets ?? 0, stats.matches);
+                          return pct === '—' ? pct : `${pct}%`;
+                        })()
+                      : formatMinutesPerParticipation(stats.goals, stats.assists, stats.minutes)}
+                  </span>
                   <span>{stats.yellowCards}</span>
                   <span>{stats.redCards}</span>
                 </div>
@@ -425,7 +496,7 @@ export default function Squad() {
 
             {compFilter !== 'all' && (
               <p className={styles.compBanner}>
-                Filtrando por <strong>{compFilter}</strong> — J / Min / Nota / G / A / SG desta competição
+                Filtrando por <strong>{compFilter}</strong> — J / Min / Nota / G / A / SG / eficiência desta competição
               </p>
             )}
 
@@ -452,6 +523,16 @@ export default function Squad() {
                       <span className={styles.colStat}>G</span>
                       <span className={styles.colStat} title="Assistências">A</span>
                       <span className={styles.colStat} title="Sem sofrer gols">SG</span>
+                      <span
+                        className={styles.colRate}
+                        title={
+                          pos === 'GK'
+                            ? 'Percentual de jogos sem sofrer gol (SG ÷ J)'
+                            : 'Minutos por participação em gol (min ÷ G+A)'
+                        }
+                      >
+                        {pos === 'GK' ? '%SG' : 'Min/Part'}
+                      </span>
                       <span className={styles.colStatus}>Status</span>
                       <span className={styles.colAction} />
                     </div>
@@ -459,92 +540,260 @@ export default function Squad() {
                       const stats = displayStats(p.id);
                       const retired = p.status === 'Aposentado';
                       const morale = moraleMeta(p.morale ?? 70);
+                      const rateLabel = (() => {
+                        if (p.position === 'GK') {
+                          const pct = formatCleanSheetPct(stats.cleanSheets, stats.matches);
+                          return pct === '—' ? pct : `${pct}%`;
+                        }
+                        return formatMinutesPerParticipation(
+                          stats.goals,
+                          stats.assists,
+                          stats.minutes,
+                        );
+                      })();
                       return (
                         <div key={p.id}>
                           {editingId === p.id ? (
-                            <div className={styles.editRow}>
-                              <input
-                                className={styles.editInputSm}
-                                type="number"
-                                min={1}
-                                max={99}
-                                placeholder="#"
-                                value={editForm.number}
-                                onChange={e => setEditForm(f => ({ ...f, number: e.target.value }))}
-                              />
-                              <input
-                                className={styles.editNameInput}
-                                type="text"
-                                value={editForm.name}
-                                onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                                placeholder="Nome"
-                                aria-label="Nome do atleta"
-                              />
-                              <input
-                                className={styles.editInputSm}
-                                type="number"
-                                min={15}
-                                max={45}
-                                value={editForm.age}
-                                onChange={e => setEditForm(f => ({ ...f, age: Number(e.target.value) }))}
-                              />
-                              <input
-                                className={styles.editInputSm}
-                                type="number"
-                                min={1}
-                                max={99}
-                                value={editForm.overall}
-                                onChange={e => setEditForm(f => ({ ...f, overall: Number(e.target.value) }))}
-                              />
-                              <span className={styles.colMatches} title="Jogos (somente leitura)">{stats.matches}</span>
-                              <span className={styles.colMin} title="Minutos (somente leitura)">{stats.minutes}</span>
-                              <span
-                                className={styles.notaBadge}
-                                style={{
-                                  background: stats.avg != null ? ratingColor(stats.avg) : 'var(--border)',
-                                  color: stats.avg != null ? '#fff' : 'var(--text)',
-                                }}
-                                title="Nota média (somente leitura)"
-                              >
-                                {formatAvg(stats.avg)}
-                              </span>
-                              <span className={styles.colStat} title="Gols (somente leitura)">{stats.goals}</span>
-                              <span className={styles.colStat} title="Assistências (somente leitura)">{stats.assists}</span>
-                              <span className={styles.colStat} title="Sem sofrer gols (somente leitura)">{stats.cleanSheets}</span>
-                              <select
-                                className={styles.editSelect}
-                                value={editForm.status}
-                                onChange={e => setEditForm(f => ({ ...f, status: e.target.value as PlayerStatus }))}
-                              >
-                                {STATUS_OPTIONS.map(s => (
-                                  <option key={s} value={s}>{s}</option>
-                                ))}
-                              </select>
-                              <div className={styles.editActions}>
-                                <button type="button" className={styles.saveBtn} onClick={saveEdit}>Salvar</button>
-                                <button type="button" className={styles.cancelBtn} onClick={cancelEdit}>Cancelar</button>
+                            <div className={styles.editPanel}>
+                              <div className={styles.editPanelHead}>
+                                <div>
+                                  <p className={styles.editPanelEyebrow}>Editar atleta</p>
+                                  <h3 className={styles.editPanelTitle}>{p.name}</h3>
+                                </div>
+                                <div className={styles.editPanelActions}>
+                                  <button type="button" className={styles.cancelBtn} onClick={cancelEdit}>
+                                    Cancelar
+                                  </button>
+                                  <button type="button" className={styles.saveBtn} onClick={saveEdit}>
+                                    Salvar
+                                  </button>
+                                </div>
                               </div>
-                              <div className={styles.editExtra}>
-                                <label>
-                                  Salário
+
+                              <div className={styles.editGrid}>
+                                <label className={styles.editField}>
+                                  <span>Nome</span>
                                   <input
-                                    className={styles.editInputMd}
+                                    className={styles.editFieldInput}
+                                    type="text"
+                                    value={editForm.name}
+                                    onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                                  />
+                                </label>
+                                <label className={styles.editField}>
+                                  <span>Nº</span>
+                                  <input
+                                    className={styles.editFieldInput}
+                                    type="number"
+                                    min={1}
+                                    max={99}
+                                    value={editForm.number}
+                                    onChange={e => setEditForm(f => ({ ...f, number: e.target.value }))}
+                                  />
+                                </label>
+                                <label className={styles.editField}>
+                                  <span>Idade</span>
+                                  <input
+                                    className={styles.editFieldInput}
+                                    type="number"
+                                    min={15}
+                                    max={45}
+                                    value={editForm.age}
+                                    onChange={e => setEditForm(f => ({ ...f, age: Number(e.target.value) }))}
+                                  />
+                                </label>
+                                <label className={styles.editField}>
+                                  <span>Overall</span>
+                                  <input
+                                    className={styles.editFieldInput}
+                                    type="number"
+                                    min={1}
+                                    max={99}
+                                    value={editForm.overall}
+                                    onChange={e => setEditForm(f => ({ ...f, overall: Number(e.target.value) }))}
+                                  />
+                                </label>
+                                <label className={styles.editField}>
+                                  <span>Status no elenco</span>
+                                  <select
+                                    className={styles.editFieldInput}
+                                    value={editForm.status}
+                                    onChange={e =>
+                                      setEditForm(f => ({ ...f, status: e.target.value as PlayerStatus }))
+                                    }
+                                  >
+                                    {STATUS_OPTIONS.map(s => (
+                                      <option key={s} value={s}>{s}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className={styles.editField}>
+                                  <span>Salário</span>
+                                  <input
+                                    className={styles.editFieldInput}
                                     type="number"
                                     min={0}
                                     value={editForm.salary}
                                     onChange={e => setEditForm(f => ({ ...f, salary: Number(e.target.value) }))}
                                   />
                                 </label>
-                                <label>
-                                  Valor
+                                <label className={styles.editField}>
+                                  <span>Valor de mercado</span>
                                   <input
-                                    className={styles.editInputMd}
+                                    className={styles.editFieldInput}
                                     type="number"
                                     min={0}
                                     value={editForm.marketValue}
-                                    onChange={e => setEditForm(f => ({ ...f, marketValue: Number(e.target.value) }))}
+                                    onChange={e =>
+                                      setEditForm(f => ({ ...f, marketValue: Number(e.target.value) }))
+                                    }
                                   />
                                 </label>
+                                <label className={styles.editField}>
+                                  <span>Personalidade</span>
+                                  <select
+                                    className={styles.editFieldInput}
+                                    value={isPersonality(p.personality) ? p.personality : 'Disciplinado'}
+                                    onChange={e =>
+                                      updatePlayer(p.id, { personality: e.target.value })
+                                    }
+                                  >
+                                    {PERSONALIDADES.map(pers => (
+                                      <option key={pers} value={pers}>{pers}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className={styles.editField}>
+                                  <span>Moral ({Math.round(p.morale ?? 70)})</span>
+                                  <input
+                                    className={styles.editFieldInput}
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    value={p.morale ?? 70}
+                                    onChange={e =>
+                                      updatePlayer(p.id, { morale: Number(e.target.value) })
+                                    }
+                                  />
+                                </label>
+                              </div>
+
+                              <div className={styles.availSection}>
+                                <p className={styles.availSectionTitle}>Disponibilidade</p>
+                                <div className={styles.toggleRow}>
+                                  <label className={styles.toggleLabel}>
+                                    <input
+                                      type="checkbox"
+                                      className={styles.toggleInput}
+                                      checked={p.availability === 'lesionado' || p.availability === 'indisponivel'}
+                                      onChange={e => {
+                                        if (e.target.checked) {
+                                          updatePlayer(p.id, {
+                                            availability: 'lesionado',
+                                            injuryDaysRemaining:
+                                              (p.injuryDaysRemaining ?? 0) > 0 ? p.injuryDaysRemaining : 14,
+                                            suspensionMatchesRemaining: undefined,
+                                            suspensionCompetition: undefined,
+                                          });
+                                        } else {
+                                          clearAvailability(p.id);
+                                        }
+                                      }}
+                                    />
+                                    <span className={styles.toggleTrack} aria-hidden />
+                                    <span className={styles.toggleText}>Lesionado</span>
+                                  </label>
+                                  <label className={styles.toggleLabel}>
+                                    <input
+                                      type="checkbox"
+                                      className={styles.toggleInput}
+                                      checked={p.availability === 'suspenso'}
+                                      onChange={e => {
+                                        if (e.target.checked) {
+                                          updatePlayer(p.id, {
+                                            availability: 'suspenso',
+                                            suspensionMatchesRemaining:
+                                              (p.suspensionMatchesRemaining ?? 0) > 0
+                                                ? p.suspensionMatchesRemaining
+                                                : 1,
+                                            suspensionCompetition:
+                                              p.suspensionCompetition ||
+                                              competitionOptions[0] ||
+                                              'Campeonato Nacional',
+                                            injuryDaysRemaining: undefined,
+                                          });
+                                        } else {
+                                          clearAvailability(p.id);
+                                        }
+                                      }}
+                                    />
+                                    <span className={styles.toggleTrack} aria-hidden />
+                                    <span className={styles.toggleText}>Suspenso</span>
+                                  </label>
+                                </div>
+
+                                {p.availability === 'suspenso' && (
+                                  <label className={styles.editField} style={{ marginTop: 8 }}>
+                                    <span>Competição da suspensão</span>
+                                    <select
+                                      value={p.suspensionCompetition ?? ''}
+                                      onChange={e =>
+                                        updatePlayer(p.id, {
+                                          suspensionCompetition: e.target.value || undefined,
+                                        })
+                                      }
+                                    >
+                                      <option value="">Todas (legado)</option>
+                                      {competitionOptions.map(name => (
+                                        <option key={name} value={name}>{name}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                )}
+
+                                {(p.availability === 'lesionado' ||
+                                  p.availability === 'suspenso' ||
+                                  p.availability === 'indisponivel') && (
+                                  <div className={styles.penaltyControls}>
+                                    <span className={styles.penaltyHint}>
+                                      {p.availability === 'suspenso'
+                                        ? 'Partidas restantes (nessa competição)'
+                                        : 'Dias restantes'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className={styles.penaltyBtn}
+                                      onClick={() => adjustAvailabilityDays(p, -1)}
+                                    >
+                                      −
+                                    </button>
+                                    <input
+                                      className={styles.penaltyValue}
+                                      type="number"
+                                      min={0}
+                                      value={
+                                        p.availability === 'suspenso'
+                                          ? (p.suspensionMatchesRemaining ?? 0)
+                                          : (p.injuryDaysRemaining ?? 0)
+                                      }
+                                      onChange={e => setAvailabilityDays(p, Number(e.target.value))}
+                                    />
+                                    <button
+                                      type="button"
+                                      className={styles.penaltyBtn}
+                                      onClick={() => adjustAvailabilityDays(p, 1)}
+                                    >
+                                      +
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={styles.clearPenaltyBtn}
+                                      onClick={() => clearAvailability(p.id)}
+                                    >
+                                      Liberar atleta
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ) : (
@@ -556,10 +805,21 @@ export default function Squad() {
                                   className={styles.moraleMark}
                                   style={{ color: morale.color }}
                                   title={morale.title}
+                                  data-tip={morale.title}
                                   aria-label={morale.title}
                                 >
                                   {morale.label}
                                 </span>
+                                {availabilityStatusLabel(p, state.currentDate) && (
+                                  <button
+                                    type="button"
+                                    className={styles.availBadge}
+                                    onClick={() => startEdit(p.id)}
+                                    title="Editar penalidade"
+                                  >
+                                    {availabilityStatusLabel(p, state.currentDate)}
+                                  </button>
+                                )}
                               </span>
                               <span className={styles.colAge}>{p.age}</span>
                               <span className={styles.colOvr} style={{ color: overallColor(p.overall) }}>{p.overall}</span>
@@ -578,6 +838,16 @@ export default function Squad() {
                               <span className={styles.colStat}>{stats.goals}</span>
                               <span className={styles.colStat}>{stats.assists}</span>
                               <span className={styles.colStat} title="Sem sofrer gols">{stats.cleanSheets}</span>
+                              <span
+                                className={styles.colRate}
+                                title={
+                                  p.position === 'GK'
+                                    ? 'Percentual de jogos sem sofrer gol'
+                                    : 'Minutos por participação em gol'
+                                }
+                              >
+                                {rateLabel}
+                              </span>
                               <span className={styles.colStatus} style={{ color: STATUS_COLOR[p.status] }}>{p.status}</span>
                               <span className={styles.colAction}>
                                 <button type="button" className={styles.editBtn} onClick={() => startEdit(p.id)}>Editar</button>

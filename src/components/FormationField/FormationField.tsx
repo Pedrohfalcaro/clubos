@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import type { Player } from '../../types/Player';
+import {
+  isPlayerBlockedFromLineup,
+  availabilityStatusLabel,
+} from '../../types/Player';
 import type { FormationSlot } from '../../types/Tactics';
 import PlayerJersey from '../PlayerJersey/PlayerJersey';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { useGame } from '../../context/GameContext';
 import { ROLE_NAMES, type FormationPreset } from '../../utils/formations';
 import styles from './FormationField.module.css';
 
@@ -24,6 +29,8 @@ interface FormationFieldProps {
   kitColor?: string;
   primaryColor?: string;
   secondaryColor?: string;
+  /** Competição da partida — suspensão só bloqueia nesta competição. */
+  competition?: string | null;
 }
 
 export default function FormationField({
@@ -41,9 +48,12 @@ export default function FormationField({
   kitColor,
   primaryColor,
   secondaryColor,
+  competition = null,
 }: FormationFieldProps) {
   const isMobile = useIsMobile();
   const allowDrag = !isMobile;
+  const { state } = useGame();
+  const gameDate = state.currentDate;
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [movingSlot, setMovingSlot] = useState<number | null>(null);
@@ -55,7 +65,16 @@ export default function FormationField({
   const onFieldIds = new Set(formation.map(f => f.playerId));
   const benchIds = new Set(bench);
   const available = players.filter(
-    p => !onFieldIds.has(p.id) && !benchIds.has(p.id) && p.status !== 'Aposentado',
+    p =>
+      !onFieldIds.has(p.id) &&
+      !benchIds.has(p.id) &&
+      !isPlayerBlockedFromLineup(p, competition, gameDate),
+  );
+  const blocked = players.filter(
+    p =>
+      !onFieldIds.has(p.id) &&
+      !benchIds.has(p.id) &&
+      isPlayerBlockedFromLineup(p, competition, gameDate),
   );
 
   function getPlayer(id: string) {
@@ -88,6 +107,8 @@ export default function FormationField({
 
   function assignToSlot(slotIndex: number, playerId: string) {
     if (!preset) return;
+    const candidate = getPlayer(playerId);
+    if (candidate && isPlayerBlockedFromLineup(candidate, competition, gameDate)) return;
     const slot = preset.slots[slotIndex];
     if (!slot) return;
 
@@ -124,6 +145,8 @@ export default function FormationField({
 
   function addToBench(playerId: string) {
     if (!onBenchChange) return;
+    const candidate = getPlayer(playerId);
+    if (candidate && isPlayerBlockedFromLineup(candidate, competition, gameDate)) return;
     if (bench.includes(playerId)) return;
     if (bench.length >= benchMax) return;
     onFormationChange(formation.filter(f => f.playerId !== playerId));
@@ -461,6 +484,23 @@ export default function FormationField({
               <p className={styles.warning}>Mínimo de {benchMin} no banco ({benchMin - bench.length} faltando)</p>
             )}
           </div>
+        )}
+
+        {blocked.length > 0 && (
+          <p className={styles.unavailableNote}>
+            <span className={styles.unavailableLabel}>Indisponíveis: </span>
+            {blocked.map((player, i) => (
+              <span key={player.id}>
+                {i > 0 ? ' · ' : ''}
+                <span className={styles.unavailableName}>
+                  {player.name}
+                  {availabilityStatusLabel(player, gameDate)
+                    ? ` (${availabilityStatusLabel(player, gameDate)})`
+                    : ''}
+                </span>
+              </span>
+            ))}
+          </p>
         )}
       </div>
     </div>

@@ -40,7 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/transferencias', label: 'Transferências' },
       { to: '/diretoria', label: 'Diretoria' },
       { to: '/financas', label: 'Finanças' },
-      { to: '/under/trofeus', label: 'Sala de troféus' },
+      { to: '/trofeus', label: 'Sala de troféus' },
     ],
   },
   {
@@ -59,9 +59,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Social',
     icon: '💬',
     items: [
-      { to: '/under/redes-sociais', label: 'Redes sociais' },
-      { to: '/under/manchetes', label: 'Manchetes' },
-      { to: '/under/coletivas', label: 'Coletivas' },
+      { to: '/social', label: 'ClubOSocial' },
+      { to: '/press-conference', label: 'Coletivas' },
       { to: '/under/social-jogadores', label: 'Jogadores' },
     ],
   },
@@ -70,17 +69,17 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Manager',
     icon: '👤',
     items: [
-      { to: '/under/pessoal', label: 'Pessoal' },
+      { to: '/manager', label: 'Pessoal' },
       { to: '/under/metas', label: 'Metas' },
-      { to: '/under/conquistas', label: 'Conquistas' },
+      { to: '/trofeus', label: 'Conquistas' },
     ],
   },
 ];
 
 const WIP_ROUTES = new Set([
-  '/under/treinamento', '/under/trofeus', '/under/redes-sociais',
-  '/under/manchetes', '/under/coletivas', '/under/social-jogadores',
-  '/under/pessoal', '/under/metas', '/under/conquistas',
+  '/under/treinamento',
+  '/under/social-jogadores',
+  '/under/metas',
 ]);
 
 export default function Layout() {

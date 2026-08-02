@@ -62,6 +62,24 @@
   line-height: 1.1;
 }
 
+.dateBadge {
+  margin: 8px 0 0;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--accent);
+  text-transform: capitalize;
+}
+
+.dateBadgeMuted {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.8;
+}
+
 .heroBudget {
   margin: 10px 0 0;
   font-size: 15px;
@@ -213,6 +231,22 @@
   border-color: var(--accent-border);
   background: var(--accent-bg);
   transform: translateY(-1px);
+}
+
+.quickBtnPrimary {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+}
+
+.quickBtnPrimary:hover {
+  border-color: var(--accent);
+}
+
+.quickBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .quickIcon {
@@ -371,6 +405,56 @@
 }
 
 /* ——— Next match ——— */
+.advanceDayBanner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  text-align: left;
+  padding: 20px 22px;
+  border-radius: 14px;
+  border: 1px solid var(--accent-border);
+  background:
+    linear-gradient(120deg, var(--accent-bg), transparent 55%),
+    var(--card-bg);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.dayControls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rewindDayBtn {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rewindDayBtn:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.rewindDayBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.advanceDayBanner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(170, 59, 255, 0.18);
+}
+
 .nextMatch {
   width: 100%;
   display: flex;
@@ -447,6 +531,114 @@
 
 .nextMatchEmpty strong {
   color: var(--accent);
+}
+
+.pressCta {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px 12px;
+  text-align: left;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--accent) 18%, transparent),
+      color-mix(in srgb, var(--accent) 6%, var(--card-bg, #121212)) 55%
+    );
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pressCta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.pressCtaPost {
+  border-color: color-mix(in srgb, #e8b84a 60%, var(--border));
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, #e8b84a 22%, transparent),
+      color-mix(in srgb, #e8b84a 8%, var(--card-bg, #121212)) 55%
+    );
+  box-shadow: 0 0 0 1px color-mix(in srgb, #e8b84a 25%, transparent);
+}
+
+.pressCtaLabel {
+  grid-column: 1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.pressCtaPost .pressCtaLabel {
+  color: #e8b84a;
+}
+
+.pressCtaMain {
+  grid-column: 1;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.pressCtaMain strong {
+  color: var(--text-h, var(--text));
+}
+
+.pressCtaGo {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.pressCtaPost .pressCtaGo {
+  color: #e8b84a;
+}
+
+.pressCtaSpecial {
+  border-color: color-mix(in srgb, #5eb0e8 55%, var(--border));
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, #5eb0e8 18%, transparent),
+      color-mix(in srgb, #5eb0e8 6%, var(--card-bg, #121212)) 55%
+    );
+  box-shadow: 0 0 0 1px color-mix(in srgb, #5eb0e8 22%, transparent);
+}
+
+.pressCtaSpecial .pressCtaLabel,
+.pressCtaSpecial .pressCtaGo {
+  color: #5eb0e8;
+}
+
+.pressCtaArc {
+  border-color: color-mix(in srgb, #c084fc 55%, var(--border));
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, #c084fc 16%, transparent),
+      color-mix(in srgb, #c084fc 5%, var(--card-bg, #121212)) 55%
+    );
+  box-shadow: 0 0 0 1px color-mix(in srgb, #c084fc 22%, transparent);
+}
+
+.pressCtaArc .pressCtaLabel,
+.pressCtaArc .pressCtaGo {
+  color: #c084fc;
 }
 
 /* ——— Form strip (PJ / VED / goals) ——— */
@@ -720,6 +912,213 @@
   flex-shrink: 0;
   min-width: 52px;
   text-align: right;
+}
+
+/* ——— Payroll modal ——— */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modalWide {
+  max-width: 480px;
+}
+
+.gapList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gapItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.gapOk {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.gapPending {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.gapText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gapText strong {
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.gapText span {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.gapLink {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modalTitle {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0;
+}
+
+.modalEyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.pulseBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pulseCat,
+.pulseRar {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.pulseImpacts {
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modalBody {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.modalMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.modalMeta strong {
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+.modalDanger {
+  color: #dc2626 !important;
+}
+
+.modalWarn {
+  margin: 0;
+  font-size: 12px;
+  color: #b45309;
+  line-height: 1.4;
+}
+
+.modalActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btnSecondary {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnPrimary {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent, #16a34a);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btnDanger {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: #dc2626;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btnDanger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (max-width: 720px) {

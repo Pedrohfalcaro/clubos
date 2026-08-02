@@ -1,5 +1,13 @@
 import type { Player, PlayerPosition } from '../types/Player';
-import type { PulseAthlete, PulseAvailability, PulseClub, PulseEventDef, PulsePosition } from './types';
+import { rollInjuryDays } from '../types/Player';
+import type {
+  PulseAthlete,
+  PulseAvailability,
+  PulseClub,
+  PulseEventDef,
+  PulseEventEffects,
+  PulsePosition,
+} from './types';
 import { ageBand, clamp, pickRandom, pickWeighted, PERSONALIDADES } from './utils';
 
 const CLUBOS_TO_PULSE: Record<PlayerPosition, PulsePosition> = {
@@ -38,6 +46,8 @@ export function fromPulsePosition(pos: string): PlayerPosition {
   return PULSE_TO_CLUBOS[pos as PulsePosition] ?? 'CM';
 }
 
+const ATTACK_POS = new Set<PulsePosition>(['ATA', 'PE', 'PD', 'ME']);
+
 export function playerToPulseAthlete(player: Player): PulseAthlete {
   return {
     id: player.id,
@@ -48,7 +58,17 @@ export function playerToPulseAthlete(player: Player): PulseAthlete {
     moral: player.morale ?? 70,
     fadiga: player.fatigue ?? 0,
     status: player.availability ?? 'disponivel',
+    matches: player.stats?.matches ?? 0,
+    goals: player.stats?.goals ?? 0,
+    assists: player.stats?.assists ?? 0,
   };
+}
+
+function isFormDryAttack(atleta: PulseAthlete, tags: PulseEventDef['tags']): boolean {
+  const minM = tags?.minMatches ?? 8;
+  const maxG = tags?.maxGoals ?? 0;
+  if (!ATTACK_POS.has(atleta.posicao as PulsePosition)) return false;
+  return (atleta.matches ?? 0) >= minM && (atleta.goals ?? 0) <= maxG;
 }
 
 export function eventoCombinaTags(evento: PulseEventDef, atleta: PulseAthlete): boolean {
@@ -64,6 +84,9 @@ export function eventoCombinaTags(evento: PulseEventDef, atleta: PulseAthlete): 
     const band = ageBand(atleta.idade);
     if (band === 'qualquer' || !tags.idades.includes(band)) return false;
   }
+  if (typeof tags.moralMax === 'number' && (atleta.moral ?? 70) > tags.moralMax) return false;
+  if (typeof tags.moralMin === 'number' && (atleta.moral ?? 70) < tags.moralMin) return false;
+  if (tags.formDryAttack && !isFormDryAttack(atleta, tags)) return false;
   return true;
 }
 
@@ -105,7 +128,7 @@ export function polaridadeEvento(evento: PulseEventDef): 'bom' | 'ruim' | 'neutr
 
 function climaParaEvento(
   evento: PulseEventDef,
-  club?: Pick<PulseClub, 'boardConfidence' | 'supporterConfidence'> | null,
+  club?: Pick<PulseClub, 'boardConfidence' | 'supporterConfidence' | 'mediaConfidence'> | null,
 ): number | null {
   if (!club) return null;
   if (evento.categoria === 'torcida' && club.supporterConfidence != null) {
@@ -113,6 +136,9 @@ function climaParaEvento(
   }
   if (evento.categoria === 'diretoria' && club.boardConfidence != null) {
     return club.boardConfidence;
+  }
+  if (evento.categoria === 'imprensa' && club.mediaConfidence != null) {
+    return club.mediaConfidence;
   }
   return null;
 }
@@ -124,7 +150,7 @@ function climaParaEvento(
 export function pesoEventoPorMoral(
   evento: PulseEventDef,
   athletes: PulseAthlete[],
-  club?: Pick<PulseClub, 'boardConfidence' | 'supporterConfidence'> | null,
+  club?: Pick<PulseClub, 'boardConfidence' | 'supporterConfidence' | 'mediaConfidence'> | null,
 ): number {
   const pol = polaridadeEvento(evento);
   if (pol === 'neutro') return 1;
@@ -141,8 +167,16 @@ export function pesoEventoPorMoral(
     t = (avgMoral - 50) / 50;
   }
 
-  if (pol === 'bom') return Math.max(0.12, 1 + t * 1.35);
-  return Math.max(0.12, 1 - t * 1.35);
+  // Mídia: eventos bons sobem pouco de peso; ruins pesam mais quando hostil
+  const mediaBoost =
+    evento.categoria === 'imprensa' && club?.mediaConfidence != null && club.mediaConfidence < 40
+      ? pol === 'ruim'
+        ? 1.45
+        : 0.7
+      : 1;
+
+  if (pol === 'bom') return Math.max(0.12, (1 + t * 1.35) * mediaBoost);
+  return Math.max(0.12, (1 - t * 1.35) * mediaBoost);
 }
 
 export function selecionarAtleta(athletes: PulseAthlete[], evento: PulseEventDef): PulseAthlete | null {
@@ -174,6 +208,13 @@ export function selecionarAtleta(athletes: PulseAthlete[], evento: PulseEventDef
       w += (100 - moral) / 120;
     }
     w += (a.fadiga || 0) / 200;
+    // Atacante sem gols: bem mais propenso a críticas / cobrança
+    if (tags.formDryAttack || (pol === 'ruim' && ATTACK_POS.has(a.posicao as PulsePosition))) {
+      const matches = a.matches ?? 0;
+      const goals = a.goals ?? 0;
+      if (matches >= 6 && goals === 0) w *= 2.4;
+      else if (matches >= 10 && goals <= 1) w *= 1.8;
+    }
     return Math.max(0.08, w);
   });
 }
@@ -194,6 +235,28 @@ export function aplicarEfeitos(
     next.status = efeitos.status;
   }
   return next;
+}
+
+/** Dias fora a partir de diasFora explícito ou gravidade do evento Pulse. */
+export function rollPulseOutDays(
+  efeitos: PulseEventEffects | undefined,
+): number | undefined {
+  if (!efeitos) return undefined;
+  if (typeof efeitos.diasFora === 'number' && efeitos.diasFora > 0) {
+    return Math.round(efeitos.diasFora);
+  }
+  const status = efeitos.status;
+  if (status !== 'lesionado' && status !== 'indisponivel') return undefined;
+  const gravidade =
+    efeitos.gravidade ?? (status === 'indisponivel' ? 'leve' : 'media');
+  switch (gravidade) {
+    case 'leve':
+      return rollInjuryDays(2, 5);
+    case 'grave':
+      return rollInjuryDays(45, 120);
+    default:
+      return rollInjuryDays(7, 21);
+  }
 }
 
 export function varsTemplate(clubName: string, atleta: PulseAthlete | null) {
