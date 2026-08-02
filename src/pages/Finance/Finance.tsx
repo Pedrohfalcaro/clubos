@@ -15,6 +15,7 @@ import { calcLoanTotal } from '../../utils/clubLoans';
 import { totalDebtRemaining } from '../../utils/clubDebts';
 import { hasActiveTier, sponsorTierLabel } from '../../utils/sponsors';
 import { buildInstallmentDates, splitInstallmentAmounts } from '../../utils/transferPayments';
+import MoneyAmountHint from '../../components/MoneyAmountHint/MoneyAmountHint';
 import styles from './Finance.module.css';
 
 type Tab =
@@ -334,6 +335,7 @@ export default function Finance() {
                 type="number"
                 min={0}
               />
+              <MoneyAmountHint value={adjAmount} currency={finance.currency} />
             </div>
 
             <div className={styles.modalActions}>
@@ -715,6 +717,7 @@ function LoansTab({
             value={principal}
             onChange={e => setPrincipal(e.target.value)}
           />
+          <MoneyAmountHint value={principal} currency={finance.currency} />
         </div>
         <div className={styles.formGroup}>
           <label className={styles.formLabel}>Juros totais (%)</label>
@@ -901,6 +904,7 @@ function DebtsTab({
             value={amount}
             onChange={e => setAmount(e.target.value)}
           />
+          <MoneyAmountHint value={amount} currency={finance.currency} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className={styles.formGroup}>
@@ -913,6 +917,7 @@ function DebtsTab({
               onChange={e => setMonthly(e.target.value)}
               required
             />
+            <MoneyAmountHint value={monthly} currency={finance.currency} suffix="/mês" />
           </div>
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Dia da parcela (1–28)</label>
@@ -968,37 +973,40 @@ function DebtsTab({
                   <span className={`${styles.ledgerAmount} ${styles.expense}`}>
                     resta {formatMoney(d.remaining, finance.currency)}
                   </span>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
-                    <input
-                      className={styles.formInput}
-                      type="number"
-                      min={1}
-                      max={d.remaining}
-                      placeholder="Valor a pagar"
-                      value={payRaw}
-                      onChange={e =>
-                        setPayInputs(prev => ({ ...prev, [d.id]: e.target.value }))
-                      }
-                      style={{ flex: 1 }}
-                    />
-                    <button
-                      type="button"
-                      className={styles.btnDanger}
-                      disabled={payN < 1}
-                      onClick={() => {
-                        onPayDebt(d.id, payN);
-                        setPayInputs(prev => ({ ...prev, [d.id]: '' }));
-                      }}
-                    >
-                      Amortizar
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.btnSecondary}
-                      onClick={() => onPayDebt(d.id, d.remaining)}
-                    >
-                      Quitar
-                    </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
+                      <input
+                        className={styles.formInput}
+                        type="number"
+                        min={1}
+                        max={d.remaining}
+                        placeholder="Valor a pagar"
+                        value={payRaw}
+                        onChange={e =>
+                          setPayInputs(prev => ({ ...prev, [d.id]: e.target.value }))
+                        }
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        className={styles.btnDanger}
+                        disabled={payN < 1}
+                        onClick={() => {
+                          onPayDebt(d.id, payN);
+                          setPayInputs(prev => ({ ...prev, [d.id]: '' }));
+                        }}
+                      >
+                        Amortizar
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.btnSecondary}
+                        onClick={() => onPayDebt(d.id, d.remaining)}
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                    <MoneyAmountHint value={payRaw} currency={finance.currency} />
                   </div>
                 </li>
               );
@@ -1169,6 +1177,7 @@ function SponsorsTab({
               value={monthly}
               onChange={e => setMonthly(e.target.value)}
             />
+            <MoneyAmountHint value={monthly} currency={finance.currency} suffix="/mês" />
           </div>
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Dia (1–28)</label>
@@ -1190,6 +1199,7 @@ function SponsorsTab({
               value={termFee}
               onChange={e => setTermFee(e.target.value)}
             />
+            <MoneyAmountHint value={termFee} currency={finance.currency} />
           </div>
         </div>
         <div className={styles.formGroup}>
@@ -1229,6 +1239,7 @@ function SponsorsTab({
               value={bonusAmount}
               onChange={e => setBonusAmount(e.target.value)}
             />
+            <MoneyAmountHint value={bonusAmount} currency={finance.currency} />
           </div>
         </div>
         {bonusKind !== 'title' && (

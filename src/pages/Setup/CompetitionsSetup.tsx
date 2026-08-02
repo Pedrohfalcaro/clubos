@@ -6,6 +6,7 @@ import type { SeasonCompetition, CompetitionType } from '../../types/Competition
 import type { Currency, PrizeTableEntry } from '../../types/Finance';
 import { CURRENCIES, currencyLabel } from '../../types/Finance';
 import { prizeTemplate, stadiumTemplate } from '../../utils/livelifeTemplates';
+import MoneyAmountHint from '../../components/MoneyAmountHint/MoneyAmountHint';
 import styles from './Setup.module.css';
 
 type CompDraft = {
@@ -232,6 +233,7 @@ export default function CompetitionsSetup() {
                 onChange={e => setDebtAmount(e.target.value)}
                 placeholder="0"
               />
+              <MoneyAmountHint value={debtAmount} currency={currency} />
               <span className={styles.fieldHint}>
                 Não altera o caixa — só registra o que o clube deve
               </span>
@@ -248,6 +250,7 @@ export default function CompetitionsSetup() {
                 disabled={!debtAmount || Number(debtAmount) <= 0}
                 required={Number(debtAmount) > 0}
               />
+              <MoneyAmountHint value={debtMonthly} currency={currency} suffix="/mês" />
               <span className={styles.fieldHint}>Ignorar parcela depois gera juros</span>
             </div>
             <div className={styles.field}>

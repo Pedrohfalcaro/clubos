@@ -9,6 +9,7 @@ import type {
 } from '../../types/Transfer';
 import { watchlistMissingForBuy } from '../../types/Transfer';
 import type { Player } from '../../types/Player';
+import type { Currency } from '../../types/Finance';
 import { POSITION_LABELS } from '../../utils/matchEvents';
 import {
   createPlayerDataProvider,
@@ -28,6 +29,7 @@ import {
   nextTransferWindowOpen,
   transferWindowSummary,
 } from '../../utils/transferWindow';
+import MoneyAmountHint from '../../components/MoneyAmountHint/MoneyAmountHint';
 import styles from './Transfers.module.css';
 
 type Tab = 'lista' | 'negociar' | 'renovar' | 'busca' | 'historico';
@@ -523,6 +525,7 @@ export default function Transfers() {
                       {editing && (
                         <WatchEditForm
                           player={w}
+                          currency={finance.currency}
                           onSave={updates => {
                             updateWatchlist(w.id, updates);
                             setEditingWatchId(null);
@@ -685,6 +688,7 @@ export default function Transfers() {
                 value={renewSalary}
                 onChange={e => setRenewSalary(e.target.value)}
               />
+              <MoneyAmountHint value={renewSalary} currency={finance.currency} suffix="/mês" />
             </label>
             <label className={styles.label}>
               Bônus de assinatura (opcional)
@@ -695,6 +699,7 @@ export default function Transfers() {
                 value={renewBonus}
                 onChange={e => setRenewBonus(e.target.value)}
               />
+              <MoneyAmountHint value={renewBonus} currency={finance.currency} />
             </label>
           </div>
           <div className={styles.actions}>
@@ -841,14 +846,17 @@ export default function Transfers() {
             <label className={styles.label}>
               Taxa total
               <input className={styles.input} type="number" min={0} value={fee} onChange={e => setFee(e.target.value)} />
+              <MoneyAmountHint value={fee} currency={finance.currency} />
             </label>
             <label className={styles.label}>
               Salário / mês
               <input className={styles.input} type="number" min={0} value={wage} onChange={e => setWage(e.target.value)} />
+              <MoneyAmountHint value={wage} currency={finance.currency} suffix="/mês" />
             </label>
             <label className={styles.label}>
               Valor de mercado
               <input className={styles.input} type="number" min={0} value={marketValue} onChange={e => setMarketValue(e.target.value)} />
+              <MoneyAmountHint value={marketValue} currency={finance.currency} />
             </label>
             <label className={styles.label}>
               Contrato (anos)
@@ -1110,6 +1118,10 @@ export default function Transfers() {
                                 setHistDraft(d => ({ ...d, fee: parseFloat(e.target.value) || 0 }))
                               }
                             />
+                            <MoneyAmountHint
+                              value={histDraft.fee ?? r.fee}
+                              currency={finance.currency}
+                            />
                           </label>
                           <label className={styles.label}>
                             De
@@ -1174,10 +1186,12 @@ export default function Transfers() {
 
 function WatchEditForm({
   player,
+  currency,
   onSave,
   onCancel,
 }: {
   player: WatchlistPlayer;
+  currency: Currency;
   onSave: (u: Partial<WatchlistPlayer>) => void;
   onCancel: () => void;
 }) {
@@ -1225,6 +1239,7 @@ function WatchEditForm({
         <label className={styles.label}>
           Valor
           <input className={styles.input} type="number" value={marketValue} onChange={e => setMarketValue(e.target.value)} />
+          <MoneyAmountHint value={marketValue} currency={currency} />
         </label>
         <label className={styles.label}>
           Nacionalidade

@@ -9,6 +9,7 @@ import { formatMoney, newLedgerEntry } from '../../utils/finance';
 import { downloadSaveBackup } from '../../utils/backup';
 import { analyzeLiveLifeGaps } from '../../utils/livelifeTemplates';
 import { LIVELIFE_CHANGELOG } from '../../types/LiveLife';
+import MoneyAmountHint from '../../components/MoneyAmountHint/MoneyAmountHint';
 import styles from './Board.module.css';
 
 type Tab = 'confidence' | 'goals' | 'club' | 'season' | 'livelife';
@@ -466,6 +467,7 @@ export default function Board() {
                 onChange={e => setBudget(e.target.value)}
                 type="number"
               />
+              <MoneyAmountHint value={budget} currency={finance.currency} />
               <span style={{ fontSize: 11, color: 'var(--text)' }}>
                 Atual: {formatMoney(finance.balance, finance.currency)} — a diferença vira um ajuste no extrato
               </span>
