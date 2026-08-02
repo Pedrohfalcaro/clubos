@@ -24,7 +24,7 @@ export default function CompetitionsSetup() {
   const [currency, setCurrency] = useState<Currency>('BRL');
   const [startDate, setStartDate] = useState(`${state.season}-01-01`);
   const [debtAmount, setDebtAmount] = useState('');
-  const [debtMonthly, setDebtMonthly] = useState('');
+  const [debtInstallments, setDebtInstallments] = useState('12');
   const [debtDay, setDebtDay] = useState('5');
   const [customName, setCustomName] = useState('');
   const [comps, setComps] = useState<CompDraft[]>(() =>
@@ -37,6 +37,10 @@ export default function CompetitionsSetup() {
   );
 
   const selected = useMemo(() => comps.filter(c => c.checked), [comps]);
+  const debtN = Math.round(parseFloat(debtAmount.replace(',', '.')) || 0);
+  const debtInstN = Math.max(1, Math.min(120, parseInt(debtInstallments, 10) || 0));
+  const debtMonthlyPreview =
+    debtN > 0 && debtInstN >= 1 ? Math.max(1, Math.round(debtN / debtInstN)) : 0;
 
   if (!team || !state.manager) {
     navigate('/');
@@ -103,9 +107,7 @@ export default function CompetitionsSetup() {
       prizeTable[c.name] = c.prize;
     }
 
-    const debtN = Math.round(parseFloat(debtAmount.replace(',', '.')) || 0);
-    const monthlyN = Math.round(parseFloat(debtMonthly.replace(',', '.')) || 0);
-    if (debtN > 0 && monthlyN < 1) return;
+    if (debtN > 0 && debtMonthlyPreview < 1) return;
     startCareer(seasonCompetitions, undefined, startDate, {
       currency,
       prizeTable,
@@ -114,7 +116,7 @@ export default function CompetitionsSetup() {
         debtN > 0
           ? {
               amount: debtN,
-              monthlyInstallment: monthlyN,
+              monthlyInstallment: debtMonthlyPreview,
               paymentDay: Math.round(parseFloat(debtDay) || 5),
               label: 'Dívida de abertura',
             }
@@ -239,19 +241,28 @@ export default function CompetitionsSetup() {
               </span>
             </div>
             <div className={styles.field}>
-              <label htmlFor="debtMonthly">Parcela mensal *</label>
+              <label htmlFor="debtInstallments">Nº de parcelas *</label>
               <input
-                id="debtMonthly"
+                id="debtInstallments"
                 type="number"
                 min={1}
-                value={debtMonthly}
-                onChange={e => setDebtMonthly(e.target.value)}
-                placeholder="Obrigatória se houver dívida"
+                max={120}
+                value={debtInstallments}
+                onChange={e => setDebtInstallments(e.target.value)}
+                placeholder="Ex.: 12"
                 disabled={!debtAmount || Number(debtAmount) <= 0}
                 required={Number(debtAmount) > 0}
               />
-              <MoneyAmountHint value={debtMonthly} currency={currency} suffix="/mês" />
-              <span className={styles.fieldHint}>Ignorar parcela depois gera juros</span>
+              {debtMonthlyPreview > 0 && (
+                <MoneyAmountHint
+                  value={debtMonthlyPreview}
+                  currency={currency}
+                  suffix="/mês"
+                />
+              )}
+              <span className={styles.fieldHint}>
+                Valor mensal calculado · ignorar parcela gera juros
+              </span>
             </div>
             <div className={styles.field}>
               <label htmlFor="debtDay">Dia da parcela</label>

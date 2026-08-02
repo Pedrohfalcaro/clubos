@@ -84,9 +84,13 @@ export default function Board() {
   const [clubSaved, setClubSaved] = useState(false);
   const [debtLabel, setDebtLabel] = useState('Dívida do clube');
   const [debtAmount, setDebtAmount] = useState('');
-  const [debtMonthly, setDebtMonthly] = useState('');
+  const [debtInstallments, setDebtInstallments] = useState('12');
   const [debtDay, setDebtDay] = useState('5');
   const [debtSaved, setDebtSaved] = useState(false);
+  const debtAmtN = Math.round(parseFloat(debtAmount.replace(',', '.')) || 0);
+  const debtInstN = Math.max(1, Math.min(120, parseInt(debtInstallments, 10) || 0));
+  const debtMonthlyPreview =
+    debtAmtN >= 1 && debtInstN >= 1 ? Math.max(1, Math.round(debtAmtN / debtInstN)) : 0;
 
   // Goal form state
   const [goalKind, setGoalKind] = useState<BoardGoalKind>('league_position');
@@ -531,16 +535,25 @@ export default function Board() {
                   value={debtAmount}
                   onChange={e => setDebtAmount(e.target.value)}
                 />
+                <MoneyAmountHint value={debtAmount} currency={finance.currency} />
               </div>
               <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Parcela *</label>
+                <label className={styles.formLabel}>Nº de parcelas *</label>
                 <input
                   className={styles.formInput}
                   type="number"
                   min={1}
-                  value={debtMonthly}
-                  onChange={e => setDebtMonthly(e.target.value)}
+                  max={120}
+                  value={debtInstallments}
+                  onChange={e => setDebtInstallments(e.target.value)}
                 />
+                {debtMonthlyPreview > 0 && (
+                  <MoneyAmountHint
+                    value={debtMonthlyPreview}
+                    currency={finance.currency}
+                    suffix="/mês"
+                  />
+                )}
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Dia (1–28)</label>
@@ -558,17 +571,15 @@ export default function Board() {
               type="button"
               className={styles.btnSecondary}
               onClick={() => {
-                const amt = Math.round(parseFloat(debtAmount.replace(',', '.')) || 0);
-                const monthly = Math.round(parseFloat(debtMonthly.replace(',', '.')) || 0);
-                if (amt < 1 || monthly < 1) return;
+                if (debtAmtN < 1 || debtMonthlyPreview < 1) return;
                 addClubDebt({
-                  amount: amt,
-                  monthlyInstallment: monthly,
+                  amount: debtAmtN,
+                  monthlyInstallment: debtMonthlyPreview,
                   paymentDay: Math.round(parseFloat(debtDay) || 5),
                   label: debtLabel.trim() || 'Dívida do clube',
                 });
                 setDebtAmount('');
-                setDebtMonthly('');
+                setDebtInstallments('12');
                 setDebtSaved(true);
                 setTimeout(() => setDebtSaved(false), 2000);
               }}

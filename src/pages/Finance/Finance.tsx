@@ -857,26 +857,31 @@ function DebtsTab({
 }) {
   const [label, setLabel] = useState('Dívida do clube');
   const [amount, setAmount] = useState('');
-  const [monthly, setMonthly] = useState('');
+  const [installments, setInstallments] = useState('12');
   const [paymentDay, setPaymentDay] = useState('5');
   const [payInputs, setPayInputs] = useState<Record<string, string>>({});
 
   const active = (finance.debts ?? []).filter(d => d.status === 'active' && d.remaining > 0);
   const paid = (finance.debts ?? []).filter(d => d.status === 'paid');
 
+  const amountN = Math.round(parseFloat(amount.replace(',', '.')) || 0);
+  const installmentsN = Math.max(1, Math.min(120, parseInt(installments, 10) || 0));
+  const monthlyPreview =
+    amountN >= 1 && installmentsN >= 1
+      ? Math.max(1, Math.round(amountN / installmentsN))
+      : 0;
+
   function submitNew() {
-    const amt = Math.round(parseFloat(amount.replace(',', '.')) || 0);
-    const m = Math.round(parseFloat(monthly.replace(',', '.')) || 0);
+    if (amountN < 1 || installmentsN < 1 || monthlyPreview < 1) return;
     const day = Math.round(parseFloat(paymentDay) || 5);
-    if (amt < 1 || m < 1) return;
     onAddDebt({
-      amount: amt,
-      monthlyInstallment: m,
+      amount: amountN,
+      monthlyInstallment: monthlyPreview,
       paymentDay: day,
       label: label.trim() || 'Dívida do clube',
     });
     setAmount('');
-    setMonthly('');
+    setInstallments('12');
   }
 
   return (
@@ -908,16 +913,19 @@ function DebtsTab({
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Parcela mensal *</label>
+            <label className={styles.formLabel}>Nº de parcelas *</label>
             <input
               className={styles.formInput}
               type="number"
               min={1}
-              value={monthly}
-              onChange={e => setMonthly(e.target.value)}
+              max={120}
+              value={installments}
+              onChange={e => setInstallments(e.target.value)}
               required
             />
-            <MoneyAmountHint value={monthly} currency={finance.currency} suffix="/mês" />
+            {monthlyPreview > 0 && (
+              <MoneyAmountHint value={monthlyPreview} currency={finance.currency} suffix="/mês" />
+            )}
           </div>
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Dia da parcela (1–28)</label>
@@ -935,10 +943,7 @@ function DebtsTab({
           type="button"
           className={styles.btnPrimary}
           onClick={submitNew}
-          disabled={
-            Math.round(parseFloat(amount.replace(',', '.')) || 0) < 1 ||
-            Math.round(parseFloat(monthly.replace(',', '.')) || 0) < 1
-          }
+          disabled={amountN < 1 || installmentsN < 1}
         >
           Registrar dívida
         </button>
