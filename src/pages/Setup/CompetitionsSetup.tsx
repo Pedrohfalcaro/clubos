@@ -2,16 +2,28 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
 import { SETUP_COMPETITION_PRESETS, createSeasonCompetition } from '../../utils/competitions';
-import type { SeasonCompetition, CompetitionType } from '../../types/Competition';
+import type {
+  SeasonCompetition,
+  CompetitionType,
+  CompetitionFormat,
+} from '../../types/Competition';
+import {
+  COMPETITION_FORMAT_HINTS,
+  COMPETITION_FORMAT_LABELS,
+} from '../../types/Competition';
 import type { Currency, PrizeTableEntry } from '../../types/Finance';
 import { CURRENCIES, currencyLabel } from '../../types/Finance';
 import { prizeTemplate, stadiumTemplate } from '../../utils/livelifeTemplates';
+import { defaultFormatForType } from '../../utils/competitionEngine';
 import MoneyAmountHint from '../../components/MoneyAmountHint/MoneyAmountHint';
 import styles from './Setup.module.css';
+
+const FORMATS: CompetitionFormat[] = ['league', 'knockout', 'league_knockout'];
 
 type CompDraft = {
   name: string;
   type: CompetitionType;
+  format: CompetitionFormat;
   checked: boolean;
   prize: PrizeTableEntry;
 };
@@ -31,6 +43,7 @@ export default function CompetitionsSetup() {
     SETUP_COMPETITION_PRESETS.map(p => ({
       name: p.name,
       type: p.type,
+      format: p.format,
       checked: p.defaultChecked,
       prize: prizeTemplate('BRL', p.type),
     })),
@@ -74,6 +87,10 @@ export default function CompetitionsSetup() {
     );
   }
 
+  function updateFormat(name: string, format: CompetitionFormat) {
+    setComps(prev => prev.map(c => (c.name === name ? { ...c, format } : c)));
+  }
+
   function addCustom() {
     const name = customName.trim();
     if (!name) return;
@@ -87,6 +104,7 @@ export default function CompetitionsSetup() {
       {
         name: created.name,
         type: created.type,
+        format: created.format ?? defaultFormatForType(created.type),
         checked: true,
         prize: prizeTemplate(currency, created.type),
       },
@@ -100,7 +118,7 @@ export default function CompetitionsSetup() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return;
 
     const seasonCompetitions: SeasonCompetition[] = selected.map(c =>
-      createSeasonCompetition(c.name, { type: c.type }),
+      createSeasonCompetition(c.name, { type: c.type, format: c.format }),
     );
     const prizeTable: Record<string, PrizeTableEntry> = {};
     for (const c of selected) {
@@ -131,7 +149,8 @@ export default function CompetitionsSetup() {
         <p className={styles.step}>Passo 3 de 3</p>
         <h1 className={styles.title}>Competições da Temporada</h1>
         <p className={styles.sub}>
-          Marque as competições do <strong>{team.name}</strong> e defina a premiação de cada uma
+          Marque as competições do <strong>{team.name}</strong>, escolha o formato
+          (pontos corridos, mata-mata ou os dois) e defina a premiação
         </p>
 
         <form onSubmit={handleSubmit} className={styles.form}>
@@ -182,25 +201,40 @@ export default function CompetitionsSetup() {
                 </label>
 
                 {comp.checked && (
-                  <div className={styles.prizeGrid}>
-                    {([
-                      ['win', 'Vitória'],
-                      ['draw', 'Empate'],
-                      ['knockout', 'Eliminatória'],
-                      ['champion', 'Campeão'],
-                    ] as [keyof PrizeTableEntry, string][]).map(([field, label]) => (
-                      <div key={field} className={styles.prizeField}>
-                        <label>{label}</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={comp.prize[field] ?? ''}
-                          onChange={e => updatePrize(comp.name, field, e.target.value)}
-                          placeholder="—"
-                        />
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <div className={styles.formatPick}>
+                      {FORMATS.map(fmt => (
+                        <button
+                          key={fmt}
+                          type="button"
+                          className={`${styles.formatChip} ${comp.format === fmt ? styles.formatChipActive : ''}`}
+                          title={COMPETITION_FORMAT_HINTS[fmt]}
+                          onClick={() => updateFormat(comp.name, fmt)}
+                        >
+                          {COMPETITION_FORMAT_LABELS[fmt]}
+                        </button>
+                      ))}
+                    </div>
+                    <div className={styles.prizeGrid}>
+                      {([
+                        ['win', 'Vitória'],
+                        ['draw', 'Empate'],
+                        ['knockout', 'Eliminatória'],
+                        ['champion', 'Campeão'],
+                      ] as [keyof PrizeTableEntry, string][]).map(([field, label]) => (
+                        <div key={field} className={styles.prizeField}>
+                          <label>{label}</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={comp.prize[field] ?? ''}
+                            onChange={e => updatePrize(comp.name, field, e.target.value)}
+                            placeholder="—"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             ))}

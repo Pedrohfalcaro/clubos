@@ -35,6 +35,7 @@ O ClubOS deixa de ser só um gerenciador de partidas manuais e passa a ter **um 
 - [x] **Janela de transferências** (01/01–31/01 e 01/07–31/08); fora dela só **Renovar**
 - [x] Coletivas extras: **convocação**, **lesão grave**, **crise financeira** + atrito com a imprensa
 - [x] **Story Arcs** no ClubOSocial (capítulos encadeados ao Avançar Dia)
+- [x] **Competições** por seção: pontos corridos, mata-mata e liga + mata-mata; tabela editável; premiação ao avançar de fase
 
 ---
 
@@ -101,6 +102,17 @@ Respostas alteram torcida, elenco, diretoria e **mídia**. Respostas agressivas 
 - `/manager` — bio, notas, contatos.
 - `/trofeus` — títulos; 1º ao avançar temporada vira conquista.
 
+### Competições (`/competitions`)
+Cada torneio tem sua seção (nome, cor, tipo, formato) com dados editáveis e a tabela de premiação da Finance.
+
+| Formato | Uso típico | O que faz |
+|---------|------------|-----------|
+| **Pontos corridos** | Campeonato Nacional | Tabela que cresce com os adversários dos jogos; células editáveis; dá para adicionar times |
+| **Mata-mata** | Copa Nacional | Fase a fase (nome editável): adversário + placar → **Avançar** cria a próxima fase e credita premiação de eliminatória |
+| **Liga / grupos + mata-mata** | Estadual, Libertadores | Primeiro a tabela; depois **Iniciar mata-mata** e segue o fluxo eliminatório |
+
+Na última fase, marque **“Esta é a final”** para receber a premiação de campeão. No setup da carreira, cada competição já tem escolha de formato.
+
 ---
 
 ## Transferências e mercado
@@ -129,6 +141,7 @@ Carreiras antigas sem data: modal pede ativação do LiveLife.
 |------|-----|
 | `/dashboard` | Avançar Dia, folha, Pulse, coletivas, arcos |
 | `/financas` | Caixa, empréstimos, dívidas, patrocínios, estádio, premiações |
+| `/competitions` | Competições (tabela, mata-mata, premiação de fase) |
 | `/transferencias` | Mercado + renovar |
 | `/calendario` | Jogos, folha, parcelas, janela, patrocínios |
 | `/social` | ClubOSocial + Story Arcs |
@@ -147,6 +160,7 @@ Carreiras antigas sem data: modal pede ativação do LiveLife.
 | Janela de transferências + renovar | Entregue |
 | Coletivas expandidas + atrito imprensa | Entregue |
 | Story Arcs | Entregue |
+| Competições (liga / mata-mata / híbrido) | Entregue |
 
 Backlog restante (UX/PWA, modo jogador com clock, relacionamentos, etc.): [`MELHORIAS_FUTURAS.md`](../LiveLife%20-%20Desenvolvimento/MELHORIAS_FUTURAS.md).
 

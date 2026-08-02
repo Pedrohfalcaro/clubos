@@ -193,7 +193,11 @@ type GameAction =
   | { type: 'SET_PLAYER_CLUB'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number }
   | { type: 'FINISH_PLAYER_SETUP'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number; mainCompetition: string }
   | { type: 'ADD_COMPETITION'; competition: SeasonCompetition }
-  | { type: 'UPDATE_COMPETITION'; id: string; updates: Partial<Pick<SeasonCompetition, 'name' | 'color' | 'shortName' | 'type'>> }
+  | {
+      type: 'UPDATE_COMPETITION';
+      id: string;
+      updates: Partial<Omit<SeasonCompetition, 'id'>>;
+    }
   | { type: 'REMOVE_COMPETITION'; id: string }
   | { type: 'SET_SAVE_SLOT'; slotId: SaveSlotId }
   | { type: 'UPDATE_CAREER_PLAYER'; updates: Partial<CareerPlayer> }
@@ -340,10 +344,7 @@ interface GameContextValue {
     mainCompetition: string;
   }) => void;
   addCompetition: (input: string | Partial<SeasonCompetition> & { name: string }) => void;
-  updateCompetition: (
-    id: string,
-    updates: Partial<Pick<SeasonCompetition, 'name' | 'color' | 'shortName' | 'type'>>,
-  ) => void;
+  updateCompetition: (id: string, updates: Partial<Omit<SeasonCompetition, 'id'>>) => void;
   removeCompetition: (id: string) => void;
   competitionNameList: () => string[];
   loadSavedGame: (slotId?: SaveSlotId) => Promise<CareerMode | null>;
@@ -755,21 +756,32 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         );
         if (clash) return state;
       }
+      const safeUpdates = { ...action.updates };
+      delete (safeUpdates as { id?: string }).id;
       const updated: SeasonCompetition = {
         ...current,
-        ...action.updates,
+        ...safeUpdates,
+        id: current.id,
         name: nextName || current.name,
       };
-      const matches =
-        updated.name !== current.name
-          ? state.matches.map(m =>
-              m.competition === current.name ? { ...m, competition: updated.name } : m,
-            )
-          : state.matches;
+      const renamed = updated.name !== current.name;
+      const matches = renamed
+        ? state.matches.map(m =>
+            m.competition === current.name ? { ...m, competition: updated.name } : m,
+          )
+        : state.matches;
+      let finance = state.finance;
+      if (renamed && finance.prizeTable[current.name]) {
+        const prizeTable = { ...finance.prizeTable };
+        prizeTable[updated.name] = prizeTable[current.name];
+        delete prizeTable[current.name];
+        finance = { ...finance, prizeTable };
+      }
       return {
         ...state,
         seasonCompetitions: state.seasonCompetitions.map(c => (c.id === action.id ? updated : c)),
         matches,
+        finance,
       };
     }
 
@@ -2817,10 +2829,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'ADD_COMPETITION', competition });
   }
 
-  function updateCompetition(
-    id: string,
-    updates: Partial<Pick<SeasonCompetition, 'name' | 'color' | 'shortName' | 'type'>>,
-  ) {
+  function updateCompetition(id: string, updates: Partial<Omit<SeasonCompetition, 'id'>>) {
     dispatch({ type: 'UPDATE_COMPETITION', id, updates });
   }
 

@@ -77,7 +77,7 @@ export const SECTION_TUTORIALS: Record<string, TutorialStep[]> = {
     {
       section: 'Competições',
       title: 'Suas competições',
-      body: 'Confira os campeonatos e torneios da temporada. Premiações e suspensões usam essas competições.',
+      body: 'Cada torneio tem sua seção. Em pontos corridos a tabela cresce com os jogos; em copas avance fase a fase e receba a premiação no caixa.',
     },
   ],
   '/pulse': [

@@ -104,11 +104,19 @@ Ao finalizar: estatísticas, confiança, **bilheteria/premiação** no extrato, 
 
 ---
 
-### Competições
+### Competições (`/competitions`)
 
-Lista das competições da temporada (as que você escolheu no setup). Usadas em partidas, premiações e suspensões por competição.
+Cada competição da temporada tem **sua seção**: dados editáveis (nome, cor, tipo, formato), premiação da Finance e o fluxo do torneio.
 
-No setup: **Campeonato Nacional** e **Copa Nacional** pré-marcados; opcionais Estadual / Continental; botão para adicionar novas — cada uma com campos de premiação.
+| Formato | Comportamento |
+|--------|----------------|
+| **Pontos corridos** | Tabela que cresce com os adversários dos jogos; editável; dá para adicionar times |
+| **Mata-mata** | Fase a fase (nome editável): adversário + placar → avançar cria a próxima fase e credita premiação de eliminatória |
+| **Liga / grupos + mata-mata** | Tabela primeiro; depois **Iniciar mata-mata** e segue o eliminatório |
+
+Na última fase, marque **“Esta é a final”** para a premiação de campeão. Usadas também em partidas, suspensões por competição e artilharia/assistências do torneio.
+
+No setup: **Campeonato Nacional** e **Copa Nacional** pré-marcados; opcionais Estadual / Continental; cada uma com **formato** + campos de premiação.
 
 ---
 
@@ -148,7 +156,7 @@ Narrativa dinâmica: humor, fadiga, disponibilidade, manchetes.
 | **Confiança** | Medidor 0–100 · status Estável / Vigilante / Crise · histórico |
 | **Metas** | Objetivos da temporada |
 | **Identidade** | Nome, cores, torcedores, **data base** LiveLife, caixa/orçamento · **backup ZIP** |
-| **LiveLife** | Tutorial & checklist, changelog v1.0–v1.2, concluir onboarding |
+| **LiveLife** | Tutorial & checklist, changelog v1.0–v1.2 (inclui Competições), concluir onboarding |
 
 Confiança reage a resultados, clima do save e saúde financeira.
 

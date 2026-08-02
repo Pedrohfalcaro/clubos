@@ -1,13 +1,44 @@
-import type { CompetitionType, SeasonCompetition } from '../types/Competition';
+import type {
+  CompetitionFormat,
+  CompetitionType,
+  SeasonCompetition,
+} from '../types/Competition';
 import { DEFAULT_COMPETITION_COLORS } from '../types/Competition';
 import { getCompetitionCategory } from './calendarHelpers';
+import {
+  createInitialKnockoutPhase,
+  defaultFormatForType,
+  ensureCompetitionShape,
+  hasKnockoutStage,
+  hasLeagueStage,
+} from './competitionEngine';
 
 /** Presets do setup de carreira (LiveLife). */
 export const SETUP_COMPETITION_PRESETS = [
-  { name: 'Campeonato Nacional', type: 'league' as const, defaultChecked: true },
-  { name: 'Copa Nacional', type: 'cup' as const, defaultChecked: true },
-  { name: 'Campeonato Estadual', type: 'state' as const, defaultChecked: false },
-  { name: 'Copa Continental', type: 'continental' as const, defaultChecked: false },
+  {
+    name: 'Campeonato Nacional',
+    type: 'league' as const,
+    format: 'league' as const,
+    defaultChecked: true,
+  },
+  {
+    name: 'Copa Nacional',
+    type: 'cup' as const,
+    format: 'knockout' as const,
+    defaultChecked: true,
+  },
+  {
+    name: 'Campeonato Estadual',
+    type: 'state' as const,
+    format: 'league_knockout' as const,
+    defaultChecked: false,
+  },
+  {
+    name: 'Copa Continental',
+    type: 'continental' as const,
+    format: 'league_knockout' as const,
+    defaultChecked: false,
+  },
 ] as const;
 
 /** @deprecated Prefer SETUP_COMPETITION_PRESETS */
@@ -51,19 +82,38 @@ export function createSeasonCompetition(
 ): SeasonCompetition {
   const trimmed = name.trim();
   const type = overrides?.type ?? inferCompetitionType(trimmed);
-  return {
+  const format = overrides?.format ?? defaultFormatForType(type);
+
+  const base: SeasonCompetition = {
     id: overrides?.id ?? slugId(trimmed),
     name: trimmed,
     color: overrides?.color ?? DEFAULT_COMPETITION_COLORS[type],
     shortName: overrides?.shortName,
     type,
+    format,
+    leagueTable: overrides?.leagueTable,
+    knockoutPhases: overrides?.knockoutPhases,
+    knockoutStarted: overrides?.knockoutStarted,
   };
+
+  if (hasLeagueStage(format) && !base.leagueTable) {
+    base.leagueTable = [];
+  }
+  if (format === 'knockout' && !base.knockoutPhases) {
+    base.knockoutPhases = [createInitialKnockoutPhase()];
+  }
+  if (format === 'league_knockout') {
+    if (!base.leagueTable) base.leagueTable = [];
+    if (base.knockoutStarted && !base.knockoutPhases) {
+      base.knockoutPhases = [createInitialKnockoutPhase()];
+    }
+  }
+
+  return base;
 }
 
 /** Converte saves antigos (string[]) ou mistos para SeasonCompetition[]. */
-export function migrateSeasonCompetitions(
-  raw: unknown,
-): SeasonCompetition[] {
+export function migrateSeasonCompetitions(raw: unknown): SeasonCompetition[] {
   if (!Array.isArray(raw) || raw.length === 0) return [];
 
   const result: SeasonCompetition[] = [];
@@ -83,13 +133,21 @@ export function migrateSeasonCompetitions(
       if (!name || seen.has(name.toLowerCase())) continue;
       seen.add(name.toLowerCase());
       const type = obj.type ?? inferCompetitionType(name);
-      result.push({
-        id: obj.id ?? slugId(name),
-        name,
-        color: obj.color ?? DEFAULT_COMPETITION_COLORS[type],
-        shortName: obj.shortName,
-        type,
-      });
+      const format =
+        (obj.format as CompetitionFormat | undefined) ?? defaultFormatForType(type);
+      result.push(
+        ensureCompetitionShape({
+          id: obj.id ?? slugId(name),
+          name,
+          color: obj.color ?? DEFAULT_COMPETITION_COLORS[type],
+          shortName: obj.shortName,
+          type,
+          format,
+          leagueTable: obj.leagueTable,
+          knockoutPhases: obj.knockoutPhases,
+          knockoutStarted: obj.knockoutStarted,
+        }),
+      );
     }
   }
 
@@ -121,3 +179,5 @@ export function resolveCompetitionColor(
 export function competitionsFromNames(names: string[]): SeasonCompetition[] {
   return migrateSeasonCompetitions(names);
 }
+
+export { hasLeagueStage, hasKnockoutStage, defaultFormatForType };

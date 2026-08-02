@@ -1,221 +1,121 @@
 .page {
+  --comp-radius: 16px;
   display: flex;
   flex-direction: column;
-  gap: 36px;
+  gap: 28px;
+  max-width: 880px;
+  padding-bottom: 48px;
 }
 
+/* ── Header ─────────────────────────────── */
 .header {
   display: flex;
-  flex-direction: row;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text);
 }
 
 .title {
-  font-size: 32px;
-  font-weight: 800;
-  color: var(--text-h);
   margin: 0;
-  letter-spacing: -0.5px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text-h);
 }
 
 .sub {
-  font-size: 14px;
-  color: var(--text);
-  margin: 0;
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.sectionTitle {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text);
-  margin: 0;
-}
-
-.empty {
-  background: var(--card-bg);
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  padding: 32px;
-  text-align: center;
-  color: var(--text);
-  font-size: 14px;
-}
-
-.table {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.tableHead,
-.tableRow {
-  display: grid;
-  grid-template-columns: 32px 1fr 40px 40px 40px 40px 40px 40px 40px 48px;
-  align-items: center;
-  padding: 10px 16px;
-  gap: 4px;
-}
-
-.tableHead {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--text);
-  border-bottom: 1px solid var(--border);
-}
-
-.tableRow {
+  margin: 6px 0 0;
   font-size: 13px;
-  color: var(--text-h);
-  border-bottom: 1px solid var(--border);
-  transition: background 0.12s;
-}
-
-.tableRow:last-child { border-bottom: none; }
-.tableRow:hover { background: var(--nav-hover); }
-
-.myRow {
-  background: var(--accent-bg);
-  border-left: 3px solid var(--accent);
-}
-
-.colPos {
   color: var(--text);
-  font-size: 12px;
-  text-align: center;
-}
-
-.colTeam {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.colNum {
-  text-align: center;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.colPts {
-  text-align: center;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
-}
-
-.twoCol {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-}
-
-.twoCol .tableHead,
-.twoCol .tableRow {
-  grid-template-columns: 32px 1fr 40px 48px;
+  max-width: 42ch;
+  line-height: 1.45;
 }
 
 .addBtn {
   padding: 10px 16px;
   background: var(--accent);
   border: none;
-  border-radius: 9px;
+  border-radius: 10px;
   color: #fff;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  align-self: center;
 }
 
-.compList {
+.addBtn:hover {
+  filter: brightness(1.06);
+}
+
+/* ── Add form ───────────────────────────── */
+.addForm {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.compCard {
-  display: flex;
-  align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  flex-wrap: wrap;
-}
-
-.compDot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
-}
-
-.compInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 140px;
-}
-
-.compInfo strong {
-  color: var(--text-h);
-  font-size: 14px;
-}
-
-.compInfo span {
-  font-size: 12px;
-  color: var(--text);
-}
-
-.compActions {
-  display: flex;
-  gap: 6px;
-}
-
-.editForm,
-.addForm {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-}
-
-.addForm {
-  margin-top: 8px;
-  padding: 14px;
+  padding: 20px;
   background: var(--card-bg);
   border: 1px dashed var(--border);
-  border-radius: 10px;
+  border-radius: var(--comp-radius);
 }
 
 .addTitle {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--text-h);
 }
 
-.input {
-  padding: 9px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+.formGrid {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr;
+  gap: 10px;
+}
+
+.formatGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.formatOption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
   background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.formatOption strong {
+  font-size: 12px;
   color: var(--text-h);
-  font-size: 13px;
+}
+
+.formatOption span {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.formatActive {
+  border-color: var(--accent);
+  background: var(--accent-bg);
 }
 
 .colorRow {
@@ -248,17 +148,496 @@
   padding: 0;
 }
 
-.editActions {
+.formActions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
 }
 
+/* ── Competition section ────────────────── */
+.compSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--comp-radius);
+  overflow: hidden;
+}
+
+.compHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--comp-color, var(--accent)) 14%, transparent), transparent 55%);
+}
+
+.compIdentity {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.compStripe {
+  width: 4px;
+  border-radius: 4px;
+  background: var(--comp-color, var(--accent));
+  flex-shrink: 0;
+  align-self: stretch;
+  min-height: 42px;
+}
+
+.compTitles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.compName {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-h);
+  letter-spacing: -0.2px;
+}
+
+.compMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.badgeAccent {
+  background: var(--accent-bg);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--accent);
+}
+
+.compActions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.compBody {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 18px 20px 22px;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.blockHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.blockTitle {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.blockHint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+/* ── Meta edit ──────────────────────────── */
+.metaGrid {
+  display: grid;
+  grid-template-columns: 1.3fr 0.7fr 1fr;
+  gap: 10px;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Prize strip ────────────────────────── */
+.prizeStrip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.prizeChip {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.prizeChip span {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.prizeChip strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── League table ───────────────────────── */
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+
+.table th {
+  padding: 10px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  background: color-mix(in srgb, var(--card-bg) 80%, var(--bg));
+}
+
+.table th:nth-child(2) {
+  text-align: left;
+  padding-left: 12px;
+}
+
+.table td {
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.myRow td {
+  background: var(--accent-bg);
+}
+
+.posCell {
+  width: 36px;
+  color: var(--text) !important;
+  font-size: 12px !important;
+}
+
+.teamCell {
+  text-align: left !important;
+  padding-left: 8px !important;
+  min-width: 140px;
+}
+
+.cellInput {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 13px;
+  text-align: inherit;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
+}
+
+.cellInput:hover,
+.cellInput:focus {
+  border-color: var(--border);
+  background: var(--card-bg);
+  outline: none;
+}
+
+.numInput {
+  width: 48px;
+  text-align: center;
+}
+
+.ptsCell {
+  font-weight: 800;
+  color: var(--accent) !important;
+}
+
+.rowActions {
+  width: 40px;
+}
+
+.iconBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.iconBtn:hover:not(:disabled) {
+  color: var(--danger, #ef4444);
+  border-color: var(--danger, #ef4444);
+}
+
+.iconBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.tableToolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Knockout ───────────────────────────── */
+.phaseList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.phaseCard {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.phaseCurrent {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.phaseDone {
+  opacity: 0.78;
+}
+
+.phaseTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.phaseNameInput {
+  flex: 1;
+  min-width: 140px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.phaseStatus {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+
+.phaseWon {
+  color: #22c55e;
+}
+
+.phaseLost {
+  color: var(--danger, #ef4444);
+}
+
+.phaseFields {
+  display: grid;
+  grid-template-columns: 1.4fr auto auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.scoreBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scoreBox label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+
+.scoreInput {
+  width: 64px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.phaseActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.finalCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-h);
+  cursor: pointer;
+  user-select: none;
+}
+
+.finalCheck input {
+  accent-color: var(--accent);
+}
+
+/* ── Prize toast / caixa ────────────────── */
+.prizeBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, #22c55e 18%, var(--card-bg)),
+    var(--card-bg)
+  );
+  border: 1px solid color-mix(in srgb, #22c55e 45%, var(--border));
+  animation: prizeIn 0.35s ease-out;
+}
+
+.prizeBoxWarn {
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--danger, #ef4444) 14%, var(--card-bg)),
+    var(--card-bg)
+  );
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 40%, var(--border));
+}
+
+.prizeBoxText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prizeBoxText strong {
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.prizeBoxText span {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.prizeBoxAmount {
+  font-size: 20px;
+  font-weight: 800;
+  color: #22c55e;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@keyframes prizeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Buttons ────────────────────────────── */
 .ghostBtn,
 .primaryBtn,
-.dangerBtn {
-  padding: 7px 12px;
-  border-radius: 8px;
+.dangerBtn,
+.softBtn {
+  padding: 8px 12px;
+  border-radius: 9px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -276,10 +655,15 @@
   color: #fff;
 }
 
+.primaryBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .dangerBtn {
   background: transparent;
   border: 1px solid var(--border);
-  color: var(--danger);
+  color: var(--danger, #ef4444);
 }
 
 .dangerBtn:disabled {
@@ -287,21 +671,48 @@
   cursor: not-allowed;
 }
 
-.scorers {
-  background: var(--card-bg);
+.softBtn {
+  background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  color: var(--text-h);
+}
+
+.emptyInline {
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+
+.errorMsg {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger, #ef4444);
+}
+
+.statsMini {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.scorerList {
+  border: 1px solid var(--border);
+  border-radius: 12px;
   overflow: hidden;
+  background: var(--bg);
 }
 
 .scorerRow {
   display: grid;
-  grid-template-columns: 32px 1fr 48px 48px;
+  grid-template-columns: 28px 1fr 40px;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
+  font-size: 12px;
   align-items: center;
-  font-size: 13px;
 }
 
 .scorerRow:last-child {
@@ -316,19 +727,127 @@
 .scorerName {
   color: var(--text-h);
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .scorerStat {
   text-align: center;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
+  font-weight: 700;
+  color: var(--text-h);
 }
 
-@media (max-width: 700px) {
-  .twoCol { grid-template-columns: 1fr; }
-  .tableHead,
-  .tableRow { grid-template-columns: 32px 1fr 32px 32px 32px 32px 32px 32px 32px 40px; }
+/* ── Legacy (PlayerCompetitions) ────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text);
+  margin: 0;
+}
+
+.empty {
+  background: var(--card-bg);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 32px;
+  text-align: center;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.tableHead,
+.tableRow {
+  display: grid;
+  grid-template-columns: 1fr 40px 40px 40px 40px 40px 40px 48px;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 4px;
+}
+
+.tableHead {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  background: var(--card-bg);
+}
+
+.tableRow {
+  font-size: 13px;
+  color: var(--text-h);
+  border-bottom: 1px solid var(--border);
+  background: var(--card-bg);
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.myRow {
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+}
+
+.colTeam {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.colNum {
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.colPts {
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+div.table {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  width: auto;
+  min-width: 0;
+  border-collapse: separate;
+}
+
+@media (max-width: 760px) {
+  .formGrid,
+  .metaGrid,
+  .formatGrid,
+  .prizeStrip,
+  .statsMini,
+  .phaseFields {
+    grid-template-columns: 1fr;
+  }
+
   .header {
+    flex-direction: column;
+  }
+
+  .addBtn {
+    align-self: stretch;
+  }
+
+  .compHeader {
     flex-direction: column;
   }
 }

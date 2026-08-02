@@ -12,6 +12,7 @@ Companion do Modo Carreira (EA FC / FIFA): gerencie elenco, táticas, partidas, 
 - Clube custom (cores, escudo, import JSON de elenco)
 - Partidas com notas, recap cronológico e Pulse
 - **LiveLife** — Avançar Dia, bilheteria, lesões temporais, folha no dia 5, Pulse diário
+- **Competições** — pontos corridos, mata-mata e liga + mata-mata, com premiação ao avançar de fase
 - **ClubOSocial** + **Story Arcs**, coletivas (pré/pós + convocação/lesão/crise), Manager e Sala de Troféus
 - **Financeiro** — caixa, folha, empréstimos, dívidas, patrocínios Master/Manga, premiações, estádio
 - **Diretoria** (confiança, metas, identidade, guia LiveLife, backup ZIP)

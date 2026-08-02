@@ -28,7 +28,7 @@ export const LIVELIFE_CHANGELOG = [
   {
     version: 'v1.2',
     title: 'LiveLife',
-    body: 'Calendário contínuo, bilheteria, lesões temporais, folha no dia 5, Pulse diário, ClubOSocial, Coletivas, Manager e Sala de Troféus.',
+    body: 'Calendário contínuo, bilheteria, lesões temporais, folha no dia 5, Pulse diário, ClubOSocial, Coletivas, Manager, Sala de Troféus e Competições com pontos corridos, mata-mata e premiação ao avançar de fase.',
   },
   {
     version: 'v1.1',
