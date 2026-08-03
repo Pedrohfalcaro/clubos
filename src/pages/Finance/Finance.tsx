@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useGame } from '../../context/GameContext';
-import { formatMoney, wageBill, runwayMonths, newLedgerEntry, ledgerEntryTypeLabel, isStadiumConfigured } from '../../utils/finance';
+import { formatMoney, wageBill, runwayMonths, newLedgerEntry, ledgerEntryTypeLabel, isStadiumConfigured, normalizeStadiumConfig } from '../../utils/finance';
 import { competitionNames } from '../../utils/competitions';
 import type {
   Currency,
@@ -463,7 +463,9 @@ function StadiumTab({
   onClear: () => void;
 }) {
   const defaults = createDefaultStadiumConfig(currency);
-  const [draft, setDraft] = useState<StadiumConfig>(() => config ?? defaults);
+  const [draft, setDraft] = useState<StadiumConfig>(() =>
+    normalizeStadiumConfig(config ?? defaults, currency),
+  );
   const configured = isStadiumConfigured(config);
 
   function setField(key: keyof StadiumConfig, raw: string) {
@@ -472,7 +474,7 @@ function StadiumTab({
   }
 
   function handleSave() {
-    onSave(draft);
+    onSave(normalizeStadiumConfig(draft, currency));
   }
 
   function handleEnableDefaults() {
@@ -494,10 +496,10 @@ function StadiumTab({
       <div className={styles.stadiumGrid}>
         {([
           ['capacity', 'Capacidade', 'lugares'],
-          ['ticketPriceHome', 'Ingresso casa', currencyLabel(currency)],
-          ['ticketPriceAway', 'Cota visitante', currencyLabel(currency)],
+          ['ticketPriceHome', 'Ingresso casa / neutro', currencyLabel(currency)],
+          ['ticketPriceAway', 'Ingresso cota visitante', currencyLabel(currency)],
           ['maintenanceCostPerMatch', 'Custo operação (casa)', currencyLabel(currency)],
-          ['travelCostAverage', 'Custo viagem (fora)', currencyLabel(currency)],
+          ['travelCostAverage', 'Custo viagem (fora/neutro)', currencyLabel(currency)],
         ] as [keyof StadiumConfig, string, string][]).map(([key, label, unit]) => (
           <div key={key} className={styles.formGroup}>
             <label className={styles.formLabel}>{label}</label>

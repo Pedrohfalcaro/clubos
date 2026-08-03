@@ -11,6 +11,7 @@ import { createDefaultPulseState, type PulseState } from '../pulse';
 import type { ClubFinance } from '../types/Finance';
 import { createDefaultFinance, createDefaultStadiumConfig } from '../types/Finance';
 import { seedLiveLifeFinance } from '../utils/livelifeTemplates';
+import { migrateAbsurdGateRevenue, normalizeStadiumConfig } from '../utils/finance';
 import { migrateClubDebt } from '../utils/clubDebts';
 import { migrateClubSponsor } from '../utils/sponsors';
 import type { LiveLifeMeta } from '../types/LiveLife';
@@ -193,14 +194,23 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
         debts: (save.finance.debts ?? []).map(d => migrateClubDebt(d)),
         sponsors: (save.finance.sponsors ?? []).map(s => migrateClubSponsor(s)),
         stadiumConfig: save.finance.stadiumConfig
-          ? {
-              ...createDefaultStadiumConfig(save.finance.currency ?? 'BRL'),
-              ...save.finance.stadiumConfig,
-            }
+          ? normalizeStadiumConfig(
+              {
+                ...createDefaultStadiumConfig(save.finance.currency ?? 'BRL'),
+                ...save.finance.stadiumConfig,
+              },
+              save.finance.currency ?? 'BRL',
+            )
           : undefined,
       }
     : createDefaultFinance(save.team?.budget ?? 5_000_000);
-  const finance = seedLiveLifeFinance(financeRaw, seasonCompetitions);
+  const financeSeeded = seedLiveLifeFinance(financeRaw, seasonCompetitions);
+  const finance = migrateAbsurdGateRevenue(financeSeeded, matches, team ?? null);
+
+  const teamSynced =
+    team && finance.balance !== team.budget
+      ? { ...team, budget: finance.balance }
+      : team;
 
   // Migrate board
   const board: BoardState = save.board
@@ -251,7 +261,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     matches,
     pulse,
     players,
-    team,
+    team: teamSynced,
     finance,
     board,
     transfers,
@@ -263,18 +273,18 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       ...(save.livelife ?? {}),
     },
     social: {
-      ...createDefaultSocialState(team?.name ?? 'Clube'),
+      ...createDefaultSocialState(teamSynced?.name ?? 'Clube'),
       ...(save.social ?? {}),
       activeArc: save.social?.activeArc ?? null,
       arcHistory: save.social?.arcHistory ?? [],
     },
   };
 
-  if (careerMode === 'coach' && save.teamId && team) {
+  if (careerMode === 'coach' && save.teamId && teamSynced) {
     return {
       ...base,
       teamId: save.teamId,
-      team,
+      team: teamSynced,
       players,
     };
   }
@@ -300,12 +310,12 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     };
   }
 
-  if (save.teamId && team) {
+  if (save.teamId && teamSynced) {
     return {
       ...base,
       careerMode: 'coach',
       teamId: save.teamId,
-      team,
+      team: teamSynced,
       players,
     };
   }

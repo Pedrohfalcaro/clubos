@@ -134,6 +134,7 @@ export interface PrizeTableEntry {
 
 /** Parâmetros de estádio / bilheteria (LiveLife). */
 export interface StadiumConfig {
+  /** Capacidade do estádio mandante (casa). */
   capacity: number;
   ticketPriceHome: number;
   ticketPriceAway: number;

@@ -131,18 +131,30 @@ interface StadiumConfig {
 
 `StadiumConfig` vive em `ClubFinance` (não em `Team` — é dado financeiro).
 
-### Fórmulas (espelhar spec)
+### Fórmulas (espelhar spec — constantes em `GATE_RULES`)
 
 ```
-// Mandante
-publico     = fans * supporterConfidence * capacity * rand(0.6, 1.0)
-receitaBruta = publico * ticketPriceHome
-entradaCaixa = receitaBruta - maintenanceCostPerMatch
+// Constantes base (não editáveis na UI)
+AWAY_STADIUM   = 40_000
+NEUTRAL_STADIUM = 60_000
 
-// Visitante
-publicoVisitante = (fans / 2) * rand(0.3, 0.7)
-receitaVisitante = publicoVisitante * ticketPriceAway
-entradaCaixa = receitaVisitante - travelCostAverage
+// Mandante — até 90% da capacidade do clube
+quotaCasa  = capacity * 0.9
+publico    = quotaCasa * (supporterConfidence/100) * jitter(0.92–1.05)
+receita    = publico * ticketPriceHome
+entrada    = receita - maintenanceCostPerMatch
+
+// Visitante — 10% de 40.000 = 4.000
+quotaFora  = 4_000
+publico    = quotaFora * (supporterConfidence/100) * jitter
+receita    = publico * ticketPriceAway
+entrada    = receita - travelCostAverage
+
+// Neutro — 50% de 60.000 = 30.000
+quotaNeutro = 30_000
+publico     = quotaNeutro * (supporterConfidence/100) * jitter
+receita     = publico * ticketPriceHome
+entrada     = receita - travelCostAverage
 ```
 
 ### O que muda

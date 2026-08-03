@@ -5,7 +5,7 @@ import type {
   Currency,
   StadiumConfig,
 } from '../types/Finance';
-import { currencySymbol } from '../types/Finance';
+import { currencySymbol, createDefaultStadiumConfig } from '../types/Finance';
 import type { Player } from '../types/Player';
 import type { Match } from '../types/Match';
 import type { Team } from '../types/Team';
@@ -93,30 +93,81 @@ function randBetween(min: number, max: number): number {
 }
 
 /**
+ * Constantes de bilheteria (base do jogo — não configuráveis no estádio).
+ * Documentadas em `docs/INSTRUCOES_LIVELIFE_V1_2.md`.
+ */
+export const GATE_RULES = {
+  /** Capacidade padrão assumida do estádio adversário. */
+  awayStadiumCapacity: 40_000,
+  /** Capacidade padrão de campo neutro (maior que a média). */
+  neutralStadiumCapacity: 60_000,
+  /** Fração do estádio casa reservada à torcida mandante. */
+  homeSpaceShare: 0.9,
+  /** Fração do estádio adversário = cota visitante. */
+  awayQuotaShare: 0.1,
+  /** Fração do estádio neutro disponível ao clube. */
+  neutralQuotaShare: 0.5,
+} as const;
+
+/** Confiança da torcida (0–100) → fator de lotação [0.05, 1]. */
+export function supporterFillRate(supporterConfidence?: number | null): number {
+  return Math.min(1, Math.max(0.05, (supporterConfidence ?? 50) / 100));
+}
+
+/** Casa: até 90% da capacidade do estádio. */
+export function homeQuotaCap(homeCapacity: number): number {
+  return Math.max(0, Math.floor(homeCapacity * GATE_RULES.homeSpaceShare));
+}
+
+/** Cota máxima de visitante: 10% do estádio adversário padrão. */
+export function awayQuotaCap(): number {
+  return Math.max(0, Math.floor(GATE_RULES.awayStadiumCapacity * GATE_RULES.awayQuotaShare));
+}
+
+/** Teto em campo neutro: 50% da capacidade neutra padrão. */
+export function neutralQuotaCap(): number {
+  return Math.max(0, Math.floor(GATE_RULES.neutralStadiumCapacity * GATE_RULES.neutralQuotaShare));
+}
+
+/**
+ * Público a partir da cota e da moral.
+ * `jitter` false = determinístico (migração de saves).
+ */
+export function calcQuotaAttendance(
+  quotaCap: number,
+  supporterConfidence: number | null | undefined,
+  jitter = true,
+): number {
+  if (quotaCap <= 0) return 0;
+  const fill = supporterFillRate(supporterConfidence);
+  const variance = jitter ? randBetween(0.92, 1.05) : 1;
+  return Math.min(quotaCap, Math.max(0, Math.round(quotaCap * fill * variance)));
+}
+
+/**
  * Bilheteria pós-jogo. Sem `stadiumConfig`, retorna [].
- * Casa: público limitado pela capacidade; visitante: metade da torcida × fator.
+ * Casa: até 90% da capacidade, lotação pela moral.
+ * Visitante: 10% de 40.000 (base), lotação pela moral; preço cota + viagem.
+ * Neutro: 50% de 60.000 (base), lotação pela moral; preço casa + viagem.
  */
 export function calcGateRevenue(
   match: Pick<Match, 'id' | 'location' | 'opponent'>,
-  team: Pick<Team, 'fans' | 'supporterConfidence' | 'name'>,
+  team: Pick<Team, 'supporterConfidence' | 'name'>,
   finance: ClubFinance,
   season: number,
   gameDate?: string | null,
+  options?: { jitter?: boolean },
 ): FinanceLedgerEntry[] {
-  const cfg = finance.stadiumConfig;
-  if (!isStadiumConfigured(cfg)) return [];
+  if (!isStadiumConfigured(finance.stadiumConfig)) return [];
+  const cfg = normalizeStadiumConfig(finance.stadiumConfig, finance.currency);
 
   const date = gameDate ?? undefined;
-  const fans = Math.max(0, team.fans ?? 0);
-  const conf = Math.min(1, Math.max(0.05, (team.supporterConfidence ?? 50) / 100));
   const extras = { matchId: match.id };
+  const jitter = options?.jitter !== false;
 
   if (match.location === 'home') {
-    const factor = randBetween(0.6, 1.0);
-    const attendance = Math.min(
-      cfg.capacity,
-      Math.round(fans * conf * factor),
-    );
+    const quota = homeQuotaCap(cfg.capacity);
+    const attendance = calcQuotaAttendance(quota, team.supporterConfidence, jitter);
     const gross = Math.round(attendance * cfg.ticketPriceHome);
     const ops = Math.round(cfg.maintenanceCostPerMatch);
     const entries: FinanceLedgerEntry[] = [];
@@ -148,8 +199,8 @@ export function calcGateRevenue(
   }
 
   if (match.location === 'away') {
-    const factor = randBetween(0.3, 0.7);
-    const attendance = Math.round((fans / 2) * factor);
+    const quota = awayQuotaCap();
+    const attendance = calcQuotaAttendance(quota, team.supporterConfidence, jitter);
     const gross = Math.round(attendance * cfg.ticketPriceAway);
     const travel = Math.round(cfg.travelCostAverage);
     const entries: FinanceLedgerEntry[] = [];
@@ -159,6 +210,39 @@ export function calcGateRevenue(
           'ticket',
           gross,
           `Cota visitante × ${match.opponent} (${attendance.toLocaleString('pt-BR')} pagantes)`,
+          season,
+          extras,
+          date ?? undefined,
+        ),
+      );
+    }
+    if (travel > 0) {
+      entries.push(
+        newLedgerEntry(
+          'travel',
+          -travel,
+          `Custos de viagem × ${match.opponent}`,
+          season,
+          extras,
+          date ?? undefined,
+        ),
+      );
+    }
+    return entries;
+  }
+
+  if (match.location === 'neutral') {
+    const quota = neutralQuotaCap();
+    const attendance = calcQuotaAttendance(quota, team.supporterConfidence, jitter);
+    const gross = Math.round(attendance * cfg.ticketPriceHome);
+    const travel = Math.round(cfg.travelCostAverage);
+    const entries: FinanceLedgerEntry[] = [];
+    if (gross > 0) {
+      entries.push(
+        newLedgerEntry(
+          'ticket',
+          gross,
+          `Bilheteria (neutro) × ${match.opponent} (${attendance.toLocaleString('pt-BR')} pagantes)`,
           season,
           extras,
           date ?? undefined,
@@ -214,4 +298,106 @@ export function applyMatchPrize(
 
 export function isStadiumConfigured(cfg: StadiumConfig | undefined): cfg is StadiumConfig {
   return !!cfg && cfg.capacity > 0 && (cfg.ticketPriceHome > 0 || cfg.ticketPriceAway > 0);
+}
+
+/** Mantém só campos configuráveis do estádio (remove capacidades base legadas do save). */
+export function normalizeStadiumConfig(
+  cfg: StadiumConfig,
+  currency: Currency = 'BRL',
+): StadiumConfig {
+  const defaults = createDefaultStadiumConfig(currency);
+  return {
+    capacity: cfg.capacity > 0 ? cfg.capacity : defaults.capacity,
+    ticketPriceHome: cfg.ticketPriceHome ?? defaults.ticketPriceHome,
+    ticketPriceAway: cfg.ticketPriceAway ?? defaults.ticketPriceAway,
+    maintenanceCostPerMatch: cfg.maintenanceCostPerMatch ?? defaults.maintenanceCostPerMatch,
+    travelCostAverage: cfg.travelCostAverage ?? defaults.travelCostAverage,
+  };
+}
+
+const PAGANTES_RE = /\((\d[\d.]*)\s*pagantes\)/;
+
+function parsePagantesFromLabel(label: string): number | null {
+  const m = label.match(PAGANTES_RE);
+  if (!m) return null;
+  const n = parseInt(m[1].replace(/\./g, ''), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Corrige bilheterias visitante/neutro geradas pela fórmula antiga (fans/2 sem teto).
+ * Ajusta o saldo pela diferença dos lançamentos `ticket` recalculados.
+ */
+export function migrateAbsurdGateRevenue(
+  finance: ClubFinance,
+  matches: Array<Pick<Match, 'id' | 'location' | 'opponent'>>,
+  team: Pick<Team, 'supporterConfidence'> | null | undefined,
+): ClubFinance {
+  if (!isStadiumConfigured(finance.stadiumConfig) || !finance.ledger?.length) return finance;
+  const cfg = normalizeStadiumConfig(finance.stadiumConfig, finance.currency);
+
+  const byId = new Map(matches.map(m => [m.id, m]));
+  const awayMax = awayQuotaCap();
+  const neutralMax = neutralQuotaCap();
+  /** Acima disso (com folga), consideramos fórmula antiga. */
+  const absurdAway = Math.max(awayMax * 2, 8_000);
+  const absurdNeutral = Math.max(neutralMax * 2, 20_000);
+
+  let balanceDelta = 0;
+  const ledger = finance.ledger.map(entry => {
+    if (entry.type !== 'ticket') return entry;
+
+    const match = entry.matchId ? byId.get(entry.matchId) : undefined;
+    const isAwayLabel = entry.label.startsWith('Cota visitante');
+    const isNeutralLabel =
+      entry.label.startsWith('Bilheteria (neutro)') ||
+      (entry.label.startsWith('Bilheteria') && match?.location === 'neutral');
+
+    const location: 'away' | 'neutral' | null = match
+      ? match.location === 'away' || match.location === 'neutral'
+        ? match.location
+        : null
+      : isAwayLabel
+        ? 'away'
+        : isNeutralLabel
+          ? 'neutral'
+          : null;
+
+    if (!location) return entry;
+
+    const pagantes = parsePagantesFromLabel(entry.label);
+    const cap = location === 'away' ? awayMax : neutralMax;
+    const absurdThreshold = location === 'away' ? absurdAway : absurdNeutral;
+    const looksAbsurd =
+      (pagantes !== null && pagantes > absurdThreshold) ||
+      entry.amount > Math.round(cap * Math.max(cfg.ticketPriceAway, cfg.ticketPriceHome) * 2);
+
+    if (!looksAbsurd) return entry;
+
+    const opponent =
+      match?.opponent ??
+      (entry.label
+        .replace(/^(Cota visitante|Bilheteria \(neutro\)|Bilheteria) ×\s*/, '')
+        .replace(/\s*\(.*$/, '') || 'Adversário');
+    const attendance = calcQuotaAttendance(cap, team?.supporterConfidence, false);
+    const price = location === 'away' ? cfg.ticketPriceAway : cfg.ticketPriceHome;
+    const gross = Math.round(attendance * price);
+    const prefix = location === 'away' ? 'Cota visitante' : 'Bilheteria (neutro)';
+    const label = `${prefix} × ${opponent} (${attendance.toLocaleString('pt-BR')} pagantes)`;
+
+    balanceDelta += gross - entry.amount;
+    return {
+      ...entry,
+      amount: gross,
+      label,
+    };
+  });
+
+  if (balanceDelta === 0) return finance;
+
+  return {
+    ...finance,
+    balance: finance.balance + balanceDelta,
+    ledger,
+  };
 }

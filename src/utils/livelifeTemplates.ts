@@ -2,7 +2,7 @@ import type { Currency, PrizeTableEntry, StadiumConfig, ClubFinance } from '../t
 import type { SeasonCompetition, CompetitionType } from '../types/Competition';
 import type { Player } from '../types/Player';
 import type { Team } from '../types/Team';
-import { isStadiumConfigured } from './finance';
+import { isStadiumConfigured, normalizeStadiumConfig } from './finance';
 
 /** Multiplicador relativo ao Real para templates “realistas”. */
 const CURRENCY_SCALE: Record<Currency, number> = {
@@ -110,7 +110,7 @@ export function seedLiveLifeFinance(
 ): ClubFinance {
   const currency = finance.currency ?? 'BRL';
   const stadiumConfig = isStadiumConfigured(finance.stadiumConfig)
-    ? finance.stadiumConfig
+    ? normalizeStadiumConfig(finance.stadiumConfig, currency)
     : stadiumTemplate(currency);
   const prizeTable = buildPrizeTableForCompetitions(
     competitions,
@@ -198,7 +198,7 @@ export function analyzeLiveLifeGaps(input: {
       title: 'Torcida (público)',
       detail: fansOk
         ? `${(team!.fans ?? 0).toLocaleString('pt-BR')} torcedores`
-        : 'Defina o número de torcedores na Diretoria — impacta a bilheteria',
+        : 'Defina o número de torcedores na Diretoria',
       href: '/diretoria',
       ok: fansOk,
     },

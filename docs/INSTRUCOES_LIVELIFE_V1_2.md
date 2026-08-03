@@ -41,16 +41,28 @@ A atualização divide-se em dois grandes pilares:
 #### 2.3. Modelo Financeiro Evoluído & Bilheteria
 A economia passa a rodar em fluxo contínuo e por partida:
 * **Premiações de Jogos:** Configuradas por competição (Vitória, Empate, Avanço de fase em copas e Campeão).
+* **Constantes de estádio (base do jogo, não editáveis na UI):**
+  * Estádio adversário padrão: **40.000** lugares
+  * Campo neutro padrão: **60.000** lugares
+  * Casa: torcida ocupa até **90%** da capacidade do estádio do clube
+  * Visitante: cota de até **10%** do estádio adversário (= **4.000** lugares)
+  * Neutro: até **50%** do estádio neutro (= **30.000** lugares)
+  * Em todos os casos a **moral da torcida** define a lotação da cota (quanto maior a moral, mais cheio).
 * **Jogo em Casa (Mandante):**
-  * `Público = Torcida(Moral) * LimiteEstádio * FatorAleatório`
-  * `Receita Bruta = Público * ValorIngresso`
+  * `Público = min(Capacidade × 0,9, Capacidade × 0,9 × Moral × jitter)`
+  * `Receita Bruta = Público * ValorIngressoCasa`
   * `Custo Operacional = CustoManutençãoJogo`
   * *Entrada no caixa: Receita Bruta - Custo Manutenção*
 * **Jogo Fora (Visitante):**
-  * `Público Visitante = (Torcida(Moral) / 2) * FatorAleatório`
-  * `Receita Visitante = Público Visitante * ValorIngressoVisitante`
-  * `Custo de Viagem = GastoMédioViagem (Hospedagem/Passagens)`
-  * *Entrada no caixa: Receita Visitante - Custo Viagem*
+  * `Público = min(4.000, 4.000 × Moral × jitter)`
+  * `Receita = Público * ValorIngressoVisitante`
+  * `Custo de Viagem = GastoMédioViagem`
+  * *Entrada no caixa: Receita - Custo Viagem*
+* **Campo Neutro:**
+  * `Público = min(30.000, 30.000 × Moral × jitter)`
+  * `Receita = Público * ValorIngressoCasa`
+  * `Custo de Viagem = GastoMédioViagem`
+  * *Entrada no caixa: Receita - Custo Viagem*
 * **Folha Salarial Mensal:** Pop-up modal no **dia 5 de cada mês** para realizar o débito da soma dos salários de todos os atletas do elenco.
 
 #### 2.4. Ideias de Expansão para o Live Mode
