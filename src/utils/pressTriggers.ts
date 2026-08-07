@@ -94,6 +94,13 @@ export function findFinancePressOpportunity(input: {
   if (runway != null && runway < 1 && bill > 0) {
     return { key: monthKey, reason: 'Runway crítico' };
   }
+  // Teto de gastos mensal (v1.3): a penalidade de confiança já aconteceu em
+  // ADVANCE_DAY (chave `budget:YYYY-MM`, ver GameContext); aqui só decide se
+  // isso também rende uma coletiva — cooldown próprio (`finance:YYYY-MM`).
+  const budgetKey = `budget:${today.slice(0, 7)}`;
+  if (pressSpecialDone(input.livelife, budgetKey)) {
+    return { key: monthKey, reason: 'Estouro do teto de gastos mensal' };
+  }
   return null;
 }
 

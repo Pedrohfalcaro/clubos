@@ -142,6 +142,35 @@ export interface StadiumConfig {
   travelCostAverage: number;
 }
 
+/** Rating bancário do clube (v1.3 — Financial Update). */
+export type FinancialRating = 'AAA' | 'AA' | 'A' | 'BBB' | 'BB' | 'B' | 'CCC' | 'D' | 'F';
+
+/**
+ * Teto de gastos mensal (v1.3). `currentSpent` é derivado do `ledger` em runtime
+ * (ver `utils/financeAnalytics.ts`) — nunca persistido, para não dessincronizar
+ * do extrato real.
+ */
+export interface MonthlyBudget {
+  targetExpenseLimit: number;
+  /** `currentDate` do jogo no momento em que o teto foi definido/alterado. */
+  updatedAt: string;
+}
+
+/**
+ * Saúde financeira / rating de crédito (v1.3). Cacheado em `ClubFinance.health` e
+ * recalculado só em checkpoints específicos (ver `utils/financialHealth.ts`) —
+ * não a cada render.
+ */
+export interface FinancialHealth {
+  /** 0–100 */
+  score: number;
+  rating: FinancialRating;
+  /** Teto sugerido para novos empréstimos. */
+  creditLimit: number;
+  /** `currentDate` do jogo no momento do cálculo. */
+  computedAt: string;
+}
+
 export interface ClubFinance {
   balance: number;
   currency: Currency;
@@ -157,6 +186,10 @@ export interface ClubFinance {
   debts?: ClubDebt[];
   /** Patrocínios Master / Manga */
   sponsors?: ClubSponsor[];
+  /** Teto de gastos mensal (v1.3, opt-in — undefined = não configurado). */
+  monthlyBudget?: MonthlyBudget;
+  /** Rating bancário cacheado (v1.3). */
+  health?: FinancialHealth;
 }
 
 export function createDefaultStadiumConfig(currency: Currency = 'BRL'): StadiumConfig {

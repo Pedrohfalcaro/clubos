@@ -229,6 +229,16 @@ export default function Board() {
   const fanBarColor = fanStatus === 'stable' ? '#22c55e' : fanStatus === 'watchful' ? '#ca8a04' : '#ef4444';
   const fanStatusClass = fanStatus === 'stable' ? styles.statusStable : fanStatus === 'watchful' ? styles.statusWatchful : styles.statusCrisis;
 
+  // Rating financeiro (v1.3): só leitura de `finance.health`, cacheado pelo motor
+  // financeiro (`utils/financialHealth.ts`) — nunca recalculado aqui.
+  const financialRatingClass = (() => {
+    const rating = finance.health?.rating;
+    if (!rating) return styles.statusWatchful;
+    if (['AAA', 'AA', 'A', 'BBB'].includes(rating)) return styles.statusStable;
+    if (['BB', 'B', 'CCC'].includes(rating)) return styles.statusWatchful;
+    return styles.statusCrisis;
+  })();
+
   const liveLifeChecklist = useMemo(() => {
     const gaps = analyzeLiveLifeGaps({
       finance,
@@ -717,6 +727,14 @@ export default function Board() {
               <span>Caixa atual</span>
               <strong>{formatMoney(seasonSummary.balance, finance.currency)}</strong>
             </div>
+            {finance.health && (
+              <div className={styles.seasonRow}>
+                <span>Rating financeiro</span>
+                <span className={`${styles.confStatus} ${financialRatingClass}`}>
+                  {finance.health.rating} · {finance.health.score}/100
+                </span>
+              </div>
+            )}
             <div className={styles.seasonRow}>
               <span>Receitas da temporada</span>
               <strong className={styles.seasonIn}>+{formatMoney(seasonSummary.income, finance.currency)}</strong>

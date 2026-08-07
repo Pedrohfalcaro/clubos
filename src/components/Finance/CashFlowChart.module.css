@@ -1,0 +1,103 @@
+.wrap {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.empty {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.swatchIncome {
+  background: #22c55e;
+}
+
+.swatchExpense {
+  background: #f97316;
+}
+
+.swatchProjected {
+  background: var(--text);
+  opacity: 0.5;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.baseline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.lineIncome {
+  fill: none;
+  stroke: #22c55e;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lineExpense {
+  fill: none;
+  stroke: #f97316;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lineIncome.projected,
+.lineExpense.projected {
+  stroke-dasharray: 5 4;
+  opacity: 0.75;
+}
+
+.dotIncome {
+  fill: #22c55e;
+}
+
+.dotExpense {
+  fill: #f97316;
+}
+
+g.projected .dotIncome,
+g.projected .dotExpense {
+  opacity: 0.6;
+}
+
+.xLabel {
+  fill: var(--text);
+  font-size: 9px;
+}

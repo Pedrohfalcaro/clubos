@@ -26,6 +26,11 @@ export function createDefaultLiveLifeMeta(): LiveLifeMeta {
 
 export const LIVELIFE_CHANGELOG = [
   {
+    version: 'v1.3',
+    title: 'Financial Update',
+    body: 'Dashboard financeiro redesenhado (KPIs, fluxo de caixa projetado, orçamento mensal, categorização de despesas, ranking de lançamentos), rating bancário do clube e teto de gastos com impacto na diretoria.',
+  },
+  {
     version: 'v1.2',
     title: 'LiveLife',
     body: 'Calendário contínuo, bilheteria, lesões temporais, folha no dia 5, Pulse diário, ClubOSocial, Coletivas, Manager, Sala de Troféus e Competições com pontos corridos, mata-mata e premiação ao avançar de fase.',

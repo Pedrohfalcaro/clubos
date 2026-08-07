@@ -9,13 +9,16 @@ import type {
   SponsorTier,
   StadiumConfig,
 } from '../../types/Finance';
-import { CURRENCIES, currencyLabel, createDefaultStadiumConfig } from '../../types/Finance';
+import { currencyLabel, createDefaultStadiumConfig } from '../../types/Finance';
 import { POSITION_LABELS } from '../../utils/matchEvents';
 import { calcLoanTotal } from '../../utils/clubLoans';
 import { totalDebtRemaining } from '../../utils/clubDebts';
 import { hasActiveTier, sponsorTierLabel } from '../../utils/sponsors';
 import { buildInstallmentDates, splitInstallmentAmounts } from '../../utils/transferPayments';
 import MoneyAmountHint from '../../components/MoneyAmountHint/MoneyAmountHint';
+import FinanceHeader, { type Period } from '../../components/Finance/FinanceHeader';
+import FinanceOverviewTab from '../../components/Finance/FinanceOverviewTab';
+import FinanceLedgerTab from '../../components/Finance/FinanceLedgerTab';
 import styles from './Finance.module.css';
 
 type Tab =
@@ -28,11 +31,8 @@ type Tab =
   | 'prizes'
   | 'stadium';
 
-type LedgerFilter = 'all' | 'income' | 'expense' | 'transfer' | 'wage';
-
 const INCOME_TYPES: LedgerEntryType[] = ['prize', 'transfer_fee', 'loan_fee', 'loan_credit', 'sponsor', 'other_in', 'ticket'];
 const EXPENSE_TYPES: LedgerEntryType[] = ['wage', 'other_out', 'adjustment', 'travel', 'stadium_ops', 'loan_repay', 'debt_repay'];
-const TRANSFER_TYPES: LedgerEntryType[] = ['transfer_fee', 'loan_fee'];
 
 export default function Finance() {
   const {
@@ -42,6 +42,7 @@ export default function Finance() {
     setPrizeTable,
     updatePlayer,
     updateFinance,
+    setMonthlyBudget,
     takeClubLoan,
     addClubDebt,
     payClubDebt,
@@ -49,10 +50,10 @@ export default function Finance() {
     renewClubSponsor,
     terminateClubSponsor,
   } = useGame();
-  const { finance, players, season, seasonCompetitions, currentDate } = state;
+  const { finance, players, season, seasonCompetitions, currentDate, manager, team } = state;
 
   const [tab, setTab] = useState<Tab>('overview');
-  const [ledgerFilter, setLedgerFilter] = useState<LedgerFilter>('all');
+  const [period, setPeriod] = useState<Period>('month');
   const [showAdjust, setShowAdjust] = useState(false);
 
   // Adjustment modal state
@@ -69,35 +70,16 @@ export default function Finance() {
   const runway = useMemo(() => runwayMonths(finance, players), [finance, players]);
   const debtTotal = useMemo(() => totalDebtRemaining(finance.debts), [finance.debts]);
 
-  const seasonIncome = useMemo(() =>
-    finance.ledger
-      .filter(e => e.season === season && e.amount > 0)
-      .reduce((s, e) => s + e.amount, 0),
-    [finance.ledger, season],
-  );
-
-  const seasonExpense = useMemo(() =>
-    finance.ledger
-      .filter(e => e.season === season && e.amount < 0)
-      .reduce((s, e) => s + e.amount, 0),
-    [finance.ledger, season],
-  );
-
-  const filteredLedger = useMemo(() => {
-    return finance.ledger.filter(e => {
-      if (ledgerFilter === 'all') return true;
-      if (ledgerFilter === 'income') return INCOME_TYPES.includes(e.type);
-      if (ledgerFilter === 'expense') return EXPENSE_TYPES.includes(e.type);
-      if (ledgerFilter === 'transfer') return TRANSFER_TYPES.includes(e.type);
-      if (ledgerFilter === 'wage') return e.type === 'wage';
-      return true;
-    });
-  }, [finance.ledger, ledgerFilter]);
-
   const sortedPlayers = useMemo(() =>
     [...players].sort((a, b) => (b.salary ?? 0) - (a.salary ?? 0)),
     [players],
   );
+
+  const greeting = manager?.name
+    ? `Olá, ${manager.name}. Seu dinheiro em um só lugar.`
+    : team?.name
+      ? `Saúde financeira do ${team.name} sob controle.`
+      : 'Seu dinheiro em um só lugar.';
 
   function handleAdjust() {
     const amt = parseFloat(adjAmount.replace(',', '.'));
@@ -128,22 +110,19 @@ export default function Finance() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <div className={styles.headerLeft}>
-          <h1>Financeiro</h1>
-          <p>Temporada {season}</p>
-        </div>
-        {tab === 'overview' && (
-          <button className={styles.btnPrimary} onClick={() => setShowAdjust(true)}>
-            + Lançamento
-          </button>
-        )}
-        {tab === 'wages' && (
-          <button className={styles.btnDanger} onClick={payWages}>
-            Pagar folha
-          </button>
-        )}
-      </div>
+      <FinanceHeader
+        greeting={greeting}
+        season={season}
+        period={period}
+        onPeriodChange={setPeriod}
+        onAddEntry={() => setShowAdjust(true)}
+        onRequestLoan={() => setTab('loans')}
+        currentBudget={finance.monthlyBudget?.targetExpenseLimit}
+        currency={finance.currency}
+        onSetBudget={setMonthlyBudget}
+        showPayWages={tab === 'wages'}
+        onPayWages={payWages}
+      />
 
       <div className={styles.tabs}>
         {([
@@ -167,58 +146,21 @@ export default function Finance() {
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab
+        <FinanceOverviewTab
           finance={finance}
+          players={players}
           bill={bill}
           runway={runway}
           debtTotal={debtTotal}
-          seasonIncome={seasonIncome}
-          seasonExpense={seasonExpense}
+          season={season}
+          currentDate={currentDate}
+          period={period}
           onAddEntry={() => setShowAdjust(true)}
           onCurrencyChange={(currency: Currency) => updateFinance({ currency })}
         />
       )}
 
-      {tab === 'ledger' && (
-        <>
-          <div className={styles.ledgerFilters}>
-            {([
-              ['all', 'Todos'],
-              ['income', 'Receitas'],
-              ['expense', 'Despesas'],
-              ['transfer', 'Transferências'],
-              ['wage', 'Folha'],
-            ] as [LedgerFilter, string][]).map(([f, l]) => (
-              <button
-                key={f}
-                className={`${styles.filterChip} ${ledgerFilter === f ? styles.filterChipActive : ''}`}
-                onClick={() => setLedgerFilter(f)}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-          {filteredLedger.length === 0 ? (
-            <div className={styles.emptyState}>Nenhum lançamento {ledgerFilter !== 'all' ? 'nessa categoria' : 'ainda'}.</div>
-          ) : (
-            <ul className={styles.ledgerList} style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: 'var(--card-bg)' }}>
-              {filteredLedger.map(entry => (
-                <li key={entry.id} className={styles.ledgerRow}>
-                  <div className={styles.ledgerMeta}>
-                    <span className={styles.ledgerLabel}>{entry.label}</span>
-                    <span className={styles.ledgerSub}>
-                      {ledgerEntryTypeLabel(entry.type)} · {entry.date}
-                    </span>
-                  </div>
-                  <span className={`${styles.ledgerAmount} ${entry.amount >= 0 ? styles.income : styles.expense}`}>
-                    {entry.amount >= 0 ? '+' : ''}{formatMoney(entry.amount, finance.currency)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
+      {tab === 'ledger' && <FinanceLedgerTab finance={finance} />}
 
       {tab === 'wages' && (
         <WagesTab
@@ -350,106 +292,6 @@ export default function Finance() {
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
-
-function OverviewTab({
-  finance, bill, runway, debtTotal, seasonIncome, seasonExpense, onAddEntry, onCurrencyChange,
-}: {
-  finance: ReturnType<typeof useGame>['state']['finance'];
-  bill: number;
-  runway: number;
-  debtTotal: number;
-  seasonIncome: number;
-  seasonExpense: number;
-  onAddEntry: () => void;
-  onCurrencyChange: (currency: Currency) => void;
-}) {
-  const recentLedger = finance.ledger.slice(0, 8);
-  const stadiumOk = isStadiumConfigured(finance.stadiumConfig);
-
-  return (
-    <>
-      <div className={styles.heroCard}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <p className={styles.heroLabel}>Caixa atual</p>
-            <p className={`${styles.heroAmount} ${finance.balance < 0 ? styles.negative : ''}`}>
-              {formatMoney(finance.balance, finance.currency)}
-            </p>
-          </div>
-          <div className={styles.formGroup} style={{ minWidth: 160 }}>
-            <label className={styles.formLabel}>Moeda</label>
-            <select
-              className={styles.formSelect}
-              value={finance.currency}
-              onChange={e => onCurrencyChange(e.target.value as Currency)}
-            >
-              {CURRENCIES.map(c => (
-                <option key={c.code} value={c.code}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className={styles.heroMeta}>
-          <div className={styles.heroMetaItem}>
-            <span className={styles.heroMetaLabel}>Folha / mês</span>
-            <span className={styles.heroMetaVal}>{formatMoney(bill, finance.currency)}</span>
-          </div>
-          <div className={styles.heroMetaItem}>
-            <span className={styles.heroMetaLabel}>Dívidas</span>
-            <span className={`${styles.heroMetaVal} ${debtTotal > 0 ? styles.danger : ''}`}>
-              {formatMoney(debtTotal, finance.currency)}
-            </span>
-          </div>
-          <div className={styles.heroMetaItem}>
-            <span className={styles.heroMetaLabel}>Runway</span>
-            <span className={`${styles.heroMetaVal} ${runway <= 3 ? styles.danger : ''}`}>
-              {runway === Infinity ? '∞' : `${runway} mês${runway !== 1 ? 'es' : ''}`}
-            </span>
-          </div>
-          <div className={styles.heroMetaItem}>
-            <span className={styles.heroMetaLabel}>Receita temporada</span>
-            <span className={styles.heroMetaVal}>{formatMoney(seasonIncome, finance.currency)}</span>
-          </div>
-          <div className={styles.heroMetaItem}>
-            <span className={styles.heroMetaLabel}>Despesas temporada</span>
-            <span className={styles.heroMetaVal}>{formatMoney(Math.abs(seasonExpense), finance.currency)}</span>
-          </div>
-        </div>
-        {!stadiumOk && (
-          <p className={styles.stadiumHint}>
-            Configure o estádio na aba Estádio para gerar bilheteria automática após os jogos.
-          </p>
-        )}
-      </div>
-
-      <div>
-        <div className={styles.sectionHead}>
-          <h3 className={styles.sectionTitle}>Últimos lançamentos</h3>
-          <button className={styles.btnSecondary} onClick={onAddEntry}>+ Lançamento</button>
-        </div>
-        {recentLedger.length === 0 ? (
-          <div className={styles.emptyState}>Nenhum lançamento ainda. Registre premiações, patrocínios ou despesas.</div>
-        ) : (
-          <ul className={styles.ledgerList} style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: 'var(--card-bg)' }}>
-            {recentLedger.map(entry => (
-              <li key={entry.id} className={styles.ledgerRow}>
-                <div className={styles.ledgerMeta}>
-                  <span className={styles.ledgerLabel}>{entry.label}</span>
-                  <span className={styles.ledgerSub}>
-                    {ledgerEntryTypeLabel(entry.type)} · {entry.date}
-                  </span>
-                </div>
-                <span className={`${styles.ledgerAmount} ${entry.amount >= 0 ? styles.income : styles.expense}`}>
-                  {entry.amount >= 0 ? '+' : ''}{formatMoney(entry.amount, finance.currency)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </>
-  );
-}
 
 function StadiumTab({
   config,

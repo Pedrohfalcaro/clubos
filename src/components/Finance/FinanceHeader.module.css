@@ -1,0 +1,18 @@
+.greeting {
+  font-size: 14px;
+  color: var(--text-h);
+  margin: 0 0 2px;
+}
+
+.season {
+  font-size: 12px;
+  color: var(--text);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

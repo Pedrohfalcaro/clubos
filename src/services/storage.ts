@@ -12,6 +12,7 @@ import type { ClubFinance } from '../types/Finance';
 import { createDefaultFinance, createDefaultStadiumConfig } from '../types/Finance';
 import { seedLiveLifeFinance } from '../utils/livelifeTemplates';
 import { migrateAbsurdGateRevenue, normalizeStadiumConfig } from '../utils/finance';
+import { computeFinancialHealth } from '../utils/financialHealth';
 import { migrateClubDebt } from '../utils/clubDebts';
 import { migrateClubSponsor } from '../utils/sponsors';
 import type { LiveLifeMeta } from '../types/LiveLife';
@@ -202,14 +203,16 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
               save.finance.currency ?? 'BRL',
             )
           : undefined,
+        // monthlyBudget (v1.3): opt-in, sem default forçado — o spread de
+        // `save.finance` acima já preserva o valor existente ou mantém undefined.
       }
     : createDefaultFinance(save.team?.budget ?? 5_000_000);
   const financeSeeded = seedLiveLifeFinance(financeRaw, seasonCompetitions);
-  const finance = migrateAbsurdGateRevenue(financeSeeded, matches, team ?? null);
+  const financeMigrated = migrateAbsurdGateRevenue(financeSeeded, matches, team ?? null);
 
   const teamSynced =
-    team && finance.balance !== team.budget
-      ? { ...team, budget: finance.balance }
+    team && financeMigrated.balance !== team.budget
+      ? { ...team, budget: financeMigrated.balance }
       : team;
 
   // Migrate board
@@ -238,6 +241,15 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
   if (!currentDate) {
     currentDate = nextDayAfterLastMatch(matches);
   }
+
+  // health (v1.3): calculado só se ausente no save — recomputado nos checkpoints
+  // do reducer (ADVANCE_DAY, folha, quitação de dívida), não a cada load.
+  const finance: ClubFinance = financeMigrated.health
+    ? financeMigrated
+    : {
+        ...financeMigrated,
+        health: computeFinancialHealth({ finance: financeMigrated, players, currentDate }),
+      };
 
   const seasonHistory: SeasonArchive[] = save.seasonHistory ?? [];
   const tacticsMigrated = migrateTacticsPresets(

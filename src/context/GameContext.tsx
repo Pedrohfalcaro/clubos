@@ -25,6 +25,7 @@ import {
   calcMatchClimateDeltas,
   clampConfidence,
   dailyClimateDrift,
+  softScaleDelta,
 } from '../utils/clubConfidence';
 import {
   createTacticsPresetId,
@@ -90,7 +91,8 @@ import { currencySymbol } from '../types/Finance';
 import { newSocialPost } from '../types/Social';
 import type { PressConferenceDeltas, PressContext } from '../types/PressConference';
 import { nextPressFriction } from '../pressconference';
-import { contextLabel } from '../utils/pressTriggers';
+import { contextLabel, pressSpecialDone } from '../utils/pressTriggers';
+import { getCategoryBreakdown, monthKeyFromDate } from '../utils/financeAnalytics';
 import { clearArcPendingPress, tickStoryArc } from '../utils/storyArcs';
 import type { BoardState, BoardGoal } from '../types/Board';
 import { createDefaultBoardState } from '../types/Board';
@@ -106,12 +108,17 @@ import { isDateInTransferWindow } from '../utils/transferWindow';
 import type { SeasonArchive } from '../types/SeasonHistory';
 import { emptyTeamStats } from '../types/SeasonHistory';
 import { newLedgerEntry, wageBill, calcGateRevenue, applyMatchPrize } from '../utils/finance';
+import { computeFinancialHealth } from '../utils/financialHealth';
 import { advanceDay as computeAdvanceDay, findMatchOnDate, applyMatchAvailability, addDaysIso } from '../livelife';
 import { useAuth } from './AuthContext';
 import { emptyPlayerStats as emptySquadStats } from '../types/Player';
 import type { SaveSlotId } from '../services/saveSlots';
 
 const PLAYER_TEAM_ID = 'player-career';
+
+/** Delta de confiança da diretoria ao estourar o teto de gastos mensal (v1.3). Mesma
+ * ordem de grandeza de uma derrota (`BOARD_RESULT_DELTA.loss` em `clubConfidence.ts`). */
+const BUDGET_OVERRUN_BOARD_PENALTY = -6;
 
 export interface GameState {
   started: boolean;
@@ -256,6 +263,7 @@ type GameAction =
   | { type: 'DISMISS_PAYROLL' }
   | { type: 'SET_PRIZE_TABLE'; competition: string; prize: { win?: number; draw?: number; knockout?: number; champion?: number } }
   | { type: 'UPDATE_FINANCE'; updates: Partial<ClubFinance> }
+  | { type: 'SET_MONTHLY_BUDGET'; targetExpenseLimit: number }
   // Board
   | { type: 'UPDATE_BOARD'; updates: Partial<BoardState> }
   | { type: 'SET_BOARD_GOAL'; goal: BoardGoal }
@@ -395,6 +403,7 @@ interface GameContextValue {
   dismissPayroll: () => void;
   setPrizeTable: (competition: string, prize: { win?: number; draw?: number; knockout?: number; champion?: number }) => void;
   updateFinance: (updates: Partial<ClubFinance>) => void;
+  setMonthlyBudget: (targetExpenseLimit: number) => void;
   // Board
   updateBoard: (updates: Partial<BoardState>) => void;
   setBoardGoal: (goal: BoardGoal) => void;
@@ -1744,6 +1753,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       let finance = state.finance;
       let team = state.team;
       let board = state.board;
+      let livelife = state.livelife;
 
       // Cotas mensais de patrocínio no dia configurado de cada contrato
       if ((finance.sponsors?.length ?? 0) > 0) {
@@ -2019,6 +2029,46 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         }
       }
 
+      // Teto de gastos mensal (v1.3): ao fechar um mês (virada para o dia 1), se o
+      // clube estourou o teto definido, penaliza a diretoria 1x por mês (cooldown
+      // reaproveitado de pressTriggers — mesma chave `budget:YYYY-MM`).
+      if (dayOfMonth === 1 && state.currentDate && finance.monthlyBudget) {
+        const closedMonth = monthKeyFromDate(state.currentDate);
+        const cooldownKey = `budget:${closedMonth}`;
+        if (!pressSpecialDone(livelife, cooldownKey)) {
+          const breakdown = getCategoryBreakdown(finance.ledger, closedMonth);
+          if (breakdown.total > finance.monthlyBudget.targetExpenseLimit) {
+            livelife = {
+              ...livelife,
+              pressSpecialDoneKeys: [...(livelife.pressSpecialDoneKeys ?? []), cooldownKey].slice(-60),
+            };
+            if (team) {
+              const penalty = softScaleDelta(team.boardConfidence ?? 50, BUDGET_OVERRUN_BOARD_PENALTY);
+              if (penalty) {
+                const newBoardConf = clampConfidence((team.boardConfidence ?? 50) + penalty);
+                team = { ...team, boardConfidence: newBoardConf };
+                board = {
+                  ...board,
+                  confidenceHistory: [
+                    {
+                      date: result.nextDate,
+                      value: newBoardConf,
+                      reason: 'Estouro do teto de gastos mensal',
+                    },
+                    ...board.confidenceHistory,
+                  ].slice(0, 50),
+                };
+              }
+            }
+          }
+        }
+      }
+
+      finance = {
+        ...finance,
+        health: computeFinancialHealth({ finance, players, currentDate: result.nextDate }),
+      };
+
       return {
         ...state,
         currentDate: result.nextDate,
@@ -2033,6 +2083,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         team,
         board,
         social,
+        livelife,
       };
     }
 
@@ -2155,15 +2206,23 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         newBalance = 0;
       }
       const updatedTeam = state.team ? { ...state.team, budget: newBalance } : state.team;
+      const financeAfterWages = {
+        ...state.finance,
+        balance: newBalance,
+        ledger,
+        debts,
+      };
       return {
         ...state,
         payrollDue: false,
         team: updatedTeam,
         finance: {
-          ...state.finance,
-          balance: newBalance,
-          ledger,
-          debts,
+          ...financeAfterWages,
+          health: computeFinancialHealth({
+            finance: financeAfterWages,
+            players: state.players,
+            currentDate: gameDate,
+          }),
         },
       };
     }
@@ -2172,16 +2231,24 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const { loan, payments, creditEntry, wageEntry } = action;
       const newBalance =
         state.finance.balance + creditEntry.amount + wageEntry.amount;
+      const financeAfterBridge = {
+        ...state.finance,
+        balance: newBalance,
+        ledger: [wageEntry, creditEntry, ...state.finance.ledger],
+        loans: [loan, ...(state.finance.loans ?? [])],
+        loanPayments: [...(state.finance.loanPayments ?? []), ...payments],
+      };
       return {
         ...state,
         payrollDue: false,
         team: state.team ? { ...state.team, budget: newBalance } : state.team,
         finance: {
-          ...state.finance,
-          balance: newBalance,
-          ledger: [wageEntry, creditEntry, ...state.finance.ledger],
-          loans: [loan, ...(state.finance.loans ?? [])],
-          loanPayments: [...(state.finance.loanPayments ?? []), ...payments],
+          ...financeAfterBridge,
+          health: computeFinancialHealth({
+            finance: financeAfterBridge,
+            players: state.players,
+            currentDate: state.currentDate,
+          }),
         },
         loanPaymentsDue:
           state.loanPaymentsDue ||
@@ -2210,6 +2277,23 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'UPDATE_FINANCE':
       return { ...state, finance: { ...state.finance, ...action.updates } };
+
+    case 'SET_MONTHLY_BUDGET': {
+      const rounded = Math.round(action.targetExpenseLimit);
+      const targetExpenseLimit = Number.isFinite(rounded)
+        ? Math.max(0, rounded)
+        : (state.finance.monthlyBudget?.targetExpenseLimit ?? 0);
+      return {
+        ...state,
+        finance: {
+          ...state.finance,
+          monthlyBudget: {
+            targetExpenseLimit,
+            updatedAt: state.currentDate ?? state.finance.monthlyBudget?.updatedAt ?? '1970-01-01',
+          },
+        },
+      };
+    }
 
     // ─── Board ─────────────────────────────────────────────────────────────────
 
@@ -2494,13 +2578,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const stillDue = state.currentDate
         ? debtsWithInstallmentDue(debts, state.currentDate).length > 0
         : false;
+      const financeAfterDebtPayment = {
+        ...state.finance,
+        balance: newBalance,
+        ledger: [entry, ...state.finance.ledger],
+        debts,
+      };
       return {
         ...state,
         finance: {
-          ...state.finance,
-          balance: newBalance,
-          ledger: [entry, ...state.finance.ledger],
-          debts,
+          ...financeAfterDebtPayment,
+          health: computeFinancialHealth({
+            finance: financeAfterDebtPayment,
+            players: state.players,
+            currentDate: gameDate,
+          }),
         },
         team: state.team ? { ...state.team, budget: newBalance } : state.team,
         debtPaymentsDue: stillDue,
@@ -3068,10 +3160,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
         save.activeTacticsId,
       );
       const comps = migrateSeasonCompetitions(save.seasonCompetitions);
-      const finance = seedLiveLifeFinance(
+      const financeSeeded = seedLiveLifeFinance(
         save.finance ?? createDefaultFinance(save.team.budget ?? 5_000_000),
         comps,
       );
+      const finance: ClubFinance = financeSeeded.health
+        ? financeSeeded
+        : {
+            ...financeSeeded,
+            health: computeFinancialHealth({
+              finance: financeSeeded,
+              players: recalculated.players,
+              currentDate: save.currentDate ?? null,
+            }),
+          };
       dispatch({
         type: 'LOAD_SAVE',
         state: {
@@ -3219,6 +3321,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   function updateFinance(updates: Partial<ClubFinance>) {
     dispatch({ type: 'UPDATE_FINANCE', updates });
+  }
+
+  function setMonthlyBudget(targetExpenseLimit: number) {
+    dispatch({ type: 'SET_MONTHLY_BUDGET', targetExpenseLimit });
   }
 
   // ─── Board ─────────────────────────────────────────────────────────────────
@@ -3566,6 +3672,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         dismissPayroll,
         setPrizeTable,
         updateFinance,
+        setMonthlyBudget,
         updateBoard,
         setBoardGoal,
         removeBoardGoal,

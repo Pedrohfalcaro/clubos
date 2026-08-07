@@ -15,6 +15,14 @@ export function formatMoney(value: number, currency: Currency = 'BRL'): string {
   const sign = value < 0 ? '−' : '';
   const symbol = currencySymbol(currency);
 
+  // Lançamentos manuais não têm teto — sem faixas acima de B, um valor de
+  // trilhões aparecia como "120000000,0B" em vez de abreviado corretamente.
+  if (abs >= 1_000_000_000_000_000) {
+    return `${sign}${symbol} ${(abs / 1_000_000_000_000_000).toFixed(1).replace('.', ',')}Qa`;
+  }
+  if (abs >= 1_000_000_000_000) {
+    return `${sign}${symbol} ${(abs / 1_000_000_000_000).toFixed(1).replace('.', ',')}T`;
+  }
   if (abs >= 1_000_000_000) {
     return `${sign}${symbol} ${(abs / 1_000_000_000).toFixed(1).replace('.', ',')}B`;
   }
