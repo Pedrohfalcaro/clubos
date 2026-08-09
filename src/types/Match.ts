@@ -22,6 +22,7 @@ export interface TeamGoalEntry {
   opponentScorerName?: string;
   assistPlayerId?: string;
   minute: MatchMinute;
+  isPenalty?: boolean;
 }
 
 export interface TeamCardEntry {
@@ -107,6 +108,7 @@ export interface GoalEvent {
   minute: number;
   stoppage?: number;
   isOwnGoal?: boolean;
+  isPenalty?: boolean;
   opponentScorerName?: string;
   assistPlayerId?: string;
   assistPlayerName?: string;

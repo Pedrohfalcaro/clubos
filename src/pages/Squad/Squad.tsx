@@ -64,6 +64,7 @@ function moraleMeta(morale: number): { label: string; color: string; title: stri
 }
 
 type CompFilter = 'all' | string;
+type SortKey = 'nota' | 'ga' | 'a' | 'g' | 'j';
 
 interface PlayerCompStats {
   matches: number;
@@ -81,6 +82,7 @@ export default function Squad() {
   const [filter, setFilter] = useState<PlayerStatus | 'Todos'>('Todos');
   const [compFilter, setCompFilter] = useState<CompFilter>('all');
   const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
@@ -336,6 +338,27 @@ export default function Squad() {
     };
   }
 
+  function toggleSort(key: SortKey) {
+    setSortKey(prev => (prev === key ? null : key));
+  }
+
+  function sortValue(stats: ReturnType<typeof displayStats>, key: SortKey): number {
+    switch (key) {
+      case 'nota': return stats.avg ?? -Infinity;
+      case 'ga': return stats.goals + stats.assists;
+      case 'a': return stats.assists;
+      case 'g': return stats.goals;
+      case 'j': return stats.matches;
+    }
+  }
+
+  function sortPlayers(list: Player[]): Player[] {
+    if (!sortKey) return list;
+    return [...list].sort(
+      (a, b) => sortValue(displayStats(b.id), sortKey) - sortValue(displayStats(a.id), sortKey),
+    );
+  }
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -517,11 +540,42 @@ export default function Squad() {
                       <span className={styles.colName}>Nome</span>
                       <span className={styles.colAge}>Idade</span>
                       <span className={styles.colOvr}>OVR</span>
-                      <span className={styles.colMatches}>J</span>
+                      <span
+                        className={`${styles.colMatches} ${styles.sortableCol} ${sortKey === 'j' ? styles.sortActive : ''}`}
+                        onClick={() => toggleSort('j')}
+                        title="Ordenar por jogos"
+                      >
+                        J{sortKey === 'j' ? ' ▾' : ''}
+                      </span>
                       <span className={styles.colMin}>Min</span>
-                      <span className={styles.colNota}>Nota</span>
-                      <span className={styles.colStat}>G</span>
-                      <span className={styles.colStat} title="Assistências">A</span>
+                      <span
+                        className={`${styles.colNota} ${styles.sortableCol} ${sortKey === 'nota' ? styles.sortActive : ''}`}
+                        onClick={() => toggleSort('nota')}
+                        title="Ordenar por nota"
+                      >
+                        Nota{sortKey === 'nota' ? ' ▾' : ''}
+                      </span>
+                      <span
+                        className={`${styles.colStat} ${styles.sortableCol} ${sortKey === 'g' ? styles.sortActive : ''}`}
+                        onClick={() => toggleSort('g')}
+                        title="Ordenar por gols"
+                      >
+                        G{sortKey === 'g' ? ' ▾' : ''}
+                      </span>
+                      <span
+                        className={`${styles.colStat} ${styles.sortableCol} ${sortKey === 'a' ? styles.sortActive : ''}`}
+                        onClick={() => toggleSort('a')}
+                        title="Ordenar por assistências"
+                      >
+                        A{sortKey === 'a' ? ' ▾' : ''}
+                      </span>
+                      <span
+                        className={`${styles.colStat} ${styles.sortableCol} ${sortKey === 'ga' ? styles.sortActive : ''}`}
+                        onClick={() => toggleSort('ga')}
+                        title="Ordenar por gols + assistências"
+                      >
+                        G/A{sortKey === 'ga' ? ' ▾' : ''}
+                      </span>
                       <span className={styles.colStat} title="Sem sofrer gols">SG</span>
                       <span
                         className={styles.colRate}
@@ -536,7 +590,7 @@ export default function Squad() {
                       <span className={styles.colStatus}>Status</span>
                       <span className={styles.colAction} />
                     </div>
-                    {group.map(p => {
+                    {sortPlayers(group).map(p => {
                       const stats = displayStats(p.id);
                       const retired = p.status === 'Aposentado';
                       const morale = moraleMeta(p.morale ?? 70);
@@ -837,6 +891,7 @@ export default function Squad() {
                               </span>
                               <span className={styles.colStat}>{stats.goals}</span>
                               <span className={styles.colStat}>{stats.assists}</span>
+                              <span className={styles.colStat} title="Gols + Assistências">{stats.goals + stats.assists}</span>
                               <span className={styles.colStat} title="Sem sofrer gols">{stats.cleanSheets}</span>
                               <span
                                 className={styles.colRate}

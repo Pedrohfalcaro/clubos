@@ -143,14 +143,40 @@
   box-sizing: border-box;
 }
 
-.toggleOwn {
-  padding: 8px 10px;
-  background: var(--card-bg);
+.goalTypeRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.typeChip {
+  padding: 6px 10px;
+  border-radius: 999px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  font-size: 14px;
-  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.typeChipOn {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.typeChipPenalty.typeChipOn {
+  background: rgba(234, 179, 8, 0.15);
+  border-color: rgba(234, 179, 8, 0.5);
+  color: #eab308;
+}
+
+.typeChipOwn.typeChipOn {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ef4444;
 }
 
 .cardSection {

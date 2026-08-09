@@ -3,7 +3,7 @@ import { formatMinute, minuteSortValue } from '../../utils/matchEvents';
 import styles from './MatchTimeline.module.css';
 
 export type TimelineEvent =
-  | { id: string; side: 'home' | 'away'; kind: 'goal'; minute: MatchMinute; scorer: string; assist?: string }
+  | { id: string; side: 'home' | 'away'; kind: 'goal'; minute: MatchMinute; scorer: string; assist?: string; penalty?: boolean }
   | { id: string; side: 'home' | 'away'; kind: 'own_goal'; minute: MatchMinute; scorer: string }
   | { id: string; side: 'home' | 'away'; kind: 'yellow'; minute: MatchMinute; player: string }
   | { id: string; side: 'home' | 'away'; kind: 'red'; minute: MatchMinute; player: string }
@@ -26,8 +26,8 @@ export default function MatchTimeline({ events, align = 'left' }: MatchTimelineP
           <span className={styles.minute}>{formatMinute(ev.minute)}</span>
           {ev.kind === 'goal' && (
             <span className={styles.content}>
-              <span className={styles.icon}>⚽</span>
-              <span className={styles.nameWhite}>{ev.scorer}</span>
+              <span className={styles.icon}>{ev.penalty ? '🎯' : '⚽'}</span>
+              <span className={styles.nameWhite}>{ev.scorer}{ev.penalty ? ' (P)' : ''}</span>
               {ev.assist && <span className={styles.nameGray}> ({ev.assist})</span>}
             </span>
           )}

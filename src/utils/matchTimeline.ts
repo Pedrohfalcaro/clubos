@@ -40,8 +40,8 @@ export function buildMatchTimeline(
         id: `g-${i}`,
         minute,
         pitchSide: ourPitchSide,
-        icon: '⚽',
-        title: g.playerName || '—',
+        icon: g.isPenalty ? '🎯' : '⚽',
+        title: g.isPenalty ? `${g.playerName || '—'} (P)` : (g.playerName || '—'),
         assist: g.assistPlayerName?.trim() || undefined,
       });
     }

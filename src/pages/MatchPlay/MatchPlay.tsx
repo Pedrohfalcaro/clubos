@@ -155,6 +155,7 @@ export default function MatchPlay() {
       opponentScorerName: g.opponentScorerName,
       assistPlayerId: g.assistPlayerId,
       minute: { base: g.minute, stoppage: g.stoppage },
+      isPenalty: g.isPenalty,
     }));
   });
 

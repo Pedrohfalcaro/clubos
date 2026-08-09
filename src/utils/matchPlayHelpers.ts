@@ -211,6 +211,7 @@ export function buildGoalEvents(
       playerName: scorer?.name ?? '',
       minute: g.minute.base,
       stoppage: g.minute.stoppage,
+      isPenalty: g.isPenalty || undefined,
       assistPlayerId: g.assistPlayerId,
       assistPlayerName: assist?.name,
     };

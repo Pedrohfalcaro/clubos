@@ -181,7 +181,7 @@ export default function MatchRegistration() {
                     <span className={styles.matchResult} style={{ color: res.color }}>{res.text}</span>
                     {match.goals.length > 0 && (
                       <span className={styles.matchScorers}>
-                        ⚽ {match.goals.map(g => g.isOwnGoal ? `Gol Contra (${g.opponentScorerName})` : g.playerName).join(', ')}
+                        ⚽ {match.goals.map(g => g.isOwnGoal ? `Gol Contra (${g.opponentScorerName})` : g.isPenalty ? `${g.playerName} (P)` : g.playerName).join(', ')}
                       </span>
                     )}
                   </div>

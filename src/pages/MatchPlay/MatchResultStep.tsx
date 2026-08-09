@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import MinuteInput from '../../components/MinuteInput/MinuteInput';
 import SearchableSelect from '../../components/SearchableSelect/SearchableSelect';
 import SubstitutionModal from '../../components/SubstitutionModal/SubstitutionModal';
@@ -16,7 +16,7 @@ import type {
   TeamInjuryEntry,
 } from '../../types/Match';
 import { defaultMinute, formatMinute, uid } from '../../utils/matchEvents';
-import { getFieldPlayerIds, isPlayerOnField } from '../../utils/matchPlayHelpers';
+import { getFieldPlayerIds, getPermanentlyOutIds, isPlayerOnField } from '../../utils/matchPlayHelpers';
 import { addDaysIso } from '../../livelife';
 import { useGame } from '../../context/GameContext';
 import styles from './MatchResultStep.module.css';
@@ -62,8 +62,10 @@ function teamGoalSummary(g: TeamGoalEntry, players: Player[]): string {
   const min = formatMinute(g.minute);
   if (g.type === 'own') return `${min} · GC ${g.opponentScorerName}`;
   const scorer = players.find(p => p.id === g.playerId)?.name ?? '—';
+  const name = g.isPenalty ? `${scorer} (P)` : scorer;
+  const icon = g.isPenalty ? '🎯' : '⚽';
   const assist = g.assistPlayerId ? players.find(p => p.id === g.assistPlayerId)?.name : null;
-  return assist ? `${min} · ⚽ ${scorer} (${assist})` : `${min} · ⚽ ${scorer}`;
+  return assist ? `${min} · ${icon} ${name} (${assist})` : `${min} · ${icon} ${name}`;
 }
 
 export default function MatchResultStep(props: MatchResultStepProps) {
@@ -96,6 +98,7 @@ export default function MatchResultStep(props: MatchResultStepProps) {
   );
 
   const fieldIds = useMemo(() => getFieldPlayerIds(starters, teamSubs), [starters, teamSubs]);
+  const permanentlyOutIds = useMemo(() => getPermanentlyOutIds(teamSubs), [teamSubs]);
   const fieldOptions = useMemo(
     () => [...fieldIds].map(id => players.find(p => p.id === id)).filter(Boolean).map(p => ({ value: p!.id, label: p!.name })),
     [fieldIds, players],
@@ -104,6 +107,37 @@ export default function MatchResultStep(props: MatchResultStepProps) {
   function openEdit(id: string) {
     setExpandedIds(prev => new Set(prev).add(id));
   }
+
+  // Novos gols (do nosso time ou do adversário) devem começar — e permanecer —
+  // abertos enquanto o usuário está preenchendo os campos, mesmo que o campo
+  // obrigatório já esteja completo (ex.: assistência ainda por vir).
+  const prevGoalIdsRef = useRef<Set<string>>(new Set(teamGoals.map(g => g.id)));
+  useEffect(() => {
+    const currentIds = teamGoals.map(g => g.id);
+    const newIds = currentIds.filter(id => !prevGoalIdsRef.current.has(id));
+    if (newIds.length) {
+      setExpandedIds(prev => {
+        const next = new Set(prev);
+        newIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+    prevGoalIdsRef.current = new Set(currentIds);
+  }, [teamGoals]);
+
+  const prevOpponentGoalIdsRef = useRef<Set<string>>(new Set(opponentGoals.map(g => g.id)));
+  useEffect(() => {
+    const currentIds = opponentGoals.map(g => g.id);
+    const newIds = currentIds.filter(id => !prevOpponentGoalIdsRef.current.has(id));
+    if (newIds.length) {
+      setExpandedIds(prev => {
+        const next = new Set(prev);
+        newIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+    prevOpponentGoalIdsRef.current = new Set(currentIds);
+  }, [opponentGoals]);
 
   function resolvePlayer(id: string) {
     return players.find(p => p.id === id);
@@ -195,7 +229,7 @@ export default function MatchResultStep(props: MatchResultStepProps) {
       } else if (g.type === 'team' && g.playerId) {
         const scorer = resolvePlayer(g.playerId)?.name ?? '';
         const assist = g.assistPlayerId ? resolvePlayer(g.assistPlayerId)?.name : undefined;
-        events.push({ id: g.id, side, kind: 'goal', minute: g.minute, scorer, assist });
+        events.push({ id: g.id, side, kind: 'goal', minute: g.minute, scorer, assist, penalty: g.isPenalty });
       }
     }
     for (const c of teamCards) {
@@ -273,6 +307,29 @@ export default function MatchResultStep(props: MatchResultStepProps) {
                 <span className={styles.fieldLabel}>Minuto</span>
                 <MinuteInput value={g.minute} onChange={m => updateGoal(i, { minute: m })} />
               </div>
+              <div className={styles.goalTypeRow}>
+                <button
+                  type="button"
+                  className={`${styles.typeChip} ${g.type === 'team' && !g.isPenalty ? styles.typeChipOn : ''}`}
+                  onClick={() => updateGoal(i, { type: 'team', isPenalty: false, opponentScorerName: '' })}
+                >
+                  ⚽ Gol
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.typeChip} ${styles.typeChipPenalty} ${g.type === 'team' && g.isPenalty ? styles.typeChipOn : ''}`}
+                  onClick={() => updateGoal(i, { type: 'team', isPenalty: true, opponentScorerName: '' })}
+                >
+                  🎯 Pênalti
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.typeChip} ${styles.typeChipOwn} ${g.type === 'own' ? styles.typeChipOn : ''}`}
+                  onClick={() => updateGoal(i, { type: 'own', isPenalty: false, playerId: '' })}
+                >
+                  🔴 Contra
+                </button>
+              </div>
               <div className={styles.fieldRow}>
                 {g.type === 'own' ? (
                   <input
@@ -289,18 +346,6 @@ export default function MatchResultStep(props: MatchResultStepProps) {
                     placeholder="Autor do gol..."
                   />
                 )}
-                <button
-                  type="button"
-                  className={styles.toggleOwn}
-                  onClick={() => updateGoal(i, {
-                    type: g.type === 'own' ? 'team' : 'own',
-                    playerId: '',
-                    opponentScorerName: '',
-                  })}
-                  title="Alternar gol contra"
-                >
-                  {g.type === 'own' ? '⚽' : '🔴'}
-                </button>
               </div>
               {g.type === 'team' && (
                 <div className={styles.assistRow}>
@@ -703,7 +748,7 @@ export default function MatchResultStep(props: MatchResultStepProps) {
             <h3>Substituição</h3>
             <div className={styles.modalField}>
               <label>Entra</label>
-              <SearchableSelect options={squadOptions.filter(o => !fieldIds.has(o.value))} value={volIn} onChange={setVolIn} placeholder="Jogador que entra..." />
+              <SearchableSelect options={squadOptions.filter(o => !fieldIds.has(o.value) && !permanentlyOutIds.has(o.value))} value={volIn} onChange={setVolIn} placeholder="Jogador que entra..." />
             </div>
             <div className={styles.modalField}>
               <label>Sai</label>
