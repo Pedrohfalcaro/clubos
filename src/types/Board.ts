@@ -17,6 +17,11 @@ export interface BoardGoal {
   /** Numeric current progress */
   current: number;
   status: BoardGoalStatus;
+  /**
+   * Competição vinculada — obrigatório para `league_position`/`win_competition`
+   * quando a meta deve ser avaliada automaticamente (ver utils/boardGoals.ts).
+   */
+  competitionId?: string;
 }
 
 export interface BoardConfidenceEntry {

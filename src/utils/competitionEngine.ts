@@ -212,6 +212,41 @@ export function phaseOutcome(
   return 'draw';
 }
 
+/** Placar agregado da fase (soma ida+volta quando `twoLegged`; senão o placar único). */
+export function phaseAggregate(phase: KnockoutPhase): { for: number; against: number } | null {
+  if (phase.goalsFor == null || phase.goalsAgainst == null) return null;
+  if (!phase.twoLegged) return { for: phase.goalsFor, against: phase.goalsAgainst };
+  const leg2 = phase.secondLeg;
+  if (!leg2 || leg2.goalsFor == null || leg2.goalsAgainst == null) return null;
+  return {
+    for: phase.goalsFor + leg2.goalsFor,
+    against: phase.goalsAgainst + leg2.goalsAgainst,
+  };
+}
+
+/**
+ * Resultado da fase pelo agregado. Se o agregado empatar, só resolve quando
+ * `decidedOnPenalties` + `penaltyWinner` estiverem preenchidos — senão retorna 'draw'.
+ */
+export function phaseTieOutcome(phase: KnockoutPhase): 'won' | 'lost' | 'draw' | null {
+  const agg = phaseAggregate(phase);
+  if (!agg) return null;
+  if (agg.for > agg.against) return 'won';
+  if (agg.for < agg.against) return 'lost';
+  if (phase.decidedOnPenalties && phase.penaltyWinner) {
+    return phase.penaltyWinner === 'us' ? 'won' : 'lost';
+  }
+  return 'draw';
+}
+
+/** Descrição textual do placar (ida/volta/agregado/pênaltis) para mensagens de resultado. */
+function legScoreLabel(phase: KnockoutPhase, agg: { for: number; against: number }): string {
+  if (!phase.twoLegged) return `${phase.goalsFor}-${phase.goalsAgainst}`;
+  const leg2 = phase.secondLeg!;
+  const base = `ida ${phase.goalsFor}-${phase.goalsAgainst}, volta ${leg2.goalsFor}-${leg2.goalsAgainst}, agregado ${agg.for}-${agg.against}`;
+  return phase.decidedOnPenalties ? `${base}, nos pênaltis` : base;
+}
+
 export type KnockoutAdvanceResult = {
   phases: KnockoutPhase[];
   prizeAmount: number;
@@ -237,14 +272,29 @@ export function advanceKnockoutPhase(
   const phase = { ...current[idx] };
   if (options?.markAsFinal) phase.isFinal = true;
 
-  const outcome = phaseOutcome(phase.goalsFor, phase.goalsAgainst);
-  if (!outcome) return { error: 'Informe o placar da fase.' };
   if (!phase.opponent.trim()) return { error: 'Informe o adversário.' };
-  if (outcome === 'draw') {
-    return { error: 'Empate no mata-mata — ajuste o placar (prorrogação/pênaltis contam no placar final).' };
+
+  const agg = phaseAggregate(phase);
+  if (!agg) {
+    return {
+      error: phase.twoLegged
+        ? 'Preencha o placar dos dois jogos (ida e volta).'
+        : 'Informe o placar da fase.',
+    };
   }
 
+  const outcome = phaseTieOutcome(phase);
+  if (outcome === 'draw') {
+    return {
+      error: phase.twoLegged
+        ? 'Empate no agregado — informe quem venceu nos pênaltis/prorrogação.'
+        : 'Empate no mata-mata — ajuste o placar (prorrogação/pênaltis contam no placar final).',
+    };
+  }
+  if (!outcome) return { error: 'Informe o placar da fase.' };
+
   phase.outcome = outcome;
+  const scoreNote = legScoreLabel(phase, agg);
 
   if (outcome === 'lost') {
     phase.advanced = true;
@@ -255,7 +305,7 @@ export function advanceKnockoutPhase(
       prizeKind: null,
       eliminated: true,
       champion: false,
-      message: `Eliminado por ${phase.opponent.trim()} na ${phase.name}.`,
+      message: `Eliminado por ${phase.opponent.trim()} na ${phase.name} (${scoreNote}).`,
     };
   }
 
@@ -277,8 +327,8 @@ export function advanceKnockoutPhase(
       champion: true,
       message:
         prizeAmount > 0
-          ? `Campeão! Premiação de campeão creditada.`
-          : `Campeão da competição!`,
+          ? `Campeão! (${scoreNote}) Premiação de campeão creditada.`
+          : `Campeão da competição! (${scoreNote})`,
     };
   }
 
@@ -298,8 +348,33 @@ export function advanceKnockoutPhase(
     champion: false,
     message:
       prizeAmount > 0
-        ? `Classificado! Premiação de eliminatória creditada.`
-        : `Classificado para a próxima fase.`,
+        ? `Classificado! (${scoreNote}) Premiação de eliminatória creditada.`
+        : `Classificado para a próxima fase! (${scoreNote})`,
+  };
+}
+
+/**
+ * Atalho: declara eliminação na fase atual sem exigir placar preenchido.
+ * Sem premiação — apenas marca a fase corrente como derrota.
+ */
+export function eliminateCurrentPhase(
+  phases: KnockoutPhase[],
+): KnockoutAdvanceResult | { error: string } {
+  const current = [...phases];
+  const idx = current.findIndex(p => !p.advanced);
+  if (idx < 0) return { error: 'Não há fase aberta para declarar eliminação.' };
+
+  const phase: KnockoutPhase = { ...current[idx], advanced: true, outcome: 'lost' };
+  current[idx] = phase;
+
+  const opponentLabel = phase.opponent.trim() || 'adversário';
+  return {
+    phases: current,
+    prizeAmount: 0,
+    prizeKind: null,
+    eliminated: true,
+    champion: false,
+    message: `Eliminado por ${opponentLabel} na ${phase.name}.`,
   };
 }
 

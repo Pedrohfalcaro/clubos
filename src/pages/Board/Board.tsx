@@ -96,6 +96,8 @@ export default function Board() {
   const [goalKind, setGoalKind] = useState<BoardGoalKind>('league_position');
   const [goalTarget, setGoalTarget] = useState('');
   const [goalLabel, setGoalLabel] = useState('');
+  const [goalCompetitionId, setGoalCompetitionId] = useState('');
+  const goalNeedsCompetition = goalKind === 'league_position' || goalKind === 'win_competition';
 
   function saveClub() {
     updateTeam({
@@ -160,6 +162,7 @@ export default function Board() {
   function submitGoal() {
     const target = parseFloat(goalTarget.replace(',', '.'));
     if (isNaN(target) || target <= 0) return;
+    if (goalNeedsCompetition && !goalCompetitionId) return;
     const g: BoardGoal = {
       id: `goal-${Date.now()}`,
       season,
@@ -168,11 +171,13 @@ export default function Board() {
       target,
       current: 0,
       status: 'active',
+      competitionId: goalNeedsCompetition ? goalCompetitionId : undefined,
     };
     setBoardGoal(g);
     setGoalKind('league_position');
     setGoalTarget('');
     setGoalLabel('');
+    setGoalCompetitionId('');
     setShowGoalForm(false);
   }
 
@@ -915,6 +920,27 @@ export default function Board() {
               </select>
             </div>
 
+            {goalNeedsCompetition && (
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Competição</label>
+                <select
+                  className={styles.formInput}
+                  value={goalCompetitionId}
+                  onChange={e => setGoalCompetitionId(e.target.value)}
+                >
+                  <option value="">Selecione…</option>
+                  {seasonCompetitions.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: 11, color: 'var(--text)' }}>
+                  {goalKind === 'league_position'
+                    ? 'A posição atual é a informada na página Competições.'
+                    : 'Resolve sozinha quando o mata-mata dessa competição terminar (campeão ou eliminado).'}
+                </span>
+              </div>
+            )}
+
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>
                 Alvo ({GOAL_KINDS.find(g => g.kind === goalKind)?.unit})
@@ -940,8 +966,22 @@ export default function Board() {
             </div>
 
             <div className={styles.modalActions}>
-              <button className={styles.btnSecondary} onClick={() => setShowGoalForm(false)}>Cancelar</button>
-              <button className={styles.btnPrimary} onClick={submitGoal}>Adicionar</button>
+              <button
+                className={styles.btnSecondary}
+                onClick={() => {
+                  setShowGoalForm(false);
+                  setGoalCompetitionId('');
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                className={styles.btnPrimary}
+                onClick={submitGoal}
+                disabled={goalNeedsCompetition && !goalCompetitionId}
+              >
+                Adicionar
+              </button>
             </div>
           </div>
         </div>
@@ -950,10 +990,26 @@ export default function Board() {
   );
 }
 
+/** Barra 0–1 só para metas onde "mais perto do alvo" tem leitura direta de progresso. */
+function goalProgressRatio(goal: BoardGoal): number | null {
+  if (goal.target <= 0) return null;
+  switch (goal.kind) {
+    case 'sell_players':
+    case 'dont_spend_over':
+    case 'wage_bill_cap':
+      return Math.max(0, Math.min(1, goal.current / goal.target));
+    case 'win_competition':
+      return Math.max(0, Math.min(1, goal.current));
+    default:
+      return null;
+  }
+}
+
 function GoalCard({ goal, onRemove }: { goal: BoardGoal; onRemove: () => void }) {
   const statusClass = goal.status === 'done' ? styles.badgeDone : goal.status === 'failed' ? styles.badgeFailed : styles.badgeActive;
   const statusLabel = goal.status === 'done' ? 'Concluída' : goal.status === 'failed' ? 'Falhou' : 'Ativa';
   const cardClass = goal.status === 'done' ? styles.goalDone : goal.status === 'failed' ? styles.goalFailed : '';
+  const ratio = goal.status === 'active' ? goalProgressRatio(goal) : null;
 
   return (
     <div className={`${styles.goalCard} ${cardClass}`}>
@@ -963,6 +1019,11 @@ function GoalCard({ goal, onRemove }: { goal: BoardGoal; onRemove: () => void })
         <span className={styles.goalProgress}>
           Alvo: {goal.target} · Progresso: {goal.current}
         </span>
+        {ratio != null && (
+          <div className={styles.goalBar}>
+            <div className={styles.goalBarFill} style={{ width: `${Math.round(ratio * 100)}%` }} />
+          </div>
+        )}
       </div>
       <span className={`${styles.goalStatusBadge} ${statusClass}`}>{statusLabel}</span>
       <button className={styles.goalRemove} onClick={onRemove}>×</button>

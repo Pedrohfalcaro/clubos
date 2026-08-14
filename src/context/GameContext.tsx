@@ -94,8 +94,14 @@ import { nextPressFriction } from '../pressconference';
 import { contextLabel, pressSpecialDone } from '../utils/pressTriggers';
 import { getCategoryBreakdown, monthKeyFromDate } from '../utils/financeAnalytics';
 import { clearArcPendingPress, tickStoryArc } from '../utils/storyArcs';
-import type { BoardState, BoardGoal } from '../types/Board';
+import type { BoardState, BoardGoal, BoardConfidenceEntry } from '../types/Board';
 import { createDefaultBoardState } from '../types/Board';
+import {
+  tickBoardGoals,
+  resolveGoalsAtSeasonEnd,
+  type GoalEvalContext,
+  type GoalResolution,
+} from '../utils/boardGoals';
 import type {
   TransferState,
   WatchlistPlayer,
@@ -269,6 +275,8 @@ type GameAction =
   | { type: 'SET_BOARD_GOAL'; goal: BoardGoal }
   | { type: 'REMOVE_BOARD_GOAL'; goalId: string }
   | { type: 'ADJUST_BOARD_CONFIDENCE'; delta: number; reason: string }
+  | { type: 'UPDATE_GOAL_PROGRESS'; updates: { goalId: string; current: number }[] }
+  | { type: 'RESOLVE_BOARD_GOALS'; resolutions: GoalResolution[] }
   | { type: 'UPDATE_TEAM'; updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>> }
   // Transfers
   | { type: 'ADD_WATCHLIST'; player: WatchlistPlayer }
@@ -409,6 +417,7 @@ interface GameContextValue {
   setBoardGoal: (goal: BoardGoal) => void;
   removeBoardGoal: (goalId: string) => void;
   adjustBoardConfidence: (delta: number, reason: string) => void;
+  resolveBoardGoals: (resolutions: GoalResolution[]) => void;
   updateTeam: (updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>>) => void;
   // Transfers
   addWatchlist: (player: WatchlistPlayer) => void;
@@ -935,11 +944,22 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           stats: emptySquadStats(),
           fatigue: 0,
         }));
-        const goals = state.board.goals.map(g =>
-          g.status === 'active' && g.season === state.season
-            ? { ...g, status: 'failed' as const }
-            : g,
+        const seasonTransfersForGoals = state.transfers.history.filter(
+          t => t.season === state.season,
         );
+        const goalCtx: GoalEvalContext = {
+          competitions: state.seasonCompetitions,
+          transfersSeason: seasonTransfersForGoals,
+          spentOnTransfers: seasonTransfersForGoals
+            .filter(t => t.type === 'buy')
+            .reduce((s, t) => s + t.fee, 0),
+          wageBill: wageBill(state.players),
+        };
+        const goalResolutions = resolveGoalsAtSeasonEnd(state.board.goals, state.season, goalCtx);
+        const goals = state.board.goals.map(g => {
+          const res = goalResolutions.find(r => r.goalId === g.id);
+          return res ? { ...g, status: res.status, current: res.current } : g;
+        });
 
         const closing = computeSeasonClosingAchievements({
           teamName: state.team.name,
@@ -983,6 +1003,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         const sponsorDelta = sponsorSettle.entries.reduce((s, e) => s + e.amount, 0);
         const financeBalance = state.finance.balance + sponsorDelta;
 
+        let runningBoardConfidence = state.team.boardConfidence;
+        let runningSupporterConfidence = state.team.supporterConfidence;
+        const goalBoardHistory: BoardConfidenceEntry[] = [];
+        const goalSupporterHistory: BoardConfidenceEntry[] = [];
+        for (const res of goalResolutions) {
+          runningBoardConfidence = clampConfidence(runningBoardConfidence + res.boardDelta);
+          runningSupporterConfidence = clampConfidence(runningSupporterConfidence + res.supporterDelta);
+          goalBoardHistory.push({ date: closeDate, value: runningBoardConfidence, reason: res.reason });
+          goalSupporterHistory.push({
+            date: closeDate,
+            value: runningSupporterConfidence,
+            reason: res.reason,
+          });
+        }
+
         return {
           ...state,
           season: newSeason,
@@ -1003,6 +1038,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             budget: financeBalance,
             statistics: emptyTeamStats(),
             achievements: closing.achievements,
+            boardConfidence: runningBoardConfidence,
+            supporterConfidence: runningSupporterConfidence,
           },
           board: {
             ...state.board,
@@ -1010,17 +1047,19 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             confidenceHistory: [
               {
                 date: closeDate,
-                value: state.team.boardConfidence,
+                value: runningBoardConfidence,
                 reason: `Início da temporada ${newSeason}`,
               },
+              ...[...goalBoardHistory].reverse(),
               ...state.board.confidenceHistory,
             ].slice(0, 50),
             supporterHistory: [
               {
                 date: closeDate,
-                value: state.team.supporterConfidence,
+                value: runningSupporterConfidence,
                 reason: `Início da temporada ${newSeason}`,
               },
+              ...[...goalSupporterHistory].reverse(),
               ...(state.board.supporterHistory ?? []),
             ].slice(0, 50),
           },
@@ -2325,6 +2364,50 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'UPDATE_GOAL_PROGRESS': {
+      if (!action.updates.length) return state;
+      const byId = new Map(action.updates.map(u => [u.goalId, u.current]));
+      const goals = state.board.goals.map(g =>
+        byId.has(g.id) ? { ...g, current: byId.get(g.id)! } : g,
+      );
+      return { ...state, board: { ...state.board, goals } };
+    }
+
+    case 'RESOLVE_BOARD_GOALS': {
+      if (!state.team || !action.resolutions.length) return state;
+      const byId = new Map(action.resolutions.map(r => [r.goalId, r]));
+      const goals = state.board.goals.map(g => {
+        const res = byId.get(g.id);
+        return res ? { ...g, status: res.status, current: res.current } : g;
+      });
+
+      const date = state.currentDate ?? new Date().toISOString().slice(0, 10);
+      let board = state.team.boardConfidence;
+      let supporter = state.team.supporterConfidence;
+      const boardEntries: BoardConfidenceEntry[] = [];
+      const supporterEntries: BoardConfidenceEntry[] = [];
+      for (const res of action.resolutions) {
+        board = clampConfidence(board + res.boardDelta);
+        supporter = clampConfidence(supporter + res.supporterDelta);
+        boardEntries.push({ date, value: board, reason: res.reason });
+        supporterEntries.push({ date, value: supporter, reason: res.reason });
+      }
+
+      return {
+        ...state,
+        team: { ...state.team, boardConfidence: board, supporterConfidence: supporter },
+        board: {
+          ...state.board,
+          goals,
+          confidenceHistory: [...boardEntries.reverse(), ...state.board.confidenceHistory].slice(0, 50),
+          supporterHistory: [
+            ...supporterEntries.reverse(),
+            ...(state.board.supporterHistory ?? []),
+          ].slice(0, 50),
+        },
+      };
+    }
+
     case 'UPDATE_TEAM': {
       if (!state.team) return state;
       return { ...state, team: { ...state.team, ...action.updates } };
@@ -2788,6 +2871,40 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
     };
   }, [persistSave]);
+
+  // Metas da diretoria: progresso ao vivo + resolução automática (ver utils/boardGoals.ts).
+  const boardGoalsTickKey = [
+    state.season,
+    state.board.goals.map(g => `${g.id}:${g.status}:${g.current}`).join(';'),
+    state.seasonCompetitions
+      .map(
+        c =>
+          `${c.id}:${c.currentPosition ?? ''}:${(c.knockoutPhases ?? [])
+            .map(p => `${p.id}:${p.advanced}:${p.outcome}:${p.isFinal}`)
+            .join(',')}`,
+      )
+      .join('|'),
+    state.transfers.history.length,
+    state.players.reduce((s, p) => s + (p.salary ?? 0), 0),
+  ].join('::');
+
+  useEffect(() => {
+    if (!state.team) return;
+    const seasonTransfers = state.transfers.history.filter(t => t.season === state.season);
+    const ctx: GoalEvalContext = {
+      competitions: state.seasonCompetitions,
+      transfersSeason: seasonTransfers,
+      spentOnTransfers: seasonTransfers
+        .filter(t => t.type === 'buy')
+        .reduce((s, t) => s + t.fee, 0),
+      wageBill: wageBill(state.players),
+    };
+    const { progress, resolutions } = tickBoardGoals(state.board.goals, state.season, ctx);
+    if (progress.length) dispatch({ type: 'UPDATE_GOAL_PROGRESS', updates: progress });
+    if (resolutions.length) dispatch({ type: 'RESOLVE_BOARD_GOALS', resolutions });
+    // boardGoalsTickKey encapsula os campos relevantes (metas, competições, transfers, folha)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardGoalsTickKey]);
 
   function selectCareerMode(mode: CareerMode) {
     dispatch({ type: 'SELECT_CAREER_MODE', mode });
@@ -3345,6 +3462,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'ADJUST_BOARD_CONFIDENCE', delta, reason });
   }
 
+  function resolveBoardGoals(resolutions: GoalResolution[]) {
+    if (!resolutions.length) return;
+    dispatch({ type: 'RESOLVE_BOARD_GOALS', resolutions });
+  }
+
   function updateTeam(updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>>) {
     dispatch({ type: 'UPDATE_TEAM', updates });
   }
@@ -3677,6 +3799,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setBoardGoal,
         removeBoardGoal,
         adjustBoardConfidence,
+        resolveBoardGoals,
         updateTeam,
         addWatchlist,
         removeWatchlist,

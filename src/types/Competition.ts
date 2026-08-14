@@ -1,3 +1,5 @@
+import type { MatchLocation } from './Match';
+
 export interface StandingsEntry {
   teamName: string;
   matches: number;
@@ -56,6 +58,25 @@ export interface KnockoutPhase {
   prizeReceived?: number;
   /** Resultado resolvido */
   outcome?: 'won' | 'lost' | 'draw';
+  /** Mando de campo do jogo de ida (define automaticamente o mando da volta). */
+  location?: MatchLocation;
+  /** Fase disputada em ida e volta — goalsFor/goalsAgainst acima = jogo de ida. */
+  twoLegged?: boolean;
+  /** Placar do jogo de volta (só quando twoLegged). */
+  secondLeg?: {
+    goalsFor: number | null;
+    goalsAgainst: number | null;
+  };
+  /** Agregado empatado — resultado decidido nos pênaltis/prorrogação. */
+  decidedOnPenalties?: boolean;
+  /** Vencedor da disputa de pênaltis/prorrogação (só quando decidedOnPenalties). */
+  penaltyWinner?: 'us' | 'them';
+}
+
+export function oppositeLocation(loc?: MatchLocation): MatchLocation {
+  if (loc === 'home') return 'away';
+  if (loc === 'away') return 'home';
+  return 'neutral';
 }
 
 /** Competição da temporada — nome, cor no calendário e metadados. */
@@ -73,6 +94,12 @@ export interface SeasonCompetition {
   knockoutPhases?: KnockoutPhase[];
   /** Em league_knockout: usuário abriu o mata-mata */
   knockoutStarted?: boolean;
+  /**
+   * Posição atual na competição, informada manualmente pelo usuário
+   * (a tabela sincronizada nem sempre reflete a competição real).
+   * Alimenta metas da diretoria do tipo `league_position`/`win_competition`.
+   */
+  currentPosition?: number | null;
 }
 
 /** @deprecated Prefer SeasonCompetition — mantido por compatibilidade de imports. */

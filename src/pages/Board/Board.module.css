@@ -226,6 +226,21 @@
   font-variant-numeric: tabular-nums;
 }
 
+.goalBar {
+  height: 5px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.goalBarFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
 .goalStatusBadge {
   font-size: 10px;
   font-weight: 700;

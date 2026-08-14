@@ -829,6 +829,200 @@ div.table {
   border-collapse: separate;
 }
 
+/* ── Dashboard (visão geral) ────────────── */
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.dashCard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--comp-radius);
+}
+
+.dashCardTop {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.dashCardName {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-h);
+  letter-spacing: -0.2px;
+}
+
+.dashStatRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dashStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dashStatLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+
+.dashStatValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.dashOpenBtn {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 8px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dashOpenBtn:hover {
+  border-color: var(--comp-color, var(--accent));
+  color: var(--comp-color, var(--accent));
+}
+
+/* ── Tabs ───────────────────────────────── */
+.tabBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.tabBtn {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tabBtnActive {
+  border-color: var(--comp-color, var(--accent));
+  background: color-mix(in srgb, var(--comp-color, var(--accent)) 16%, var(--card-bg));
+  color: var(--text-h);
+}
+
+/* ── Explicação do mata-mata ────────────── */
+.explainerBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.explainerBox p {
+  margin: 0;
+}
+
+.explainerList {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Ida e volta / pênaltis ─────────────── */
+.legHint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text);
+  font-style: italic;
+}
+
+.aggregateNote {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.aggregateTied {
+  background: color-mix(in srgb, var(--danger, #ef4444) 14%, transparent);
+  color: var(--danger, #ef4444);
+}
+
+.penaltyPrompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-h);
+}
+
+.penaltyBtn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.penaltyBtnActive {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* ── Posição atual (manual) ─────────────── */
+.positionField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.positionField label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.positionInput {
+  width: 84px;
+}
+
 @media (max-width: 760px) {
   .formGrid,
   .metaGrid,
@@ -849,5 +1043,9 @@ div.table {
 
   .compHeader {
     flex-direction: column;
+  }
+
+  .dashboardGrid {
+    grid-template-columns: 1fr;
   }
 }
