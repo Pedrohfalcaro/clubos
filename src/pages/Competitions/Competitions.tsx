@@ -5,6 +5,7 @@ import type {
   CompetitionTableRow,
   CompetitionType,
   KnockoutPhase,
+  KnockoutStage,
   SeasonCompetition,
 } from '../../types/Competition';
 import { oppositeLocation } from '../../types/Competition';
@@ -12,6 +13,7 @@ import {
   COMPETITION_FORMAT_HINTS,
   COMPETITION_FORMAT_LABELS,
   COMPETITION_TYPE_LABELS,
+  KNOCKOUT_STAGE_LABELS,
 } from '../../types/Competition';
 import type { MatchLocation } from '../../types/Match';
 import { COMPETITION_PALETTE, createSeasonCompetition } from '../../utils/competitions';
@@ -30,10 +32,13 @@ import {
   syncLeagueTable,
 } from '../../utils/competitionEngine';
 import { formatMoney, newLedgerEntry } from '../../utils/finance';
+import { describeLeagueGoalForCompetition } from '../../utils/boardGoals';
+import GoalSetupModal from '../../components/GoalSetupModal/GoalSetupModal';
 import styles from './Competitions.module.css';
 
 const TYPES: CompetitionType[] = ['league', 'cup', 'continental', 'state', 'friendly', 'other'];
 const FORMATS: CompetitionFormat[] = ['league', 'knockout', 'league_knockout'];
+const KNOCKOUT_STAGES: KnockoutStage[] = ['group', 'r32', 'r16', 'qf', 'sf', 'final'];
 
 const LOCATION_LABELS: Record<MatchLocation, string> = {
   home: 'Casa',
@@ -95,11 +100,12 @@ function recordFromMatches(
 }
 
 export default function Competitions() {
-  const { state, addCompetition, updateCompetition, removeCompetition, applyLedger } = useGame();
-  const { matches, team, seasonCompetitions, season, finance } = state;
+  const { state, addCompetition, updateCompetition, removeCompetition, applyLedger, setBoardGoal } = useGame();
+  const { matches, team, seasonCompetitions, season, finance, board } = state;
   const myTeamName = team?.name ?? 'Meu clube';
 
   const [showAdd, setShowAdd] = useState(false);
+  const [goalSetupComp, setGoalSetupComp] = useState<SeasonCompetition | null>(null);
   const [activeCompId, setActiveCompId] = useState<string | null>(null);
   const [editingMetaId, setEditingMetaId] = useState<string | null>(null);
   const [flash, setFlash] = useState<PrizeFlash | null>(null);
@@ -173,19 +179,18 @@ export default function Competitions() {
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!addForm.name.trim()) return;
-    addCompetition(
-      createSeasonCompetition(addForm.name.trim(), {
-        color: addForm.color,
-        type: addForm.type,
-        format: addForm.format,
-        shortName: addForm.shortName.trim() || undefined,
-        leagueTable: hasLeagueStage(addForm.format)
-          ? [createEmptyTableRow(myTeamName, true)]
-          : undefined,
-        knockoutPhases:
-          addForm.format === 'knockout' ? [createInitialKnockoutPhase()] : undefined,
-      }),
-    );
+    const competition = createSeasonCompetition(addForm.name.trim(), {
+      color: addForm.color,
+      type: addForm.type,
+      format: addForm.format,
+      shortName: addForm.shortName.trim() || undefined,
+      leagueTable: hasLeagueStage(addForm.format)
+        ? [createEmptyTableRow(myTeamName, true)]
+        : undefined,
+      knockoutPhases:
+        addForm.format === 'knockout' ? [createInitialKnockoutPhase()] : undefined,
+    });
+    addCompetition(competition);
     setAddForm({
       name: '',
       color: COMPETITION_PALETTE[5],
@@ -194,6 +199,7 @@ export default function Competitions() {
       shortName: '',
     });
     setShowAdd(false);
+    setGoalSetupComp(competition);
   }
 
   function patchComp(comp: SeasonCompetition, updates: Partial<Omit<SeasonCompetition, 'id'>>) {
@@ -503,6 +509,18 @@ export default function Competitions() {
           ) : null}
         </>
       )}
+
+      {goalSetupComp && (
+        <GoalSetupModal
+          competition={goalSetupComp}
+          season={season}
+          onSubmit={goal => {
+            setBoardGoal(goal);
+            setGoalSetupComp(null);
+          }}
+          onSkip={() => setGoalSetupComp(null)}
+        />
+      )}
     </div>
   );
 
@@ -711,6 +729,18 @@ export default function Competitions() {
                       onChange={e => setPosition(comp, e.target.value)}
                       placeholder="Ex: 5"
                     />
+                    {(() => {
+                      const goalInfo = describeLeagueGoalForCompetition(comp, board.goals, season);
+                      if (!goalInfo) return null;
+                      return (
+                        <span
+                          className={styles.goalBadge}
+                          style={{ color: goalInfo.onTrack ? '#22c55e' : '#ef4444' }}
+                        >
+                          {goalInfo.label}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <button
                     type="button"
@@ -889,6 +919,22 @@ export default function Competitions() {
                           }
                           placeholder="Nome da fase"
                         />
+                        <select
+                          className={styles.input}
+                          value={phase.stage ?? ''}
+                          disabled={done}
+                          onChange={e =>
+                            updatePhase(comp, phase.id, {
+                              stage: (e.target.value || undefined) as KnockoutStage | undefined,
+                            })
+                          }
+                          title="Estágio (alimenta metas de fase)"
+                        >
+                          <option value="">Estágio…</option>
+                          {KNOCKOUT_STAGES.map(s => (
+                            <option key={s} value={s}>{KNOCKOUT_STAGE_LABELS[s]}</option>
+                          ))}
+                        </select>
                         <span
                           className={`${styles.phaseStatus} ${
                             phase.outcome === 'won'

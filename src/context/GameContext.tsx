@@ -99,6 +99,9 @@ import { createDefaultBoardState } from '../types/Board';
 import {
   tickBoardGoals,
   resolveGoalsAtSeasonEnd,
+  tickLeaguePacing,
+  resolveGoalManually,
+  migrateBoardGoal,
   type GoalEvalContext,
   type GoalResolution,
 } from '../utils/boardGoals';
@@ -277,6 +280,15 @@ type GameAction =
   | { type: 'ADJUST_BOARD_CONFIDENCE'; delta: number; reason: string }
   | { type: 'UPDATE_GOAL_PROGRESS'; updates: { goalId: string; current: number }[] }
   | { type: 'RESOLVE_BOARD_GOALS'; resolutions: GoalResolution[] }
+  | { type: 'MANUALLY_RESOLVE_GOAL'; resolution: GoalResolution }
+  | {
+      type: 'TICK_GOAL_PACING';
+      goalId: string;
+      pacingTickedGames: number;
+      boardDelta: number;
+      reason: string;
+    }
+  | { type: 'DISMISS_GOAL_PROMPT'; season: number }
   | { type: 'UPDATE_TEAM'; updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>> }
   // Transfers
   | { type: 'ADD_WATCHLIST'; player: WatchlistPlayer }
@@ -418,6 +430,8 @@ interface GameContextValue {
   removeBoardGoal: (goalId: string) => void;
   adjustBoardConfidence: (delta: number, reason: string) => void;
   resolveBoardGoals: (resolutions: GoalResolution[]) => void;
+  manuallyResolveGoal: (goal: BoardGoal, status: 'done' | 'exceeded' | 'failed') => void;
+  dismissGoalPrompt: (season: number) => void;
   updateTeam: (updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>>) => void;
   // Transfers
   addWatchlist: (player: WatchlistPlayer) => void;
@@ -954,6 +968,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             .filter(t => t.type === 'buy')
             .reduce((s, t) => s + t.fee, 0),
           wageBill: wageBill(state.players),
+          debtRemaining: (state.finance.debts ?? []).reduce((s, d) => s + d.remaining, 0),
+          balance: state.finance.balance,
         };
         const goalResolutions = resolveGoalsAtSeasonEnd(state.board.goals, state.season, goalCtx);
         const goals = state.board.goals.map(g => {
@@ -2408,6 +2424,60 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'MANUALLY_RESOLVE_GOAL': {
+      if (!state.team) return state;
+      const res = action.resolution;
+      const goal = state.board.goals.find(g => g.id === res.goalId);
+      if (!goal || goal.status !== 'active') return state;
+
+      const goals = state.board.goals.map(g =>
+        g.id === res.goalId
+          ? { ...g, status: res.status, current: res.current, resolvedManually: true }
+          : g,
+      );
+      const date = state.currentDate ?? new Date().toISOString().slice(0, 10);
+      const board = clampConfidence(state.team.boardConfidence + res.boardDelta);
+      const supporter = clampConfidence(state.team.supporterConfidence + res.supporterDelta);
+
+      return {
+        ...state,
+        team: { ...state.team, boardConfidence: board, supporterConfidence: supporter },
+        board: {
+          ...state.board,
+          goals,
+          confidenceHistory: [{ date, value: board, reason: res.reason }, ...state.board.confidenceHistory].slice(0, 50),
+          supporterHistory: [
+            { date, value: supporter, reason: res.reason },
+            ...(state.board.supporterHistory ?? []),
+          ].slice(0, 50),
+        },
+      };
+    }
+
+    case 'TICK_GOAL_PACING': {
+      if (!state.team) return state;
+      const goals = state.board.goals.map(g =>
+        g.id === action.goalId ? { ...g, pacingTickedGames: action.pacingTickedGames } : g,
+      );
+      if (action.boardDelta === 0) {
+        return { ...state, board: { ...state.board, goals } };
+      }
+      const date = state.currentDate ?? new Date().toISOString().slice(0, 10);
+      const board = clampConfidence(state.team.boardConfidence + action.boardDelta);
+      return {
+        ...state,
+        team: { ...state.team, boardConfidence: board },
+        board: {
+          ...state.board,
+          goals,
+          confidenceHistory: [{ date, value: board, reason: action.reason }, ...state.board.confidenceHistory].slice(0, 50),
+        },
+      };
+    }
+
+    case 'DISMISS_GOAL_PROMPT':
+      return { ...state, board: { ...state.board, goalPromptDismissedSeason: action.season } };
+
     case 'UPDATE_TEAM': {
       if (!state.team) return state;
       return { ...state, team: { ...state.team, ...action.updates } };
@@ -2875,17 +2945,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Metas da diretoria: progresso ao vivo + resolução automática (ver utils/boardGoals.ts).
   const boardGoalsTickKey = [
     state.season,
-    state.board.goals.map(g => `${g.id}:${g.status}:${g.current}`).join(';'),
+    state.board.goals.map(g => `${g.id}:${g.status}:${g.current}:${g.pacingTickedGames ?? 0}`).join(';'),
     state.seasonCompetitions
       .map(
         c =>
-          `${c.id}:${c.currentPosition ?? ''}:${(c.knockoutPhases ?? [])
-            .map(p => `${p.id}:${p.advanced}:${p.outcome}:${p.isFinal}`)
+          `${c.id}:${c.currentPosition ?? ''}:${c.leagueTable?.find(r => r.isUserTeam)?.matches ?? ''}:${(c.knockoutPhases ?? [])
+            .map(p => `${p.id}:${p.advanced}:${p.outcome}:${p.isFinal}:${p.stage ?? ''}`)
             .join(',')}`,
       )
       .join('|'),
     state.transfers.history.length,
     state.players.reduce((s, p) => s + (p.salary ?? 0), 0),
+    (state.finance.debts ?? []).reduce((s, d) => s + d.remaining, 0),
+    state.finance.balance,
   ].join('::');
 
   useEffect(() => {
@@ -2898,11 +2970,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
         .filter(t => t.type === 'buy')
         .reduce((s, t) => s + t.fee, 0),
       wageBill: wageBill(state.players),
+      debtRemaining: (state.finance.debts ?? []).reduce((s, d) => s + d.remaining, 0),
+      balance: state.finance.balance,
     };
     const { progress, resolutions } = tickBoardGoals(state.board.goals, state.season, ctx);
     if (progress.length) dispatch({ type: 'UPDATE_GOAL_PROGRESS', updates: progress });
     if (resolutions.length) dispatch({ type: 'RESOLVE_BOARD_GOALS', resolutions });
-    // boardGoalsTickKey encapsula os campos relevantes (metas, competições, transfers, folha)
+
+    for (const goal of state.board.goals) {
+      if (goal.season !== state.season || goal.kind !== 'league_position') continue;
+      const comp = state.seasonCompetitions.find(c => c.id === goal.competitionId);
+      const tick = tickLeaguePacing(goal, comp);
+      if (tick) {
+        dispatch({
+          type: 'TICK_GOAL_PACING',
+          goalId: goal.id,
+          pacingTickedGames: tick.pacingTickedGames,
+          boardDelta: tick.boardDelta,
+          reason: tick.reason,
+        });
+      }
+    }
+    // boardGoalsTickKey encapsula os campos relevantes (metas, competições, transfers, folha, dívida, caixa)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardGoalsTickKey]);
 
@@ -3309,7 +3398,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           tutorialCompleted: save.tutorialCompleted ?? false,
           pulse: save.pulse ?? createDefaultPulseState(),
           finance,
-          board: save.board ?? createDefaultBoardState(),
+          board: save.board
+            ? { ...save.board, goals: (save.board.goals ?? []).map(migrateBoardGoal) }
+            : createDefaultBoardState(),
           transfers: {
             ...createDefaultTransferState(),
             ...(save.transfers ?? {}),
@@ -3465,6 +3556,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   function resolveBoardGoals(resolutions: GoalResolution[]) {
     if (!resolutions.length) return;
     dispatch({ type: 'RESOLVE_BOARD_GOALS', resolutions });
+  }
+
+  function manuallyResolveGoal(goal: BoardGoal, status: 'done' | 'exceeded' | 'failed') {
+    const resolution = resolveGoalManually(goal, status, goal.current);
+    dispatch({ type: 'MANUALLY_RESOLVE_GOAL', resolution });
+  }
+
+  function dismissGoalPrompt(season: number) {
+    dispatch({ type: 'DISMISS_GOAL_PROMPT', season });
   }
 
   function updateTeam(updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>>) {
@@ -3800,6 +3900,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         removeBoardGoal,
         adjustBoardConfidence,
         resolveBoardGoals,
+        manuallyResolveGoal,
+        dismissGoalPrompt,
         updateTeam,
         addWatchlist,
         removeWatchlist,

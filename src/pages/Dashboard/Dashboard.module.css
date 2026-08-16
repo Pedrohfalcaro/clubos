@@ -318,6 +318,47 @@
   gap: 8px;
 }
 
+/* Variante do .hubHead como <button> — usada quando o card tem conteúdo interativo
+   próprio (ex.: input de posição) e não pode inteiro ser um <button>. */
+.hubHeadBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hubPositionEdit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.hubPositionInput {
+  width: 40px;
+  padding: 2px 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-h);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.hubPositionInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .hubTitle {
   margin: 0;
   font-size: 12px;
@@ -639,6 +680,29 @@
 .pressCtaArc .pressCtaLabel,
 .pressCtaArc .pressCtaGo {
   color: #c084fc;
+}
+
+.goalUpdateBanner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--text-h, var(--text));
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.goalUpdateArrow {
+  font-weight: 700;
+  color: #f59e0b;
+  flex-shrink: 0;
 }
 
 /* ——— Form strip (PJ / VED / goals) ——— */

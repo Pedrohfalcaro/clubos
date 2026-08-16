@@ -15,6 +15,8 @@ import {
 } from '../../utils/clubDebts';
 import { analyzeLiveLifeGaps } from '../../utils/livelifeTemplates';
 import { boardStatus } from '../../types/Board';
+import { leagueGoalAwaitingUpdate } from '../../utils/boardGoals';
+import GoalSetupModal from '../../components/GoalSetupModal/GoalSetupModal';
 import { findMatchOnDate, formatGameDate } from '../../livelife';
 import { CATEGORIA_LABELS, RARIDADE_LABELS } from '../../pulse';
 import { paymentsDueOnDate } from '../../utils/transferPayments';
@@ -106,6 +108,9 @@ export default function Dashboard() {
     dismissLoanPayments,
     payClubDebt,
     dismissDebtPayments,
+    setBoardGoal,
+    dismissGoalPrompt,
+    updateCompetition,
   } = useGame();
   const navigate = useNavigate();
   const {
@@ -227,6 +232,11 @@ export default function Dashboard() {
     rewindDay();
   }
 
+  function setCompetitionPosition(competitionId: string, raw: string) {
+    const n = raw.trim() === '' ? null : Math.max(1, parseInt(raw, 10) || 1);
+    updateCompetition(competitionId, { currentPosition: n });
+  }
+
   const topScorers = useMemo(
     () =>
       [...players]
@@ -305,6 +315,34 @@ export default function Dashboard() {
     () => board.goals.filter(g => g.status === 'active').slice(0, 3),
     [board.goals],
   );
+
+  const [skippedGoalCompIds, setSkippedGoalCompIds] = useState<string[]>([]);
+  const pendingGoalComps = useMemo(
+    () =>
+      seasonCompetitions.filter(
+        c =>
+          !skippedGoalCompIds.includes(c.id) &&
+          !board.goals.some(g => g.competitionId === c.id && g.season === state.season),
+      ),
+    [seasonCompetitions, skippedGoalCompIds, board.goals, state.season],
+  );
+  const showGoalSetupPrompt =
+    board.goalPromptDismissedSeason !== state.season && pendingGoalComps.length > 0;
+
+  const goalsAwaitingUpdate = useMemo(
+    () =>
+      board.goals.filter(g => {
+        if (g.season !== state.season) return false;
+        const comp = seasonCompetitions.find(c => c.id === g.competitionId);
+        return leagueGoalAwaitingUpdate(g, comp);
+      }),
+    [board.goals, seasonCompetitions, state.season],
+  );
+
+  function finishGoalPrompt(compId: string) {
+    const remaining = pendingGoalComps.filter(c => c.id !== compId);
+    if (remaining.length === 0) dismissGoalPrompt(state.season);
+  }
 
   if (!team) return null;
 
@@ -624,6 +662,20 @@ export default function Dashboard() {
         </button>
       )}
 
+      {goalsAwaitingUpdate.length > 0 && (
+        <button
+          type="button"
+          className={styles.goalUpdateBanner}
+          onClick={() => navigate('/competitions')}
+        >
+          <span>
+            ⏱ {goalsAwaitingUpdate.length} meta{goalsAwaitingUpdate.length !== 1 ? 's' : ''} de liga
+            com rodadas concluídas — atualize a posição final em Competições
+          </span>
+          <span className={styles.goalUpdateArrow}>→</span>
+        </button>
+      )}
+
       {/* Hub: Financeiro / Diretoria / Transferências */}
       <section className={styles.hubGrid} aria-label="Gestão do clube">
         <button type="button" className={styles.hubCard} onClick={() => navigate('/financas')}>
@@ -664,11 +716,11 @@ export default function Dashboard() {
           )}
         </button>
 
-        <button type="button" className={styles.hubCard} onClick={() => navigate('/diretoria')}>
-          <div className={styles.hubHead}>
+        <div className={styles.hubCard}>
+          <button type="button" className={styles.hubHeadBtn} onClick={() => navigate('/diretoria')}>
             <h2 className={styles.hubTitle}>Diretoria</h2>
             <span className={styles.hubArrow}>→</span>
-          </div>
+          </button>
           <p className={styles.hubBig}>{boardConf}%</p>
           <div className={styles.hubMeta}>
             <span className={styles[`hubStatus_${confStatus}`]}>
@@ -682,12 +734,30 @@ export default function Dashboard() {
           </div>
           {isCurrentScope && activeGoals.length > 0 ? (
             <ul className={styles.hubList}>
-              {activeGoals.map(g => (
-                <li key={g.id}>
-                  <span className={styles.hubListName}>{g.label}</span>
-                  <span className={styles.hubListMuted}>{g.current}/{g.target}</span>
-                </li>
-              ))}
+              {activeGoals.map(g => {
+                const comp = seasonCompetitions.find(c => c.id === g.competitionId);
+                return (
+                  <li key={g.id}>
+                    <span className={styles.hubListName}>{g.label}</span>
+                    {g.kind === 'league_position' && comp ? (
+                      <span className={styles.hubPositionEdit}>
+                        <input
+                          type="number"
+                          min={1}
+                          className={styles.hubPositionInput}
+                          value={comp.currentPosition ?? ''}
+                          onChange={e => setCompetitionPosition(comp.id, e.target.value)}
+                          placeholder="Ex: 5"
+                          title="Posição atual — sincronizada com Competições"
+                        />
+                        <span className={styles.hubListMuted}>º → {g.target}º</span>
+                      </span>
+                    ) : (
+                      <span className={styles.hubListMuted}>{g.current}/{g.target}</span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : isCurrentScope ? (
             <p className={styles.hubEmpty}>Nenhuma meta definida.</p>
@@ -698,7 +768,7 @@ export default function Dashboard() {
           ) : (
             <p className={styles.hubEmpty}>Confiança atual do clube.</p>
           )}
-        </button>
+        </div>
 
         <button type="button" className={styles.hubCard} onClick={() => navigate('/transferencias')}>
           <div className={styles.hubHead}>
@@ -967,6 +1037,22 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {showGoalSetupPrompt && pendingGoalComps[0] && (
+        <GoalSetupModal
+          competition={pendingGoalComps[0]}
+          season={state.season}
+          onSubmit={goal => {
+            setBoardGoal(goal);
+            finishGoalPrompt(goal.competitionId!);
+          }}
+          onSkip={() => {
+            const compId = pendingGoalComps[0].id;
+            setSkippedGoalCompIds(ids => [...ids, compId]);
+            finishGoalPrompt(compId);
+          }}
+        />
       )}
 
       {payrollDue && (

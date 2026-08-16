@@ -185,21 +185,30 @@
 .goalList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .goalCard {
   background: var(--card-bg);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
   border-radius: 12px;
   padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.goalActive   { border-left-color: #f59e0b; }
+.goalDone     { border-left-color: #22c55e; }
+.goalExceeded { border-left-color: #ec4899; background: rgba(236,72,153,.05); }
+.goalFailed   { border-left-color: #ef4444; opacity: .7; }
+
+.goalTop {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-
-.goalDone  { border-color: rgba(34,197,94,.4); }
-.goalFailed { border-color: rgba(239,68,68,.35); opacity: .65; }
 
 .goalIcon {
   font-size: 18px;
@@ -241,16 +250,40 @@
   transition: width 0.4s ease;
 }
 
+.goalTopRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.priorityChip {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.priority_low      { background: rgba(148,163,184,.15); color: #94a3b8; }
+.priority_medium   { background: rgba(59,130,246,.15); color: #3b82f6; }
+.priority_high     { background: rgba(249,115,22,.15); color: #f97316; }
+.priority_critical { background: rgba(239,68,68,.18); color: #ef4444; }
+
 .goalStatusBadge {
   font-size: 10px;
   font-weight: 700;
   padding: 3px 9px;
   border-radius: 999px;
+  white-space: nowrap;
 }
 
-.badgeActive  { background: rgba(124,58,237,.12); color: var(--accent); }
-.badgeDone    { background: rgba(34,197,94,.12); color: #22c55e; }
-.badgeFailed  { background: rgba(239,68,68,.1); color: #ef4444; }
+.badgeActive   { background: rgba(245,158,11,.14); color: #f59e0b; }
+.badgeDone     { background: rgba(34,197,94,.12); color: #22c55e; }
+.badgeExceeded { background: rgba(236,72,153,.15); color: #ec4899; }
+.badgeFailed   { background: rgba(239,68,68,.1); color: #ef4444; }
 
 .goalRemove {
   background: none;
@@ -259,6 +292,52 @@
   font-size: 16px;
   cursor: pointer;
   padding: 0 2px;
+}
+
+.goalActions {
+  display: flex;
+  gap: 8px;
+}
+
+.goalActionDone,
+.goalActionFailed {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.goalActionDone { color: #22c55e; }
+.goalActionDone:hover { border-color: rgba(34,197,94,.5); background: rgba(34,197,94,.08); }
+.goalActionFailed { color: #ef4444; }
+.goalActionFailed:hover { border-color: rgba(239,68,68,.5); background: rgba(239,68,68,.08); }
+
+.goalFooterWarn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(245,158,11,.1);
+  border: 1px solid rgba(245,158,11,.35);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.goalFooterLink {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #f59e0b;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
 }
 
 /* ── Edit club ──────────────────────────── */

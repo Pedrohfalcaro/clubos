@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
-import { boardStatus } from '../../types/Board';
-import type { BoardGoal, BoardGoalKind } from '../../types/Board';
+import { boardStatus, PRIORITY_LABELS } from '../../types/Board';
+import type { BoardGoal, BoardGoalKind, BoardGoalPriority } from '../../types/Board';
+import type { SeasonCompetition } from '../../types/Competition';
 import ClubCrest from '../../components/ClubCrest/ClubCrest';
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
 import { formatMoney, newLedgerEntry } from '../../utils/finance';
@@ -10,17 +11,45 @@ import { downloadSaveBackup } from '../../utils/backup';
 import { analyzeLiveLifeGaps } from '../../utils/livelifeTemplates';
 import { LIVELIFE_CHANGELOG } from '../../types/LiveLife';
 import MoneyAmountHint from '../../components/MoneyAmountHint/MoneyAmountHint';
+import GoalSetupModal from '../../components/GoalSetupModal/GoalSetupModal';
+import { leagueGoalAwaitingUpdate } from '../../utils/boardGoals';
 import styles from './Board.module.css';
 
 type Tab = 'confidence' | 'goals' | 'club' | 'season' | 'livelife';
 
-const GOAL_KINDS: { kind: BoardGoalKind; label: string; icon: string; unit: string }[] = [
-  { kind: 'league_position', label: 'Posição no campeonato', icon: '🏆', unit: 'posição (1 = 1º)' },
+/** Metas com alvo numérico digitado à mão — as ligadas a competição usam o GoalSetupModal. */
+const MANUAL_GOAL_KINDS: { kind: BoardGoalKind; label: string; icon: string; unit: string }[] = [
   { kind: 'dont_spend_over', label: 'Não gastar mais que', icon: '💸', unit: 'R$' },
   { kind: 'sell_players', label: 'Vender jogadores', icon: '↗', unit: 'jogadores' },
+  { kind: 'sign_players', label: 'Contratar jogadores', icon: '↘', unit: 'jogadores' },
   { kind: 'wage_bill_cap', label: 'Folha máxima', icon: '📋', unit: 'R$ / mês' },
-  { kind: 'win_competition', label: 'Ganhar competição', icon: '🥇', unit: 'conquistas' },
+  { kind: 'reduce_debt', label: 'Reduzir dívida do clube', icon: '📉', unit: 'R$ restantes' },
+  { kind: 'positive_balance', label: 'Caixa mínimo', icon: '🏦', unit: 'R$' },
 ];
+
+const GOAL_ICONS: Record<BoardGoalKind, string> = {
+  league_position: '🏆',
+  cup_stage: '🥈',
+  win_competition: '🥇',
+  dont_spend_over: '💸',
+  sell_players: '↗',
+  sign_players: '↘',
+  wage_bill_cap: '📋',
+  reduce_debt: '📉',
+  positive_balance: '🏦',
+};
+
+const GOAL_LABELS: Record<BoardGoalKind, string> = {
+  league_position: 'Posição no campeonato',
+  cup_stage: 'Fase da copa',
+  win_competition: 'Ganhar competição',
+  dont_spend_over: 'Não gastar mais que',
+  sell_players: 'Vender jogadores',
+  sign_players: 'Contratar jogadores',
+  wage_bill_cap: 'Folha máxima',
+  reduce_debt: 'Reduzir dívida do clube',
+  positive_balance: 'Caixa mínimo',
+};
 
 const STATUS_LABELS = {
   stable: 'Estável',
@@ -29,11 +58,11 @@ const STATUS_LABELS = {
 };
 
 function goalKindIcon(kind: BoardGoalKind): string {
-  return GOAL_KINDS.find(g => g.kind === kind)?.icon ?? '◎';
+  return GOAL_ICONS[kind] ?? '◎';
 }
 
 function goalKindLabel(kind: BoardGoalKind): string {
-  return GOAL_KINDS.find(g => g.kind === kind)?.label ?? kind;
+  return GOAL_LABELS[kind] ?? kind;
 }
 
 export default function Board() {
@@ -48,6 +77,7 @@ export default function Board() {
     setCurrentDate,
     completeLiveLifeOnboarding,
     addClubDebt,
+    manuallyResolveGoal,
   } = useGame();
   const navigate = useNavigate();
   const {
@@ -92,12 +122,17 @@ export default function Board() {
   const debtMonthlyPreview =
     debtAmtN >= 1 && debtInstN >= 1 ? Math.max(1, Math.round(debtAmtN / debtInstN)) : 0;
 
-  // Goal form state
-  const [goalKind, setGoalKind] = useState<BoardGoalKind>('league_position');
+  // Goal form state (metas manuais/financeiras)
+  const [goalKind, setGoalKind] = useState<BoardGoalKind>('dont_spend_over');
   const [goalTarget, setGoalTarget] = useState('');
   const [goalLabel, setGoalLabel] = useState('');
-  const [goalCompetitionId, setGoalCompetitionId] = useState('');
-  const goalNeedsCompetition = goalKind === 'league_position' || goalKind === 'win_competition';
+  const [goalPriority, setGoalPriority] = useState<BoardGoalPriority>('medium');
+
+  // Meta ligada a competição (liga/copa) — passa pelo GoalSetupModal
+  const [showCompPicker, setShowCompPicker] = useState(false);
+  const [compPickerId, setCompPickerId] = useState('');
+  const [goalSetupCompId, setGoalSetupCompId] = useState<string | null>(null);
+  const goalSetupComp = seasonCompetitions.find(c => c.id === goalSetupCompId) ?? null;
 
   function saveClub() {
     updateTeam({
@@ -162,7 +197,6 @@ export default function Board() {
   function submitGoal() {
     const target = parseFloat(goalTarget.replace(',', '.'));
     if (isNaN(target) || target <= 0) return;
-    if (goalNeedsCompetition && !goalCompetitionId) return;
     const g: BoardGoal = {
       id: `goal-${Date.now()}`,
       season,
@@ -171,17 +205,38 @@ export default function Board() {
       target,
       current: 0,
       status: 'active',
-      competitionId: goalNeedsCompetition ? goalCompetitionId : undefined,
+      priority: goalPriority,
     };
     setBoardGoal(g);
-    setGoalKind('league_position');
+    setGoalKind('dont_spend_over');
     setGoalTarget('');
     setGoalLabel('');
-    setGoalCompetitionId('');
+    setGoalPriority('medium');
     setShowGoalForm(false);
   }
 
+  function openCompPicker() {
+    setCompPickerId(seasonCompetitions[0]?.id ?? '');
+    setShowCompPicker(true);
+  }
+
+  function confirmCompPicker() {
+    if (!compPickerId) return;
+    setGoalSetupCompId(compPickerId);
+    setShowCompPicker(false);
+  }
+
   const activeGoals = board.goals.filter(g => g.season === season || g.status === 'active');
+
+  const sortedGoals = useMemo(() => {
+    const statusRank: Record<string, number> = { active: 0, exceeded: 1, done: 2, failed: 3 };
+    const priorityRank: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0 };
+    return [...activeGoals].sort((a, b) => {
+      const sr = statusRank[a.status] - statusRank[b.status];
+      if (sr !== 0) return sr;
+      return priorityRank[b.priority ?? 'medium'] - priorityRank[a.priority ?? 'medium'];
+    });
+  }, [activeGoals]);
 
   const seasonSummary = useMemo(() => {
     const completed = matches.filter(m => m.status === 'completed');
@@ -390,19 +445,32 @@ export default function Board() {
         <>
           <div className={styles.sectionHead}>
             <h3 className={styles.sectionTitle}>Metas da temporada {season}</h3>
-            <button className={styles.btnPrimary} onClick={() => setShowGoalForm(true)}>
-              + Meta
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className={styles.btnSecondary} onClick={openCompPicker}>
+                + Meta de competição
+              </button>
+              <button className={styles.btnPrimary} onClick={() => setShowGoalForm(true)}>
+                + Meta financeira
+              </button>
+            </div>
           </div>
 
-          {activeGoals.length === 0 ? (
+          {sortedGoals.length === 0 ? (
             <div className={styles.emptyState}>
               Nenhuma meta definida ainda. Adicione metas para acompanhar os objetivos da diretoria.
             </div>
           ) : (
             <div className={styles.goalList}>
-              {activeGoals.map(goal => (
-                <GoalCard key={goal.id} goal={goal} onRemove={() => removeBoardGoal(goal.id)} />
+              {sortedGoals.map(goal => (
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
+                  comp={seasonCompetitions.find(c => c.id === goal.competitionId)}
+                  onRemove={() => removeBoardGoal(goal.id)}
+                  onMarkDone={() => manuallyResolveGoal(goal, 'done')}
+                  onMarkFailed={() => manuallyResolveGoal(goal, 'failed')}
+                  onGoToCompetitions={() => navigate('/competitions')}
+                />
               ))}
             </div>
           )}
@@ -905,7 +973,7 @@ export default function Board() {
       {showGoalForm && (
         <div className={styles.overlay} onClick={() => setShowGoalForm(false)}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <p className={styles.modalTitle}>Nova meta</p>
+            <p className={styles.modalTitle}>Nova meta financeira</p>
 
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Tipo de meta</label>
@@ -914,36 +982,15 @@ export default function Board() {
                 value={goalKind}
                 onChange={e => setGoalKind(e.target.value as BoardGoalKind)}
               >
-                {GOAL_KINDS.map(g => (
+                {MANUAL_GOAL_KINDS.map(g => (
                   <option key={g.kind} value={g.kind}>{g.icon} {g.label}</option>
                 ))}
               </select>
             </div>
 
-            {goalNeedsCompetition && (
-              <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Competição</label>
-                <select
-                  className={styles.formInput}
-                  value={goalCompetitionId}
-                  onChange={e => setGoalCompetitionId(e.target.value)}
-                >
-                  <option value="">Selecione…</option>
-                  {seasonCompetitions.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                <span style={{ fontSize: 11, color: 'var(--text)' }}>
-                  {goalKind === 'league_position'
-                    ? 'A posição atual é a informada na página Competições.'
-                    : 'Resolve sozinha quando o mata-mata dessa competição terminar (campeão ou eliminado).'}
-                </span>
-              </div>
-            )}
-
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>
-                Alvo ({GOAL_KINDS.find(g => g.kind === goalKind)?.unit})
+                Alvo ({MANUAL_GOAL_KINDS.find(g => g.kind === goalKind)?.unit})
               </label>
               <input
                 className={styles.formInput}
@@ -953,6 +1000,19 @@ export default function Board() {
                 min={0}
                 placeholder="Ex: 6"
               />
+            </div>
+
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Prioridade</label>
+              <select
+                className={styles.formInput}
+                value={goalPriority}
+                onChange={e => setGoalPriority(e.target.value as BoardGoalPriority)}
+              >
+                {(['low', 'medium', 'high', 'critical'] as BoardGoalPriority[]).map(p => (
+                  <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>
+                ))}
+              </select>
             </div>
 
             <div className={styles.formGroup}>
@@ -966,25 +1026,65 @@ export default function Board() {
             </div>
 
             <div className={styles.modalActions}>
-              <button
-                className={styles.btnSecondary}
-                onClick={() => {
-                  setShowGoalForm(false);
-                  setGoalCompetitionId('');
-                }}
-              >
+              <button className={styles.btnSecondary} onClick={() => setShowGoalForm(false)}>
                 Cancelar
               </button>
-              <button
-                className={styles.btnPrimary}
-                onClick={submitGoal}
-                disabled={goalNeedsCompetition && !goalCompetitionId}
-              >
+              <button className={styles.btnPrimary} onClick={submitGoal}>
                 Adicionar
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {showCompPicker && (
+        <div className={styles.overlay} onClick={() => setShowCompPicker(false)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <p className={styles.modalTitle}>Meta de competição</p>
+            {seasonCompetitions.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text)' }}>
+                Cadastre uma competição em "Competições" antes de definir essa meta.
+              </p>
+            ) : (
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Competição</label>
+                <select
+                  className={styles.formInput}
+                  value={compPickerId}
+                  onChange={e => setCompPickerId(e.target.value)}
+                >
+                  {seasonCompetitions.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className={styles.modalActions}>
+              <button className={styles.btnSecondary} onClick={() => setShowCompPicker(false)}>
+                Cancelar
+              </button>
+              <button
+                className={styles.btnPrimary}
+                onClick={confirmCompPicker}
+                disabled={!compPickerId}
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {goalSetupComp && (
+        <GoalSetupModal
+          competition={goalSetupComp}
+          season={season}
+          onSubmit={goal => {
+            setBoardGoal(goal);
+            setGoalSetupCompId(null);
+          }}
+          onSkip={() => setGoalSetupCompId(null)}
+        />
       )}
     </div>
   );
@@ -995,8 +1095,13 @@ function goalProgressRatio(goal: BoardGoal): number | null {
   if (goal.target <= 0) return null;
   switch (goal.kind) {
     case 'sell_players':
+    case 'sign_players':
     case 'dont_spend_over':
     case 'wage_bill_cap':
+    case 'reduce_debt':
+    case 'positive_balance':
+      return Math.max(0, Math.min(1, goal.current / goal.target));
+    case 'cup_stage':
       return Math.max(0, Math.min(1, goal.current / goal.target));
     case 'win_competition':
       return Math.max(0, Math.min(1, goal.current));
@@ -1005,28 +1110,86 @@ function goalProgressRatio(goal: BoardGoal): number | null {
   }
 }
 
-function GoalCard({ goal, onRemove }: { goal: BoardGoal; onRemove: () => void }) {
-  const statusClass = goal.status === 'done' ? styles.badgeDone : goal.status === 'failed' ? styles.badgeFailed : styles.badgeActive;
-  const statusLabel = goal.status === 'done' ? 'Concluída' : goal.status === 'failed' ? 'Falhou' : 'Ativa';
-  const cardClass = goal.status === 'done' ? styles.goalDone : goal.status === 'failed' ? styles.goalFailed : '';
+const STATUS_BADGE_LABELS: Record<string, string> = {
+  active: 'Em andamento',
+  done: 'Concluída',
+  exceeded: 'Superada',
+  failed: 'Não concluída',
+};
+
+function GoalCard({
+  goal,
+  comp,
+  onRemove,
+  onMarkDone,
+  onMarkFailed,
+  onGoToCompetitions,
+}: {
+  goal: BoardGoal;
+  comp?: SeasonCompetition;
+  onRemove: () => void;
+  onMarkDone: () => void;
+  onMarkFailed: () => void;
+  onGoToCompetitions: () => void;
+}) {
+  const statusClass =
+    goal.status === 'done' ? styles.badgeDone
+    : goal.status === 'exceeded' ? styles.badgeExceeded
+    : goal.status === 'failed' ? styles.badgeFailed
+    : styles.badgeActive;
+  const cardClass =
+    goal.status === 'done' ? styles.goalDone
+    : goal.status === 'exceeded' ? styles.goalExceeded
+    : goal.status === 'failed' ? styles.goalFailed
+    : styles.goalActive;
   const ratio = goal.status === 'active' ? goalProgressRatio(goal) : null;
+  const priority = goal.priority ?? 'medium';
+  const awaitingUpdate = leagueGoalAwaitingUpdate(goal, comp);
+
+  const progressText =
+    goal.kind === 'league_position'
+      ? `Posição atual: ${comp?.currentPosition ?? '—'}º · Meta: ${goal.target}º`
+      : `Alvo: ${goal.target} · Progresso: ${goal.current}`;
 
   return (
     <div className={`${styles.goalCard} ${cardClass}`}>
-      <span className={styles.goalIcon}>{goalKindIcon(goal.kind)}</span>
-      <div className={styles.goalBody}>
-        <span className={styles.goalName}>{goal.label}</span>
-        <span className={styles.goalProgress}>
-          Alvo: {goal.target} · Progresso: {goal.current}
-        </span>
-        {ratio != null && (
-          <div className={styles.goalBar}>
-            <div className={styles.goalBarFill} style={{ width: `${Math.round(ratio * 100)}%` }} />
-          </div>
-        )}
+      <div className={styles.goalTop}>
+        <span className={styles.goalIcon}>{goalKindIcon(goal.kind)}</span>
+        <div className={styles.goalBody}>
+          <span className={styles.goalName}>{goal.label}</span>
+          <span className={styles.goalProgress}>{progressText}</span>
+          {ratio != null && (
+            <div className={styles.goalBar}>
+              <div className={styles.goalBarFill} style={{ width: `${Math.round(ratio * 100)}%` }} />
+            </div>
+          )}
+        </div>
+        <div className={styles.goalTopRight}>
+          <span className={`${styles.priorityChip} ${styles[`priority_${priority}`]}`}>
+            {PRIORITY_LABELS[priority]}
+          </span>
+          <span className={`${styles.goalStatusBadge} ${statusClass}`}>
+            {STATUS_BADGE_LABELS[goal.status]}
+          </span>
+          <button className={styles.goalRemove} onClick={onRemove} title="Remover meta">×</button>
+        </div>
       </div>
-      <span className={`${styles.goalStatusBadge} ${statusClass}`}>{statusLabel}</span>
-      <button className={styles.goalRemove} onClick={onRemove}>×</button>
+
+      {goal.status === 'active' && (
+        <div className={styles.goalActions}>
+          <button className={styles.goalActionDone} onClick={onMarkDone}>✓ Concluída</button>
+          <button className={styles.goalActionFailed} onClick={onMarkFailed}>✕ Não concluída</button>
+        </div>
+      )}
+
+      {awaitingUpdate && (
+        <div className={styles.goalFooterWarn}>
+          <span>⏱ Rodadas concluídas — atualize a posição final</span>
+          <button className={styles.goalFooterLink} onClick={onGoToCompetitions}>
+            Ir para Competições →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

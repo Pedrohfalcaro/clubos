@@ -42,11 +42,38 @@ export interface CompetitionTableRow {
   locked?: boolean;
 }
 
+/**
+ * Estágio estrutural da fase — separado do `name` (livre) para permitir avaliação
+ * automática de metas por fase (ver `CupStage` em types/Board.ts). Fases antigas sem
+ * `stage` ficam "não rankeadas" e são ignoradas por essa avaliação.
+ */
+export type KnockoutStage = 'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final';
+
+export const KNOCKOUT_STAGE_LABELS: Record<KnockoutStage, string> = {
+  group: 'Fase de grupos',
+  r32: 'Repescagem / 32avos',
+  r16: 'Oitavas de final',
+  qf: 'Quartas de final',
+  sf: 'Semifinal',
+  final: 'Final',
+};
+
+export const KNOCKOUT_STAGE_RANK: Record<KnockoutStage, number> = {
+  group: 0,
+  r32: 1,
+  r16: 2,
+  qf: 3,
+  sf: 4,
+  final: 5,
+};
+
 /** Fase do mata-mata (uma por vez, progressiva). */
 export interface KnockoutPhase {
   id: string;
   /** Nome editável: "Fase 1", "Oitavas", "Final"… */
   name: string;
+  /** Estágio estrutural opcional — alimenta metas do tipo `cup_stage`. */
+  stage?: KnockoutStage;
   opponent: string;
   goalsFor: number | null;
   goalsAgainst: number | null;

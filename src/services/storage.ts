@@ -22,6 +22,7 @@ import { createDefaultSocialState } from '../types/Social';
 import { isPersonality } from '../pulse/utils';
 import type { BoardState } from '../types/Board';
 import { createDefaultBoardState } from '../types/Board';
+import { migrateBoardGoal } from '../utils/boardGoals';
 import type { TransferState } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
 import type { SeasonArchive } from '../types/SeasonHistory';
@@ -220,7 +221,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     ? {
         ...createDefaultBoardState(),
         ...save.board,
-        goals: save.board.goals ?? [],
+        goals: (save.board.goals ?? []).map(migrateBoardGoal),
         confidenceHistory: save.board.confidenceHistory ?? [],
         supporterHistory: save.board.supporterHistory ?? [],
         mediaHistory: save.board.mediaHistory ?? [],
