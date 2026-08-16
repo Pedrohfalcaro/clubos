@@ -82,7 +82,7 @@ export function parseSeasonImport(
       team = {};
       for (const field of TEAM_NUMERIC_FIELDS) {
         const v = raw.team[field];
-        if (v === undefined) continue;
+        if (v === undefined || v === null) continue;
         if (typeof v !== 'number' || !Number.isFinite(v)) {
           errors.push({ path: `team.${field}`, message: 'deve ser um número.' });
           continue;
@@ -120,7 +120,7 @@ export function parseSeasonImport(
       const numeric: Partial<Record<(typeof PLAYER_NUMERIC_FIELDS)[number], number>> = {};
       for (const field of PLAYER_NUMERIC_FIELDS) {
         const v = rawPlayer[field];
-        if (v === undefined) continue;
+        if (v === undefined || v === null) continue;
         if (typeof v !== 'number' || !Number.isFinite(v)) {
           errors.push({ path: `players[${i}].${field}`, message: 'deve ser um número.' });
           continue;
