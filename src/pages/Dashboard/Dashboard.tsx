@@ -31,6 +31,7 @@ import {
   teamStatsForScope,
   matchesForScope,
   playerStatsForScope,
+  formerPlayersForScope,
   financeForScope,
   transfersForScope,
   ledgerForScope,
@@ -114,7 +115,7 @@ export default function Dashboard() {
   } = useGame();
   const navigate = useNavigate();
   const {
-    team, matches, manager, finance, board, transfers, players, seasonHistory, currentDate, payrollDue,
+    team, matches, manager, finance, board, transfers, players, formerPlayers, seasonHistory, currentDate, payrollDue,
     liveLifePromptPending, seasonCompetitions, pendingDailyPulse, transferPaymentsDue, loanPaymentsDue,
     debtPaymentsDue,
   } = state;
@@ -237,28 +238,33 @@ export default function Dashboard() {
     updateCompetition(competitionId, { currentPosition: n });
   }
 
+  const playersForHistScope = useMemo(
+    () => [...players, ...formerPlayersForScope(formerPlayers, histScope, seasonHistory, state.season)],
+    [players, formerPlayers, histScope, seasonHistory, state.season],
+  );
+
   const topScorers = useMemo(
     () =>
-      [...players]
+      playersForHistScope
         .map(p => ({ player: p, stats: playerStatsForScope(p, histScope, seasonHistory, state.season) }))
         .filter(r => r.stats.goals > 0)
         .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists)
         .slice(0, 5),
-    [players, histScope, seasonHistory, state.season],
+    [playersForHistScope, histScope, seasonHistory, state.season],
   );
 
   const topAssists = useMemo(
     () =>
-      [...players]
+      playersForHistScope
         .map(p => ({ player: p, stats: playerStatsForScope(p, histScope, seasonHistory, state.season) }))
         .filter(r => r.stats.assists > 0)
         .sort((a, b) => b.stats.assists - a.stats.assists || b.stats.goals - a.stats.goals)
         .slice(0, 5),
-    [players, histScope, seasonHistory, state.season],
+    [playersForHistScope, histScope, seasonHistory, state.season],
   );
 
   const topRatings = useMemo(() => {
-    return [...players]
+    return playersForHistScope
       .map(p => ({
         player: p,
         avg: calcPlayerAverageRating(p.id, scopedMatches),
@@ -266,7 +272,7 @@ export default function Dashboard() {
       .filter((x): x is { player: typeof players[0]; avg: number } => x.avg != null)
       .sort((a, b) => b.avg - a.avg)
       .slice(0, 5);
-  }, [players, scopedMatches]);
+  }, [playersForHistScope, scopedMatches]);
 
   const bill = useMemo(() => wageBill(players), [players]);
   const payrollBridge = useMemo(

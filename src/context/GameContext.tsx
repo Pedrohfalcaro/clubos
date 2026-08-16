@@ -19,7 +19,7 @@ import type { CareerPlayer, ClubInfo, InjuryEntry } from '../types/CareerPlayer'
 import { createDefaultCareerPlayer, emptyPlayerStats } from '../types/CareerPlayer';
 import type { CompletePlayerMatchInput } from '../types/PlayerMatchPerformance';
 import { clearGame, type GameSave } from '../services/storage';
-import { calcResult, recalculateFromMatches } from '../utils/matchStats';
+import { calcResult, recalculateFromMatches, statsForPlayerFromMatches } from '../utils/matchStats';
 import { applyDailySquadMoraleDrift, applyMatchMoraleToPlayers } from '../utils/squadMorale';
 import {
   calcMatchClimateDeltas,
@@ -114,13 +114,14 @@ import type {
 import { createDefaultTransferState } from '../types/Transfer';
 import { paymentsDueOnDate } from '../utils/transferPayments';
 import { isDateInTransferWindow } from '../utils/transferWindow';
-import type { SeasonArchive } from '../types/SeasonHistory';
-import { emptyTeamStats } from '../types/SeasonHistory';
+import type { SeasonArchive, SeasonPlayerSnapshot } from '../types/SeasonHistory';
+import { emptyTeamStats, sumPlayerStats } from '../types/SeasonHistory';
 import { newLedgerEntry, wageBill, calcGateRevenue, applyMatchPrize } from '../utils/finance';
 import { computeFinancialHealth } from '../utils/financialHealth';
 import { advanceDay as computeAdvanceDay, findMatchOnDate, applyMatchAvailability, addDaysIso } from '../livelife';
 import { useAuth } from './AuthContext';
 import { emptyPlayerStats as emptySquadStats } from '../types/Player';
+import type { PlayerPosition, PlayerStats } from '../types/Player';
 import type { SaveSlotId } from '../services/saveSlots';
 
 const PLAYER_TEAM_ID = 'player-career';
@@ -142,6 +143,8 @@ export interface GameState {
   manager: Manager | null;
   seasonCompetitions: SeasonCompetition[];
   players: Player[];
+  /** Jogadores vendidos — snapshot congelado no momento da venda, preservado para histórico. */
+  formerPlayers: Player[];
   careerPlayer: CareerPlayer | null;
   matches: Match[];
   season: number;
@@ -289,6 +292,11 @@ type GameAction =
       reason: string;
     }
   | { type: 'DISMISS_GOAL_PROMPT'; season: number }
+  | {
+      type: 'BACKFILL_FORMER_PLAYERS';
+      players: Player[];
+      archivePatches: { season: number; snapshot: SeasonPlayerSnapshot }[];
+    }
   | { type: 'UPDATE_TEAM'; updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>> }
   // Transfers
   | { type: 'ADD_WATCHLIST'; player: WatchlistPlayer }
@@ -500,6 +508,7 @@ const initialState: GameState = {
   manager: null,
   seasonCompetitions: [],
   players: [],
+  formerPlayers: [],
   careerPlayer: null,
   matches: [],
   season: 2026,
@@ -929,7 +938,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           income,
           expense,
           transferCount: state.transfers.history.filter(t => t.season === state.season).length,
-          players: state.players.map(p => ({
+          // Inclui quem foi vendido durante esta temporada — sem isso, os gols/jogos que ele
+          // fez antes da venda somem do histórico assim que a temporada fecha.
+          players: [
+            ...state.players,
+            ...state.formerPlayers.filter(p => p.departedAt?.season === state.season),
+          ].map(p => ({
             playerId: p.id,
             name: p.name,
             position: p.position,
@@ -2478,6 +2492,32 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'DISMISS_GOAL_PROMPT':
       return { ...state, board: { ...state.board, goalPromptDismissedSeason: action.season } };
 
+    case 'BACKFILL_FORMER_PLAYERS': {
+      if (!action.players.length && !action.archivePatches.length) return state;
+      const existingIds = new Set(state.formerPlayers.map(p => p.id));
+      const toAdd = action.players.filter(p => !existingIds.has(p.id));
+
+      const seasonHistory = action.archivePatches.length
+        ? state.seasonHistory.map(arch => {
+            const patches = action.archivePatches.filter(p => p.season === arch.season);
+            if (!patches.length) return arch;
+            const existingPlayerIds = new Set(arch.players.map(x => x.playerId));
+            const snapshotsToAdd = patches
+              .filter(p => !existingPlayerIds.has(p.snapshot.playerId))
+              .map(p => p.snapshot);
+            return snapshotsToAdd.length
+              ? { ...arch, players: [...arch.players, ...snapshotsToAdd] }
+              : arch;
+          })
+        : state.seasonHistory;
+
+      return {
+        ...state,
+        formerPlayers: toAdd.length ? [...state.formerPlayers, ...toAdd] : state.formerPlayers,
+        seasonHistory,
+      };
+    }
+
     case 'UPDATE_TEAM': {
       if (!state.team) return state;
       return { ...state, team: { ...state.team, ...action.updates } };
@@ -2509,10 +2549,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         return state; // fora da janela: só renovações
       }
       let players = state.players;
+      let formerPlayers = state.formerPlayers;
       let finance = state.finance;
 
       if (removedPlayerId && record.type === 'sell') {
+        const sold = players.find(p => p.id === removedPlayerId);
         players = players.filter(p => p.id !== removedPlayerId);
+        if (sold) {
+          formerPlayers = [
+            ...formerPlayers,
+            { ...sold, departedAt: { season: state.season, date: dealDate, reason: 'sold' } },
+          ];
+        }
       }
       if (newPlayer) {
         players = [...players, newPlayer];
@@ -2547,6 +2595,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         players,
+        formerPlayers,
         team: updatedTeam,
         finance,
         transferPaymentsDue: state.transferPaymentsDue || dueNow.length > 0,
@@ -2839,6 +2888,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         teamId: s.teamId,
         team: s.team,
         players: s.players,
+        formerPlayers: s.formerPlayers,
         matches: s.matches,
         season: s.season,
         manager: s.manager,
@@ -2994,6 +3044,77 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // boardGoalsTickKey encapsula os campos relevantes (metas, competições, transfers, folha, dívida, caixa)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardGoalsTickKey]);
+
+  // Recupera jogadores vendidos ANTES de `state.formerPlayers` existir: reconstrói as stats da
+  // temporada da venda a partir de `state.matches` e completa o arquivo da temporada se ela já
+  // tiver fechado sem ele. Roda uma vez por venda "órfã" — depois de recuperada, ela some da lista.
+  const legacySoldBackfillKey = state.transfers.history
+    .filter(t => t.type === 'sell' && t.playerId)
+    .map(t => t.id)
+    .join(',');
+
+  useEffect(() => {
+    if (!state.team || state.careerMode !== 'coach') return;
+    const knownIds = new Set([
+      ...state.players.map(p => p.id),
+      ...state.formerPlayers.map(p => p.id),
+    ]);
+    const legacySales = state.transfers.history.filter(
+      t => t.type === 'sell' && t.playerId && !knownIds.has(t.playerId),
+    );
+    if (!legacySales.length) return;
+
+    const players: Player[] = [];
+    const archivePatches: { season: number; snapshot: SeasonPlayerSnapshot }[] = [];
+
+    for (const record of legacySales) {
+      const playerId = record.playerId!;
+      const snap = record.playerSnapshot;
+      const position = (snap.position as PlayerPosition) || 'CM';
+      const stats = statsForPlayerFromMatches(playerId, position === 'GK', state.matches, record.season);
+
+      const priorStats = state.seasonHistory
+        .filter(s => s.season < record.season)
+        .map(s => s.players.find(p => p.playerId === playerId)?.stats)
+        .filter((s): s is PlayerStats => !!s);
+      const careerStats = priorStats.length ? sumPlayerStats(priorStats) : undefined;
+
+      players.push({
+        id: playerId,
+        teamId: state.teamId ?? '',
+        name: snap.name,
+        position,
+        number: snap.number ?? null,
+        age: snap.age ?? 0,
+        overall: snap.overall ?? 0,
+        potential: snap.overall ?? 0,
+        morale: 70,
+        salary: 0,
+        marketValue: 0,
+        status: 'Transferível',
+        stats,
+        careerStats,
+        departedAt: { season: record.season, date: record.date, reason: 'sold' },
+      });
+
+      if (state.seasonHistory.some(s => s.season === record.season)) {
+        archivePatches.push({
+          season: record.season,
+          snapshot: {
+            playerId,
+            name: snap.name,
+            position,
+            age: snap.age ?? 0,
+            overall: snap.overall ?? 0,
+            stats,
+          },
+        });
+      }
+    }
+
+    dispatch({ type: 'BACKFILL_FORMER_PLAYERS', players, archivePatches });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legacySoldBackfillKey, state.careerMode]);
 
   function selectCareerMode(mode: CareerMode) {
     dispatch({ type: 'SELECT_CAREER_MODE', mode });
@@ -3322,6 +3443,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           manager: null,
           seasonCompetitions: migrateSeasonCompetitions(save.seasonCompetitions),
           players: [],
+          formerPlayers: [],
           matches: save.matches,
           season: save.season,
           tactics: null,
@@ -3389,6 +3511,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           manager: save.manager ?? null,
           seasonCompetitions: comps,
           players: recalculated.players,
+          formerPlayers: save.formerPlayers ?? [],
           matches,
           season: save.season,
           tactics: tacticsState.tactics,

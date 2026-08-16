@@ -13,6 +13,26 @@ export function playerCareerTotal(p: Player): PlayerStats {
   return sumPlayerStats([p.careerStats ?? emptyPlayerStats(), p.stats]);
 }
 
+/**
+ * Ex-jogadores (vendidos) relevantes para o escopo pedido — para juntar com `players` antes de
+ * montar artilharia/rankings, sem reviver stats "congelados" de uma saída antiga fora de escopo.
+ */
+export function formerPlayersForScope(
+  formerPlayers: Player[],
+  scope: HistoryScope,
+  seasonHistory: SeasonArchive[],
+  currentSeason: number,
+): Player[] {
+  if (scope === 'total') return formerPlayers;
+  if (scope === 'current' || scope === currentSeason) {
+    return formerPlayers.filter(p => p.departedAt?.season === currentSeason);
+  }
+  const arch = seasonHistory.find(s => s.season === scope);
+  if (!arch) return [];
+  const ids = new Set(arch.players.map(x => x.playerId));
+  return formerPlayers.filter(p => ids.has(p.id));
+}
+
 export function playerStatsForScope(
   p: Player,
   scope: HistoryScope,

@@ -238,6 +238,20 @@
   text-overflow: ellipsis;
 }
 
+.formerBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  vertical-align: middle;
+}
+
 @media (max-width: 700px) {
   .histTotals {
     grid-template-columns: repeat(3, 1fr);

@@ -81,7 +81,7 @@ export default function Board() {
   } = useGame();
   const navigate = useNavigate();
   const {
-    board, team, season, finance, matches, players, transfers, currentDate,
+    board, team, season, finance, matches, players, formerPlayers, transfers, currentDate,
     seasonCompetitions, livelife,
   } = state;
 
@@ -252,7 +252,10 @@ export default function Board() {
       .filter(e => e.season === season && e.amount < 0)
       .reduce((s, e) => s + e.amount, 0);
     const transfersSeason = transfers.history.filter(t => t.season === season);
-    const topScorers = [...players]
+    const topScorers = [
+      ...players,
+      ...formerPlayers.filter(p => p.departedAt?.season === season),
+    ]
       .filter(p => p.stats.goals > 0)
       .sort((a, b) => b.stats.goals - a.stats.goals)
       .slice(0, 3);
@@ -275,7 +278,7 @@ export default function Board() {
       confidence: team?.boardConfidence ?? 0,
       balance: finance.balance,
     };
-  }, [matches, finance, season, transfers.history, players, board.goals, team?.boardConfidence]);
+  }, [matches, finance, season, transfers.history, players, formerPlayers, board.goals, team?.boardConfidence]);
 
   function confirmAdvanceSeason() {
     const next = season + 1;

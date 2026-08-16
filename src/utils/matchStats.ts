@@ -1,5 +1,6 @@
 import type { Match } from '../types/Match';
-import type { Player } from '../types/Player';
+import type { Player, PlayerStats } from '../types/Player';
+import { emptyPlayerStats } from '../types/Player';
 import type { Team, TeamStatistics } from '../types/Team';
 import { getMatchPlayingTime } from './playingTime';
 
@@ -103,6 +104,43 @@ export function recalculateFromMatches(
       },
     })),
   };
+}
+
+/**
+ * Reconstrói as stats de um jogador numa temporada a partir dos jogos — usado para recuperar o
+ * histórico de quem foi vendido antes de existir `state.formerPlayers` (ver GameContext.tsx).
+ */
+export function statsForPlayerFromMatches(
+  playerId: string,
+  isGoalkeeper: boolean,
+  matches: Match[],
+  season: number,
+): PlayerStats {
+  const stats = emptyPlayerStats();
+  const completed = matches.filter(
+    m => m.status === 'completed' && (m.season ?? season) === season,
+  );
+
+  for (const match of completed) {
+    const playingTime = getMatchPlayingTime(match);
+    const mins = playingTime.get(playerId);
+    if (mins !== undefined) {
+      stats.matches += 1;
+      stats.minutes += mins;
+      if (match.goalsAgainst === 0 && mins > 0) stats.cleanSheets += 1;
+      if (isGoalkeeper && mins > 0) {
+        stats.goalsConceded = (stats.goalsConceded ?? 0) + match.goalsAgainst;
+      }
+    }
+    stats.goals += match.goals.filter(g => !g.isOwnGoal && g.playerId === playerId).length;
+    stats.assists += match.assists.filter(a => a.playerId === playerId).length;
+    for (const card of match.cards.filter(c => c.playerId === playerId)) {
+      if (card.type === 'yellow') stats.yellowCards += 1;
+      if (card.type === 'red') stats.redCards += 1;
+    }
+  }
+
+  return stats;
 }
 
 export function getHomeAway(

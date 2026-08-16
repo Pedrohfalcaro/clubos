@@ -5,6 +5,7 @@ import { availabilityStatusLabel } from '../../types/Player';
 import {
   scopeOptions,
   playerStatsForScope,
+  formerPlayersForScope,
   teamStatsForScope,
   type HistoryScope,
 } from '../../utils/historyScope';
@@ -179,9 +180,11 @@ export default function Squad() {
   });
 
   const historyRows = useMemo(() => {
-    return [...state.players]
+    const former = formerPlayersForScope(state.formerPlayers, histScope, state.seasonHistory, state.season);
+    return [...state.players, ...former]
       .map(p => ({
         player: p,
+        former: former.includes(p),
         stats: playerStatsForScope(p, histScope, state.seasonHistory, state.season),
       }))
       .filter(row =>
@@ -189,7 +192,7 @@ export default function Squad() {
         (histScope === 'current' || histScope === 'total' || row.stats.matches > 0 || row.stats.goals > 0 || row.stats.assists > 0),
       )
       .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists || b.stats.matches - a.stats.matches);
-  }, [state.players, histScope, state.seasonHistory, state.season, search]);
+  }, [state.players, state.formerPlayers, histScope, state.seasonHistory, state.season, search]);
 
   const historyTotals = useMemo(() => {
     const teamGames = teamStatsForScope(
@@ -439,9 +442,16 @@ export default function Squad() {
                 <span>CA</span>
                 <span>CV</span>
               </div>
-              {historyRows.map(({ player: p, stats }) => (
+              {historyRows.map(({ player: p, stats, former }) => (
                 <div key={p.id} className={styles.histRow}>
-                  <span className={styles.histName}>{p.name}</span>
+                  <span className={styles.histName}>
+                    {p.name}
+                    {former && (
+                      <span className={styles.formerBadge} title="Não faz mais parte do elenco">
+                        ex
+                      </span>
+                    )}
+                  </span>
                   <span>{p.position}</span>
                   <span>{stats.matches}</span>
                   <span>{stats.minutes}'</span>

@@ -68,6 +68,11 @@ export interface Player {
    * Enquanto `currentDate < availableFrom`, fica indisponível.
    */
   availableFrom?: string;
+  /**
+   * Preenchido só em `state.formerPlayers` — quando/por que o atleta saiu do elenco.
+   * `stats` fica congelado como estava no momento da saída (temporada até ali).
+   */
+  departedAt?: { season: number; date: string; reason: 'sold' };
 }
 
 function sameCompetition(a?: string | null, b?: string | null): boolean {

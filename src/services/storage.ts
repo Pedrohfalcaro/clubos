@@ -48,6 +48,8 @@ export interface GameSave {
   teamId?: string;
   team?: Team;
   players?: Player[];
+  /** Jogadores vendidos — snapshot congelado no momento da saída, preservado para histórico. */
+  formerPlayers?: Player[];
   matches: Match[];
   season: number;
   manager?: Manager | null;
@@ -132,38 +134,42 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       }
     : createDefaultPulseState();
 
-  const playersRaw = (save.players ?? []).map(p => {
+  function normalizePlayerDefaults(p: Player): Player {
     const availability = p.availability ?? 'disponivel';
     const needsCountdown =
       (availability === 'lesionado' || availability === 'suspenso') &&
       (p.injuryDaysRemaining == null || p.injuryDaysRemaining <= 0);
     return {
-    ...p,
-    morale: p.morale ?? 70,
-    personality: isPersonality(p.personality) ? p.personality : 'Disciplinado',
-    fatigue: p.fatigue ?? 0,
-    availability,
-    injuryDaysRemaining: needsCountdown ? 14 : p.injuryDaysRemaining,
-    stats: {
-      matches: p.stats?.matches ?? 0,
-      minutes: p.stats?.minutes ?? 0,
-      goals: p.stats?.goals ?? 0,
-      assists: p.stats?.assists ?? 0,
-      cleanSheets: p.stats?.cleanSheets ?? 0,
-      yellowCards: p.stats?.yellowCards ?? 0,
-      redCards: p.stats?.redCards ?? 0,
-    },
-    careerStats: {
-      matches: p.careerStats?.matches ?? 0,
-      minutes: p.careerStats?.minutes ?? 0,
-      goals: p.careerStats?.goals ?? 0,
-      assists: p.careerStats?.assists ?? 0,
-      cleanSheets: p.careerStats?.cleanSheets ?? 0,
-      yellowCards: p.careerStats?.yellowCards ?? 0,
-      redCards: p.careerStats?.redCards ?? 0,
-    },
-  };
-  });
+      ...p,
+      morale: p.morale ?? 70,
+      personality: isPersonality(p.personality) ? p.personality : 'Disciplinado',
+      fatigue: p.fatigue ?? 0,
+      availability,
+      injuryDaysRemaining: needsCountdown ? 14 : p.injuryDaysRemaining,
+      stats: {
+        matches: p.stats?.matches ?? 0,
+        minutes: p.stats?.minutes ?? 0,
+        goals: p.stats?.goals ?? 0,
+        assists: p.stats?.assists ?? 0,
+        cleanSheets: p.stats?.cleanSheets ?? 0,
+        yellowCards: p.stats?.yellowCards ?? 0,
+        redCards: p.stats?.redCards ?? 0,
+      },
+      careerStats: {
+        matches: p.careerStats?.matches ?? 0,
+        minutes: p.careerStats?.minutes ?? 0,
+        goals: p.careerStats?.goals ?? 0,
+        assists: p.careerStats?.assists ?? 0,
+        cleanSheets: p.careerStats?.cleanSheets ?? 0,
+        yellowCards: p.careerStats?.yellowCards ?? 0,
+        redCards: p.careerStats?.redCards ?? 0,
+      },
+    };
+  }
+
+  const playersRaw = (save.players ?? []).map(normalizePlayerDefaults);
+  // Ex-jogadores (vendidos) — snapshot congelado, não passa por recalculateFromMatches.
+  const formerPlayers = (save.formerPlayers ?? []).map(normalizePlayerDefaults);
 
   const team = save.team
     ? {
@@ -274,6 +280,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     matches,
     pulse,
     players,
+    formerPlayers,
     team: teamSynced,
     finance,
     board,
