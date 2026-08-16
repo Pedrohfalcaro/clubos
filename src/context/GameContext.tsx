@@ -20,6 +20,7 @@ import { createDefaultCareerPlayer, emptyPlayerStats } from '../types/CareerPlay
 import type { CompletePlayerMatchInput } from '../types/PlayerMatchPerformance';
 import { clearGame, type GameSave } from '../services/storage';
 import { calcResult, recalculateFromMatches, statsForPlayerFromMatches } from '../utils/matchStats';
+import type { SeasonImportPayload } from '../utils/seasonImport';
 import { applyDailySquadMoraleDrift, applyMatchMoraleToPlayers } from '../utils/squadMorale';
 import {
   calcMatchClimateDeltas,
@@ -297,6 +298,7 @@ type GameAction =
       players: Player[];
       archivePatches: { season: number; snapshot: SeasonPlayerSnapshot }[];
     }
+  | { type: 'IMPORT_SEASON_ARCHIVE'; payload: SeasonImportPayload }
   | { type: 'UPDATE_TEAM'; updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>> }
   // Transfers
   | { type: 'ADD_WATCHLIST'; player: WatchlistPlayer }
@@ -440,6 +442,10 @@ interface GameContextValue {
   resolveBoardGoals: (resolutions: GoalResolution[]) => void;
   manuallyResolveGoal: (goal: BoardGoal, status: 'done' | 'exceeded' | 'failed') => void;
   dismissGoalPrompt: (season: number) => void;
+  importSeasonArchive: (
+    payload: SeasonImportPayload,
+    options?: { replace?: boolean },
+  ) => { ok: true } | { ok: false; reason: 'exists' };
   updateTeam: (updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>>) => void;
   // Transfers
   addWatchlist: (player: WatchlistPlayer) => void;
@@ -2518,6 +2524,111 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'IMPORT_SEASON_ARCHIVE': {
+      if (!state.team) return state;
+      const { payload } = action;
+      const nameKey = (n: string) => n.trim().toLowerCase();
+      const playersByName = new Map(state.players.map(p => [nameKey(p.name), p]));
+      const formerByName = new Map(state.formerPlayers.map(p => [nameKey(p.name), p]));
+
+      let players = state.players;
+      let formerPlayers = state.formerPlayers;
+      const newFormer: Player[] = [];
+      const snapshots: SeasonPlayerSnapshot[] = [];
+
+      for (const imp of payload.players) {
+        const stats: PlayerStats = {
+          matches: imp.matches ?? 0,
+          minutes: imp.minutes ?? 0,
+          goals: imp.goals ?? 0,
+          assists: imp.assists ?? 0,
+          cleanSheets: imp.cleanSheets ?? 0,
+          goalsConceded: 0,
+          yellowCards: imp.yellowCards ?? 0,
+          redCards: imp.redCards ?? 0,
+        };
+        const key = nameKey(imp.name);
+        const existingActive = playersByName.get(key);
+        const existingFormer = existingActive ? undefined : formerByName.get(key);
+        const matched = existingActive ?? existingFormer;
+
+        let playerId: string;
+        if (matched) {
+          playerId = matched.id;
+          const bumpedCareer = sumPlayerStats([matched.careerStats ?? emptySquadStats(), stats]);
+          if (existingActive) {
+            players = players.map(p => (p.id === matched.id ? { ...p, careerStats: bumpedCareer } : p));
+          } else {
+            formerPlayers = formerPlayers.map(p =>
+              p.id === matched.id ? { ...p, careerStats: bumpedCareer } : p,
+            );
+          }
+        } else {
+          playerId = `import-${uid()}`;
+          newFormer.push({
+            id: playerId,
+            teamId: state.teamId ?? '',
+            name: imp.name,
+            position: imp.position,
+            number: null,
+            age: imp.age ?? 0,
+            overall: imp.overall ?? 0,
+            potential: imp.overall ?? 0,
+            morale: 70,
+            salary: 0,
+            marketValue: 0,
+            status: 'Transferível',
+            stats,
+            departedAt: { season: payload.season, date: `${payload.season}-12-31`, reason: 'imported' },
+          });
+        }
+
+        snapshots.push({
+          playerId,
+          name: imp.name,
+          position: imp.position,
+          age: imp.age ?? 0,
+          overall: imp.overall ?? 0,
+          stats,
+        });
+      }
+
+      const t = payload.team ?? {};
+      const archive: SeasonArchive = {
+        season: payload.season,
+        closedAt: new Date().toISOString(),
+        teamStats: {
+          matches: t.matches ?? 0,
+          wins: t.wins ?? 0,
+          draws: t.draws ?? 0,
+          losses: t.losses ?? 0,
+          goalsFor: t.goalsFor ?? 0,
+          goalsAgainst: t.goalsAgainst ?? 0,
+          points: (t.wins ?? 0) * 3 + (t.draws ?? 0),
+        },
+        boardConfidence: t.boardConfidence ?? state.team.boardConfidence,
+        supporterConfidence: t.supporterConfidence ?? state.team.supporterConfidence,
+        balance: t.balance ?? 0,
+        income: t.income ?? 0,
+        expense: t.expense ?? 0,
+        transferCount: t.transferCount ?? 0,
+        players: snapshots,
+      };
+
+      const existingIdx = state.seasonHistory.findIndex(s => s.season === payload.season);
+      const seasonHistory =
+        existingIdx !== -1
+          ? state.seasonHistory.map((s, i) => (i === existingIdx ? archive : s))
+          : [...state.seasonHistory, archive];
+
+      return {
+        ...state,
+        players,
+        formerPlayers: newFormer.length ? [...formerPlayers, ...newFormer] : formerPlayers,
+        seasonHistory,
+      };
+    }
+
     case 'UPDATE_TEAM': {
       if (!state.team) return state;
       return { ...state, team: { ...state.team, ...action.updates } };
@@ -3690,6 +3801,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'DISMISS_GOAL_PROMPT', season });
   }
 
+  function importSeasonArchive(
+    payload: SeasonImportPayload,
+    options?: { replace?: boolean },
+  ): { ok: true } | { ok: false; reason: 'exists' } {
+    const exists = state.seasonHistory.some(s => s.season === payload.season);
+    if (exists && !options?.replace) return { ok: false, reason: 'exists' };
+    dispatch({ type: 'IMPORT_SEASON_ARCHIVE', payload });
+    return { ok: true };
+  }
+
   function updateTeam(updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>>) {
     dispatch({ type: 'UPDATE_TEAM', updates });
   }
@@ -4025,6 +4146,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         resolveBoardGoals,
         manuallyResolveGoal,
         dismissGoalPrompt,
+        importSeasonArchive,
         updateTeam,
         addWatchlist,
         removeWatchlist,

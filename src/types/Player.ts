@@ -71,8 +71,9 @@ export interface Player {
   /**
    * Preenchido só em `state.formerPlayers` — quando/por que o atleta saiu do elenco.
    * `stats` fica congelado como estava no momento da saída (temporada até ali).
+   * `'imported'` = criado a partir de uma importação de temporada passada via JSON, não uma venda.
    */
-  departedAt?: { season: number; date: string; reason: 'sold' };
+  departedAt?: { season: number; date: string; reason: 'sold' | 'imported' };
 }
 
 function sameCompetition(a?: string | null, b?: string | null): boolean {

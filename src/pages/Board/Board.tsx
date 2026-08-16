@@ -13,6 +13,12 @@ import { LIVELIFE_CHANGELOG } from '../../types/LiveLife';
 import MoneyAmountHint from '../../components/MoneyAmountHint/MoneyAmountHint';
 import GoalSetupModal from '../../components/GoalSetupModal/GoalSetupModal';
 import { leagueGoalAwaitingUpdate } from '../../utils/boardGoals';
+import {
+  parseSeasonImport,
+  downloadSeasonImportTemplate,
+  type SeasonImportPayload,
+  type SeasonImportError,
+} from '../../utils/seasonImport';
 import styles from './Board.module.css';
 
 type Tab = 'confidence' | 'goals' | 'club' | 'season' | 'livelife';
@@ -78,6 +84,7 @@ export default function Board() {
     completeLiveLifeOnboarding,
     addClubDebt,
     manuallyResolveGoal,
+    importSeasonArchive,
   } = useGame();
   const navigate = useNavigate();
   const {
@@ -121,6 +128,51 @@ export default function Board() {
   const debtInstN = Math.max(1, Math.min(120, parseInt(debtInstallments, 10) || 0));
   const debtMonthlyPreview =
     debtAmtN >= 1 && debtInstN >= 1 ? Math.max(1, Math.round(debtAmtN / debtInstN)) : 0;
+
+  // Importar temporada anterior via JSON
+  const [importPayload, setImportPayload] = useState<SeasonImportPayload | null>(null);
+  const [importErrors, setImportErrors] = useState<SeasonImportError[]>([]);
+  const [importConflict, setImportConflict] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
+
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImportConflict(false);
+      setImportMsg('');
+      try {
+        const json = JSON.parse(String(reader.result));
+        const result = parseSeasonImport(json);
+        if (result.payload) {
+          setImportPayload(result.payload);
+          setImportErrors([]);
+        } else {
+          setImportPayload(null);
+          setImportErrors(result.errors);
+        }
+      } catch {
+        setImportPayload(null);
+        setImportErrors([{ path: '$', message: 'Arquivo não é um JSON válido.' }]);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function confirmImport(replace: boolean) {
+    if (!importPayload) return;
+    const res = importSeasonArchive(importPayload, { replace });
+    if (!res.ok) {
+      setImportConflict(true);
+      return;
+    }
+    setImportMsg(`Temporada ${importPayload.season} importada com ${importPayload.players.length} jogador(es).`);
+    setImportPayload(null);
+    setImportConflict(false);
+    setTimeout(() => setImportMsg(''), 4000);
+  }
 
   // Goal form state (metas manuais/financeiras)
   const [goalKind, setGoalKind] = useState<BoardGoalKind>('dont_spend_over');
@@ -860,6 +912,86 @@ export default function Board() {
               Avançar para {season + 1}
             </button>
           </div>
+        </div>
+      )}
+
+      {tab === 'season' && (
+        <div className={styles.editCard}>
+          <p className={styles.editTitle}>Importar temporada anterior</p>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>
+            Para temporadas que não rolaram dentro do app — envie um JSON com o que aconteceu
+            naquele ano. Só <strong>nome</strong> e <strong>posição</strong> de cada jogador são
+            obrigatórios; o resto (idade, overall, gols, jogos...) é opcional.
+          </p>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <label className={styles.btnSecondary} style={{ cursor: 'pointer' }}>
+              Escolher arquivo .json
+              <input
+                type="file"
+                accept="application/json,.json"
+                onChange={handleImportFile}
+                style={{ display: 'none' }}
+              />
+            </label>
+            <button type="button" className={styles.btnSecondary} onClick={downloadSeasonImportTemplate}>
+              Baixar modelo
+            </button>
+          </div>
+
+          {importErrors.length > 0 && (
+            <div className={styles.importErrorBox}>
+              <strong>Não consegui importar — corrija e tente de novo:</strong>
+              <ul>
+                {importErrors.slice(0, 12).map((e, i) => (
+                  <li key={i}>
+                    <code>{e.path}</code>: {e.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {importPayload && (
+            <div className={styles.importPreview}>
+              <p className={styles.editTitle} style={{ margin: 0 }}>
+                Prévia — Temporada {importPayload.season}
+              </p>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-h)' }}>
+                {importPayload.players.length} jogador(es)
+                {importPayload.team ? ' · dados de time incluídos' : ' · sem dados de time (fica zerado)'}
+              </p>
+              {importConflict && (
+                <p style={{ margin: 0, fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+                  Já existe um arquivo para a temporada {importPayload.season}. Importar de novo
+                  substitui o que já está lá.
+                </p>
+              )}
+              <div className={styles.modalActions} style={{ justifyContent: 'flex-start' }}>
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={() => {
+                    setImportPayload(null);
+                    setImportConflict(false);
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className={styles.btnPrimary}
+                  onClick={() => confirmImport(importConflict)}
+                >
+                  {importConflict ? 'Substituir e importar' : 'Confirmar importação'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {importMsg && (
+            <p style={{ margin: 0, fontSize: 12, color: '#22c55e', fontWeight: 600 }}>{importMsg}</p>
+          )}
         </div>
       )}
 
