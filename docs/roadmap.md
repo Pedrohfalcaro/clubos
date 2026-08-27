@@ -3,7 +3,8 @@
 Este documento lista as seções e funcionalidades planejadas para o ClubOS, incluindo o que já está disponível e o que está em construção.
 
 > **LiveLife (v1.2):** [`livelife-v1.2.md`](./livelife-v1.2.md)  
-> **Modo Jogador:** [`modo-jogador.md`](./modo-jogador.md)
+> **Modo Jogador:** [`modo-jogador.md`](./modo-jogador.md)  
+> **Modo Seleção / Dual Career (v1.4):** [`selecao-nacional.md`](./selecao-nacional.md)
 
 ## Disponível agora
 
@@ -40,6 +41,15 @@ Este documento lista as seções e funcionalidades planejadas para o ClubOS, inc
 
 ### Social / Manager
 - ClubOSocial, Coletivas, página pessoal do técnico
+
+### Modo Seleção / Dual Career (v1.4 — International Duty Update)
+- [x] Alternar Clube ⇄ Seleção a qualquer momento, sem perder progresso de nenhum dos dois
+- [x] Datas FIFA como hub — jogos, convocação (com numeração herdada da convocação anterior) e tática própria por janela
+- [x] Desfalque automático no clube (`nationalDutyUntil`) quando um convocado é do seu elenco
+- [x] Partida da seleção com o mesmo motor do clube — escalação, tática, eventos ao vivo
+- [x] Dashboard com líderes de carreira, ranking FIFA dinâmico e variação
+- [x] Diretoria da federação — metas e moral independentes do clube
+- [x] Pulse Internacional — pedido de desconvocação do clube em amistosos
 
 ---
 
@@ -99,4 +109,6 @@ Ver [`MELHORIAS_FUTURAS.md`](../LiveLife%20-%20Desenvolvimento/MELHORIAS_FUTURAS
 |--------|----------|
 | `0.2.x` | Base treinador: táticas, tutorial, manager, competições |
 | `0.3.x` | Modo jogador (`careerMode` / `careerPlayer`) |
-| **`1.2` LiveLife** | Clock contínuo, economia por partida, LIFE (social/coletivas/troféus) |
+| `1.2` LiveLife | Clock contínuo, economia por partida, LIFE (social/coletivas/troféus) |
+| `1.3` Financial Update | Dashboard financeiro, rating bancário, teto de gastos |
+| **`1.4` International Duty Update** | Modo Seleção / Dual Career — Datas FIFA, convocação, tática e partidas próprias, ranking FIFA, Pulse Internacional |

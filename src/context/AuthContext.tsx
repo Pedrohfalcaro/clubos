@@ -109,7 +109,7 @@ async function syncLocalSlotsToCloud(uid: string): Promise<void> {
     const local = loadGame(id);
     if (!isCompleteSave(local)) continue;
 
-    let cloud: GameSave | null = null;
+    let cloud: GameSave | null;
     try {
       cloud = await cloudLoadSlot(uid, id);
     } catch {

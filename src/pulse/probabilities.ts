@@ -51,7 +51,7 @@ function pesoCategoria(
   atletasContexto: PulseAthlete[],
   club?: ClubClimate | null,
 ): number {
-  let base = CATEGORIA_PESOS[categoria as keyof typeof CATEGORIA_PESOS] || 1;
+  const base = CATEGORIA_PESOS[categoria as keyof typeof CATEGORIA_PESOS] || 1;
   if (!atletasContexto || atletasContexto.length === 0) {
     return applyClubCategoryMod(base, categoria, club);
   }

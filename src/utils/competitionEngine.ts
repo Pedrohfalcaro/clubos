@@ -311,8 +311,8 @@ export function advanceKnockoutPhase(
 
   // won
   phase.advanced = true;
-  let prizeAmount = 0;
-  let prizeKind: 'knockout' | 'champion' | null = null;
+  let prizeAmount: number;
+  let prizeKind: 'knockout' | 'champion' | null;
 
   if (phase.isFinal) {
     prizeAmount = prizes.champion ?? 0;

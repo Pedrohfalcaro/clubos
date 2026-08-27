@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../context/GameContext';
 import type { Player, PlayerStatus } from '../../types/Player';
-import { availabilityStatusLabel } from '../../types/Player';
+import { availabilityStatusLabel, isOnNationalDuty } from '../../types/Player';
 import {
   scopeOptions,
   playerStatsForScope,
@@ -66,6 +66,7 @@ function moraleMeta(morale: number): { label: string; color: string; title: stri
 
 type CompFilter = 'all' | string;
 type SortKey = 'nota' | 'ga' | 'a' | 'g' | 'j';
+type HistSortKey = 'j' | 'min' | 'g' | 'a' | 'sg' | 'ca' | 'cv';
 
 interface PlayerCompStats {
   matches: number;
@@ -74,6 +75,7 @@ interface PlayerCompStats {
   cleanSheets: number;
   goalsConceded: number;
   minutes: number;
+  starts: number;
 }
 
 export default function Squad() {
@@ -84,6 +86,7 @@ export default function Squad() {
   const [compFilter, setCompFilter] = useState<CompFilter>('all');
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [histSortKey, setHistSortKey] = useState<HistSortKey | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
@@ -93,6 +96,8 @@ export default function Squad() {
     status: 'Titular' as PlayerStatus,
     salary: 0,
     marketValue: 0,
+    loanReturnDate: '',
+    retirementDate: '',
   });
   const scopes = useMemo(
     () => scopeOptions(state.season, state.seasonHistory),
@@ -115,6 +120,7 @@ export default function Squad() {
         cleanSheets: 0,
         goalsConceded: 0,
         minutes: 0,
+        starts: 0,
       };
       byComp.set(competition, {
         matches: prev.matches + (patch.matches ?? 0),
@@ -123,6 +129,7 @@ export default function Squad() {
         cleanSheets: prev.cleanSheets + (patch.cleanSheets ?? 0),
         goalsConceded: prev.goalsConceded + (patch.goalsConceded ?? 0),
         minutes: prev.minutes + (patch.minutes ?? 0),
+        starts: prev.starts + (patch.starts ?? 0),
       });
     }
 
@@ -143,6 +150,9 @@ export default function Squad() {
           cleanSheets: cleanSheet && mins > 0 ? 1 : 0,
           goalsConceded: isGk && mins > 0 ? match.goalsAgainst : 0,
         });
+      }
+      for (const slot of match.lineup?.formation ?? []) {
+        bump(slot.playerId, match.competition, { starts: 1 });
       }
       for (const goal of match.goals ?? []) {
         if (!goal.isOwnGoal && goal.playerId) {
@@ -191,8 +201,29 @@ export default function Squad() {
         row.player.name.toLowerCase().includes(search.toLowerCase()) &&
         (histScope === 'current' || histScope === 'total' || row.stats.matches > 0 || row.stats.goals > 0 || row.stats.assists > 0),
       )
-      .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists || b.stats.matches - a.stats.matches);
-  }, [state.players, state.formerPlayers, histScope, state.seasonHistory, state.season, search]);
+      .sort((a, b) => {
+        if (histSortKey) {
+          return histSortValue(b.stats, histSortKey) - histSortValue(a.stats, histSortKey);
+        }
+        return b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists || b.stats.matches - a.stats.matches;
+      });
+  }, [state.players, state.formerPlayers, histScope, state.seasonHistory, state.season, search, histSortKey]);
+
+  function toggleHistSort(key: HistSortKey) {
+    setHistSortKey(prev => (prev === key ? null : key));
+  }
+
+  function histSortValue(stats: ReturnType<typeof playerStatsForScope>, key: HistSortKey): number {
+    switch (key) {
+      case 'j': return stats.matches;
+      case 'min': return stats.minutes;
+      case 'g': return stats.goals;
+      case 'a': return stats.assists;
+      case 'sg': return stats.cleanSheets ?? 0;
+      case 'ca': return stats.yellowCards;
+      case 'cv': return stats.redCards;
+    }
+  }
 
   const historyTotals = useMemo(() => {
     const teamGames = teamStatsForScope(
@@ -242,6 +273,8 @@ export default function Squad() {
       status: p.status,
       salary: p.salary ?? 0,
       marketValue: p.marketValue ?? 0,
+      loanReturnDate: p.loanReturnDate ?? '',
+      retirementDate: p.retirementDate ?? '',
     });
   }
 
@@ -257,6 +290,8 @@ export default function Squad() {
       status: editForm.status,
       salary: editForm.salary,
       marketValue: editForm.marketValue,
+      loanReturnDate: editForm.status === 'Emprestado' ? (editForm.loanReturnDate || undefined) : undefined,
+      retirementDate: editForm.status === 'Aposentado' ? undefined : (editForm.retirementDate || undefined),
     });
     setEditingId(null);
   }
@@ -326,6 +361,7 @@ export default function Squad() {
         assists: p?.stats.assists ?? 0,
         cleanSheets: p?.stats.cleanSheets ?? 0,
         goalsConceded: p?.stats.goalsConceded ?? 0,
+        starts: p?.stats.starts ?? 0,
         avg,
       };
     }
@@ -337,6 +373,7 @@ export default function Squad() {
       assists: s?.assists ?? 0,
       cleanSheets: s?.cleanSheets ?? 0,
       goalsConceded: s?.goalsConceded ?? 0,
+      starts: s?.starts ?? 0,
       avg,
     };
   }
@@ -433,14 +470,56 @@ export default function Squad() {
               <div className={`${styles.histRow} ${styles.histHead}`}>
                 <span>Jogador</span>
                 <span>Pos</span>
-                <span>J</span>
-                <span>Min</span>
-                <span>G</span>
-                <span>A</span>
-                <span title="Sem sofrer gols">SG</span>
+                <span
+                  className={`${styles.sortableCol} ${histSortKey === 'j' ? styles.sortActive : ''}`}
+                  onClick={() => toggleHistSort('j')}
+                  title="Ordenar por jogos"
+                >
+                  J{histSortKey === 'j' ? ' ▾' : ''}
+                </span>
+                <span
+                  className={`${styles.sortableCol} ${histSortKey === 'min' ? styles.sortActive : ''}`}
+                  onClick={() => toggleHistSort('min')}
+                  title="Ordenar por minutos"
+                >
+                  Min{histSortKey === 'min' ? ' ▾' : ''}
+                </span>
+                <span
+                  className={`${styles.sortableCol} ${histSortKey === 'g' ? styles.sortActive : ''}`}
+                  onClick={() => toggleHistSort('g')}
+                  title="Ordenar por gols"
+                >
+                  G{histSortKey === 'g' ? ' ▾' : ''}
+                </span>
+                <span
+                  className={`${styles.sortableCol} ${histSortKey === 'a' ? styles.sortActive : ''}`}
+                  onClick={() => toggleHistSort('a')}
+                  title="Ordenar por assistências"
+                >
+                  A{histSortKey === 'a' ? ' ▾' : ''}
+                </span>
+                <span
+                  className={`${styles.sortableCol} ${histSortKey === 'sg' ? styles.sortActive : ''}`}
+                  onClick={() => toggleHistSort('sg')}
+                  title="Ordenar por jogos sem sofrer gols"
+                >
+                  SG{histSortKey === 'sg' ? ' ▾' : ''}
+                </span>
                 <span title="Linha: min÷(G+A) · GK: %SG">Ef.</span>
-                <span>CA</span>
-                <span>CV</span>
+                <span
+                  className={`${styles.sortableCol} ${histSortKey === 'ca' ? styles.sortActive : ''}`}
+                  onClick={() => toggleHistSort('ca')}
+                  title="Ordenar por cartões amarelos"
+                >
+                  CA{histSortKey === 'ca' ? ' ▾' : ''}
+                </span>
+                <span
+                  className={`${styles.sortableCol} ${histSortKey === 'cv' ? styles.sortActive : ''}`}
+                  onClick={() => toggleHistSort('cv')}
+                  title="Ordenar por cartões vermelhos"
+                >
+                  CV{histSortKey === 'cv' ? ' ▾' : ''}
+                </span>
               </div>
               {historyRows.map(({ player: p, stats, former }) => (
                 <div key={p.id} className={styles.histRow}>
@@ -453,7 +532,12 @@ export default function Squad() {
                     )}
                   </span>
                   <span>{p.position}</span>
-                  <span>{stats.matches}</span>
+                  <span>
+                    {stats.matches}
+                    <span className={styles.startsHint} title="Jogos como titular">
+                      {' '}({stats.starts ?? 0})
+                    </span>
+                  </span>
                   <span>{stats.minutes}'</span>
                   <span>{stats.goals}</span>
                   <span>{stats.assists}</span>
@@ -691,6 +775,32 @@ export default function Squad() {
                                     ))}
                                   </select>
                                 </label>
+                                {editForm.status === 'Emprestado' && (
+                                  <label className={styles.editField}>
+                                    <span>Retorno do empréstimo</span>
+                                    <input
+                                      className={styles.editFieldInput}
+                                      type="date"
+                                      value={editForm.loanReturnDate}
+                                      onChange={e =>
+                                        setEditForm(f => ({ ...f, loanReturnDate: e.target.value }))
+                                      }
+                                    />
+                                  </label>
+                                )}
+                                {editForm.status !== 'Aposentado' && (
+                                  <label className={styles.editField}>
+                                    <span>Aposentadoria agendada</span>
+                                    <input
+                                      className={styles.editFieldInput}
+                                      type="date"
+                                      value={editForm.retirementDate}
+                                      onChange={e =>
+                                        setEditForm(f => ({ ...f, retirementDate: e.target.value }))
+                                      }
+                                    />
+                                  </label>
+                                )}
                                 <label className={styles.editField}>
                                   <span>Salário</span>
                                   <input
@@ -875,19 +985,46 @@ export default function Squad() {
                                   {morale.label}
                                 </span>
                                 {availabilityStatusLabel(p, state.currentDate) && (
+                                  isOnNationalDuty(p, state.currentDate) &&
+                                  p.availability !== 'lesionado' &&
+                                  p.availability !== 'suspenso' &&
+                                  p.availability !== 'indisponivel' ? (
+                                    <span
+                                      className={`${styles.availBadge} ${styles.availBadgeStatic}`}
+                                      title="Convocado pela Seleção Nacional — gerencie no Modo Seleção"
+                                    >
+                                      {availabilityStatusLabel(p, state.currentDate)}
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className={styles.availBadge}
+                                      onClick={() => startEdit(p.id)}
+                                      title="Editar penalidade"
+                                    >
+                                      {availabilityStatusLabel(p, state.currentDate)}
+                                    </button>
+                                  )
+                                )}
+                                {!retired && p.retirementDate && (
                                   <button
                                     type="button"
-                                    className={styles.availBadge}
+                                    className={`${styles.availBadge} ${styles.retirementHint}`}
                                     onClick={() => startEdit(p.id)}
-                                    title="Editar penalidade"
+                                    title="Aposentadoria agendada — editar"
                                   >
-                                    {availabilityStatusLabel(p, state.currentDate)}
+                                    Aposenta em {p.retirementDate.slice(0, 10)}
                                   </button>
                                 )}
                               </span>
                               <span className={styles.colAge}>{p.age}</span>
                               <span className={styles.colOvr} style={{ color: overallColor(p.overall) }}>{p.overall}</span>
-                              <span className={styles.colMatches}>{stats.matches}</span>
+                              <span className={styles.colMatches}>
+                                {stats.matches}
+                                <span className={styles.startsHint} title="Jogos como titular">
+                                  {' '}({stats.starts ?? 0})
+                                </span>
+                              </span>
                               <span className={styles.colMin}>{stats.minutes}'</span>
                               <span
                                 className={styles.notaBadge}

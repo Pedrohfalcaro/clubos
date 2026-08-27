@@ -7,7 +7,30 @@ import {
 } from '../utils/competitions';
 import type { Team } from '../types/Team';
 import type { Player } from '../types/Player';
-import type { Match, ScheduleMatchInput, CompleteMatchInput } from '../types/Match';
+import type {
+  CallUpListSize,
+  FifaWindow,
+  FifaWindowGame,
+  FifaWindowType,
+  NationalBoardGoal,
+  NationalPlayer,
+  NationalTeamState,
+  OpponentStrength,
+} from '../types/NationalTeam';
+import {
+  createDefaultNationalTeamState,
+  emptyNationalPlayerStats,
+  normalizeNationalTeam,
+} from '../types/NationalTeam';
+import {
+  createFifaWindow,
+  createFifaWindowGame,
+  recomputeNationalDuty,
+  carryOverCallUpNumber,
+} from '../utils/nationalWindows';
+import { applyRankingDelta, outcomeFromScore } from '../utils/nationalRanking';
+import { recomputeNationalPlayerStats } from '../utils/nationalStats';
+import type { Match, MatchLocation, ScheduleMatchInput, CompleteMatchInput } from '../types/Match';
 import type { Manager } from '../types/Manager';
 import type { TeamAchievement } from '../types/Achievement';
 import { computeSeasonClosingAchievements } from '../utils/achievements';
@@ -113,7 +136,7 @@ import type {
   TransferPayment,
 } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
-import { paymentsDueOnDate } from '../utils/transferPayments';
+import { paymentsDueOnDate, addMonthsIso } from '../utils/transferPayments';
 import { isDateInTransferWindow } from '../utils/transferWindow';
 import type { SeasonArchive, SeasonPlayerSnapshot } from '../types/SeasonHistory';
 import { emptyTeamStats, sumPlayerStats } from '../types/SeasonHistory';
@@ -121,7 +144,7 @@ import { newLedgerEntry, wageBill, calcGateRevenue, applyMatchPrize } from '../u
 import { computeFinancialHealth } from '../utils/financialHealth';
 import { advanceDay as computeAdvanceDay, findMatchOnDate, applyMatchAvailability, addDaysIso } from '../livelife';
 import { useAuth } from './AuthContext';
-import { emptyPlayerStats as emptySquadStats } from '../types/Player';
+import { emptyPlayerStats as emptySquadStats, daysBetweenIso } from '../types/Player';
 import type { PlayerPosition, PlayerStats } from '../types/Player';
 import type { SaveSlotId } from '../services/saveSlots';
 
@@ -178,6 +201,10 @@ export interface GameState {
   loanPaymentsDue: boolean;
   /** Popup de parcela mensal de dívida (não persiste). */
   debtPaymentsDue: boolean;
+  /** Contexto de comando ativo (v1.4) — Seleção só existe quando careerMode === 'coach'. */
+  activeContext: 'club' | 'national';
+  /** Seleção Nacional / Dual Career (v1.4) — null até o onboarding. */
+  nationalTeam: NationalTeamState | null;
 }
 
 type GameAction =
@@ -225,7 +252,7 @@ type GameAction =
   | { type: 'ADD_INJURY'; injury: Omit<InjuryEntry, 'id'> }
   | { type: 'REMOVE_INJURY'; injuryId: string }
   | { type: 'ADVANCE_SEASON' }
-  | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft'>> }
+  | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate'>> }
   | {
       type: 'RENEW_PLAYER_CONTRACT';
       playerId: string;
@@ -334,7 +361,43 @@ type GameAction =
   | { type: 'DISMISS_DEBT_PAYMENTS' }
   | { type: 'ADD_CLUB_SPONSOR'; sponsor: ClubSponsor }
   | { type: 'RENEW_CLUB_SPONSOR'; sponsorId: string; extraSeasons?: number }
-  | { type: 'TERMINATE_CLUB_SPONSOR'; sponsorId: string; ledgerEntry?: FinanceLedgerEntry };
+  | { type: 'TERMINATE_CLUB_SPONSOR'; sponsorId: string; ledgerEntry?: FinanceLedgerEntry }
+  // National Team / Dual Career (v1.4)
+  | { type: 'SET_ACTIVE_CONTEXT'; context: 'club' | 'national' }
+  | {
+      type: 'CREATE_NATIONAL_TEAM';
+      name: string;
+      primaryColor?: string;
+      secondaryColor?: string;
+      startingFifaRanking?: number;
+    }
+  | { type: 'ADD_FIFA_WINDOW'; window: FifaWindow }
+  | { type: 'UPDATE_FIFA_WINDOW'; windowId: string; updates: Partial<Omit<FifaWindow, 'id'>> }
+  | { type: 'ADD_FIFA_WINDOW_GAME'; windowId: string; game: FifaWindowGame }
+  | {
+      type: 'UPDATE_FIFA_WINDOW_GAME';
+      windowId: string;
+      gameId: string;
+      updates: Partial<Omit<FifaWindowGame, 'id'>>;
+    }
+  | { type: 'ADD_NATIONAL_PLAYERS'; players: NationalPlayer[] }
+  | { type: 'REMOVE_NATIONAL_PLAYER'; nationalPlayerId: string }
+  | { type: 'LINK_NATIONAL_PLAYER_TO_CLUB'; nationalPlayerId: string; clubPlayerId: string | null }
+  | { type: 'SET_CALL_UP_LIST'; windowId: string; callUpIds: string[] }
+  | { type: 'SET_CALL_UP_NUMBER'; windowId: string; nationalPlayerId: string; number: number | null }
+  | { type: 'SAVE_NATIONAL_TACTICS_PRESET'; windowId: string; preset: TacticsPreset }
+  | { type: 'DELETE_NATIONAL_TACTICS_PRESET'; windowId: string; id: string }
+  | { type: 'SET_ACTIVE_NATIONAL_TACTICS'; windowId: string; id: string }
+  | { type: 'ADD_NATIONAL_GOAL'; goal: NationalBoardGoal }
+  | { type: 'UPDATE_NATIONAL_GOAL'; goalId: string; updates: Partial<Omit<NationalBoardGoal, 'id'>> }
+  | { type: 'REMOVE_NATIONAL_GOAL'; goalId: string }
+  | { type: 'ADJUST_FEDERATION_MOOD'; delta: number; reason: string }
+  | {
+      type: 'RESOLVE_NATIONAL_DECONVOCATION';
+      windowId: string;
+      nationalPlayerId: string;
+      choice: 'cede' | 'refuse';
+    };
 
 interface GameContextValue {
   state: GameState;
@@ -394,7 +457,7 @@ interface GameContextValue {
   advanceSeason: () => void;
   updatePlayer: (
     playerId: string,
-    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft'>>,
+    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate'>>,
   ) => void;
   addPlayer: (player: Player) => void;
   removePlayer: (playerId: string) => void;
@@ -499,6 +562,77 @@ interface GameContextValue {
   }) => boolean;
   renewClubSponsor: (sponsorId: string, extraSeasons?: number) => void;
   terminateClubSponsor: (sponsorId: string) => void;
+  // National Team / Dual Career (v1.4)
+  /** Alterna o contexto ativo. Vira 'club' sempre; só vira 'national' se já houver `nationalTeam` (senão é no-op — abra o onboarding). */
+  setActiveContext: (context: 'club' | 'national') => void;
+  /** Cria a Seleção Nacional (onboarding) e já entra no Modo Seleção. */
+  createNationalTeam: (input: {
+    name: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    startingFifaRanking?: number;
+  }) => void;
+  /** Cria e adiciona uma Data FIFA; retorna o id gerado. */
+  addFifaWindow: (input: {
+    label?: string;
+    type: FifaWindowType;
+    typeOther?: string;
+    startDate: string;
+    endDate: string;
+    listSize: CallUpListSize;
+  }) => string;
+  updateFifaWindow: (windowId: string, updates: Partial<Omit<FifaWindow, 'id'>>) => void;
+  /** Cria e adiciona um jogo mapeado à Data FIFA; retorna o id gerado. */
+  addFifaWindowGame: (
+    windowId: string,
+    input: { opponent: string; location: MatchLocation; date: string; opponentStrength: OpponentStrength },
+  ) => string;
+  updateFifaWindowGame: (
+    windowId: string,
+    gameId: string,
+    updates: Partial<Omit<FifaWindowGame, 'id'>>,
+  ) => void;
+  /** Cadastro manual de um convocado no banco de talentos; retorna o id gerado. */
+  addNationalPlayer: (input: {
+    name: string;
+    position: PlayerPosition;
+    age: number;
+    club: string;
+    overall?: number;
+    clubPlayerId?: string;
+  }) => string;
+  /** Importação em lote (JSON) — mesmo shape do cadastro manual, sem dedupe. */
+  importNationalPlayers: (players: NationalPlayer[]) => void;
+  removeNationalPlayer: (nationalPlayerId: string) => void;
+  /** Vincula/desvincula um convocado a um `Player` do elenco do clube (dispara desfalque na Fase 5). */
+  linkNationalPlayerToClub: (nationalPlayerId: string, clubPlayerId: string | null) => void;
+  /** Define a lista definitiva de convocados de uma Data FIFA (ajusta `caps` por diff). */
+  setCallUpList: (windowId: string, callUpIds: string[]) => void;
+  /** Numeração de camisa do convocado, específica desta Data FIFA. */
+  setCallUpNumber: (windowId: string, nationalPlayerId: string, number: number | null) => void;
+  /** Tática da Data FIFA — mesmo contrato de `saveTacticsPreset`/`deleteTacticsPreset`/`setActiveTactics`, por janela. */
+  saveNationalTacticsPreset: (
+    windowId: string,
+    preset: Omit<TacticsPreset, 'updatedAt'> & { updatedAt?: string },
+  ) => void;
+  deleteNationalTacticsPreset: (windowId: string, id: string) => void;
+  setActiveNationalTactics: (windowId: string, id: string) => void;
+  /** Metas da diretoria/federação — CRUD independente das metas do clube (nunca lidas/escritas por `Board.tsx`). */
+  addNationalGoal: (input: {
+    kind: NationalBoardGoal['kind'];
+    label: string;
+    target: number;
+  }) => void;
+  updateNationalGoal: (goalId: string, updates: Partial<Omit<NationalBoardGoal, 'id'>>) => void;
+  removeNationalGoal: (goalId: string) => void;
+  /** Ajusta `federationMood` (clamp 0–100) e registra no histórico. */
+  adjustFederationMood: (delta: number, reason: string) => void;
+  /** Pulse Internacional — resolve o pedido de desconvocação do clube pra um amistoso. */
+  resolveNationalDeconvocation: (
+    windowId: string,
+    nationalPlayerId: string,
+    choice: 'cede' | 'refuse',
+  ) => void;
 }
 
 const initialState: GameState = {
@@ -537,6 +671,8 @@ const initialState: GameState = {
   transferPaymentsDue: false,
   loanPaymentsDue: false,
   debtPaymentsDue: false,
+  activeContext: 'club',
+  nationalTeam: null,
 };
 
 function updatePlayerFromMatch(
@@ -1170,6 +1306,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               substitutions: action.input.substitutions,
               injuries: action.input.injuries,
               opponentGoalScorers: action.input.opponentGoalScorers,
+              opponentGoals: action.input.opponentGoals,
+              opponentCards: action.input.opponentCards,
+              opponentSubs: action.input.opponentSubs,
               description: action.input.description,
               playerRatings: action.input.playerRatings,
               motmPlayerId: action.input.motmPlayerId,
@@ -1499,6 +1638,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               substitutions: action.input.substitutions,
               injuries: action.input.injuries,
               opponentGoalScorers: action.input.opponentGoalScorers,
+              opponentGoals: action.input.opponentGoals,
+              opponentCards: action.input.opponentCards,
+              opponentSubs: action.input.opponentSubs,
               description: action.input.description,
               playerRatings: action.input.playerRatings,
               motmPlayerId: action.input.motmPlayerId,
@@ -1822,6 +1964,20 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               ? p.availability
               : 'disponivel',
         };
+      });
+      // Retorno de empréstimo e aposentadoria agendada (transições automáticas por data).
+      players = players.map(p => {
+        if (
+          p.status === 'Emprestado' &&
+          p.loanReturnDate &&
+          p.loanReturnDate.slice(0, 10) <= result.nextDate
+        ) {
+          return { ...p, status: 'Reserva' as const, loanReturnDate: undefined };
+        }
+        if (p.retirementDate && p.retirementDate.slice(0, 10) <= result.nextDate) {
+          return { ...p, status: 'Aposentado' as const, retirementDate: undefined };
+        }
+        return p;
       });
       let pulse = state.pulse;
       let pendingDailyPulse: PulseHistoryEntry | null = null;
@@ -2239,6 +2395,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           activeArc: action.state.social?.activeArc ?? null,
           arcHistory: action.state.social?.arcHistory ?? [],
         },
+        activeContext: action.state.activeContext ?? 'club',
+        nationalTeam: normalizeNationalTeam(action.state.nationalTeam),
       };
     }
 
@@ -2677,8 +2835,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         players = [...players, newPlayer];
       }
       if (record.type === 'loan_out' && removedPlayerId) {
+        const loanReturnDate = addMonthsIso(dealDate, record.loanDurationMonths ?? 6);
         players = players.map(p =>
-          p.id === removedPlayerId ? { ...p, status: 'Emprestado' as const } : p,
+          p.id === removedPlayerId ? { ...p, status: 'Emprestado' as const, loanReturnDate } : p,
         );
       }
 
@@ -2972,6 +3131,402 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    // ─── National Team / Dual Career (v1.4) ────────────────────────────────────
+
+    case 'SET_ACTIVE_CONTEXT': {
+      if (state.careerMode !== 'coach') return state;
+      if (action.context === 'national' && !state.nationalTeam) return state;
+      return { ...state, activeContext: action.context };
+    }
+
+    case 'CREATE_NATIONAL_TEAM': {
+      if (state.careerMode !== 'coach' || state.nationalTeam) return state;
+      return {
+        ...state,
+        nationalTeam: createDefaultNationalTeamState(action.name, {
+          primaryColor: action.primaryColor,
+          secondaryColor: action.secondaryColor,
+          startingFifaRanking: action.startingFifaRanking,
+          onboardedAt: state.currentDate ?? undefined,
+        }),
+        activeContext: 'national',
+      };
+    }
+
+    case 'ADD_FIFA_WINDOW': {
+      if (!state.nationalTeam) return state;
+      return {
+        ...state,
+        nationalTeam: {
+          ...state.nationalTeam,
+          windows: [...state.nationalTeam.windows, action.window],
+        },
+      };
+    }
+
+    case 'UPDATE_FIFA_WINDOW': {
+      if (!state.nationalTeam) return state;
+      const nationalTeam: NationalTeamState = {
+        ...state.nationalTeam,
+        windows: state.nationalTeam.windows.map(w =>
+          w.id === action.windowId ? { ...w, ...action.updates } : w,
+        ),
+      };
+      return {
+        ...state,
+        nationalTeam,
+        // endDate pode mudar aqui — recalcula o desfalque pra não ficar com data velha.
+        players: recomputeNationalDuty(nationalTeam, state.players),
+      };
+    }
+
+    case 'ADD_FIFA_WINDOW_GAME': {
+      if (!state.nationalTeam) return state;
+      return {
+        ...state,
+        nationalTeam: {
+          ...state.nationalTeam,
+          windows: state.nationalTeam.windows.map(w =>
+            w.id === action.windowId ? { ...w, games: [...w.games, action.game] } : w,
+          ),
+        },
+      };
+    }
+
+    case 'UPDATE_FIFA_WINDOW_GAME': {
+      if (!state.nationalTeam) return state;
+      const gameBefore = state.nationalTeam.windows
+        .find(w => w.id === action.windowId)
+        ?.games.find(g => g.id === action.gameId);
+      const justCompleted = !!gameBefore && !gameBefore.played && action.updates.played === true;
+
+      let nationalTeam: NationalTeamState = {
+        ...state.nationalTeam,
+        windows: state.nationalTeam.windows.map(w =>
+          w.id === action.windowId
+            ? {
+                ...w,
+                games: w.games.map(g =>
+                  g.id === action.gameId ? { ...g, ...action.updates } : g,
+                ),
+              }
+            : w,
+        ),
+      };
+      // Placar/desempenho registrado ou editado: recalcula os agregados do zero (sem duplicar).
+      if ('performances' in action.updates || 'played' in action.updates) {
+        nationalTeam = { ...nationalTeam, talentPool: recomputeNationalPlayerStats(nationalTeam) };
+      }
+
+      // Ranking FIFA simplificado: só mexe na primeira vez que o jogo é finalizado
+      // (editar um jogo já registrado não pontua de novo).
+      if (justCompleted) {
+        const finishedGame = nationalTeam.windows
+          .find(w => w.id === action.windowId)
+          ?.games.find(g => g.id === action.gameId);
+        if (finishedGame?.goalsFor != null && finishedGame.goalsAgainst != null) {
+          const outcome = outcomeFromScore(finishedGame.goalsFor, finishedGame.goalsAgainst);
+          const nextRanking = applyRankingDelta(nationalTeam.fifaRanking, outcome, finishedGame.opponentStrength);
+          nationalTeam = {
+            ...nationalTeam,
+            fifaRanking: nextRanking,
+            fifaRankingHistory: [
+              ...nationalTeam.fifaRankingHistory,
+              { date: (state.currentDate ?? new Date().toISOString()).slice(0, 10), value: nextRanking },
+            ].slice(-50),
+          };
+        }
+      }
+
+      // Lesão em serviço na Seleção: se o atleta é vinculado a um jogador do clube,
+      // ele volta machucado — mesmo campo (`availability`/`injuryDaysRemaining`) usado
+      // pelas lesões de partidas do clube.
+      let players = state.players;
+      const injuries = action.updates.injuries;
+      if (injuries?.length && state.currentDate) {
+        const byClubId = new Map<string, string>();
+        for (const np of nationalTeam.talentPool) {
+          if (np.clubPlayerId) byClubId.set(np.id, np.clubPlayerId);
+        }
+        const patchByClubPlayerId = new Map<string, number>();
+        for (const injury of injuries) {
+          if (!injury.returnDate) continue;
+          const clubPlayerId = byClubId.get(injury.playerId);
+          if (!clubPlayerId) continue;
+          const days = daysBetweenIso(state.currentDate, injury.returnDate);
+          const current = patchByClubPlayerId.get(clubPlayerId) ?? 0;
+          if (days > current) patchByClubPlayerId.set(clubPlayerId, days);
+        }
+        if (patchByClubPlayerId.size) {
+          players = players.map(p => {
+            const days = patchByClubPlayerId.get(p.id);
+            if (!days) return p;
+            return { ...p, availability: 'lesionado', injuryDaysRemaining: days };
+          });
+        }
+      }
+
+      return { ...state, nationalTeam, players };
+    }
+
+    case 'ADD_NATIONAL_PLAYERS': {
+      if (!state.nationalTeam) return state;
+      return {
+        ...state,
+        nationalTeam: {
+          ...state.nationalTeam,
+          talentPool: [...state.nationalTeam.talentPool, ...action.players],
+        },
+      };
+    }
+
+    case 'REMOVE_NATIONAL_PLAYER': {
+      if (!state.nationalTeam) return state;
+      const nationalTeam: NationalTeamState = {
+        ...state.nationalTeam,
+        talentPool: state.nationalTeam.talentPool.filter(p => p.id !== action.nationalPlayerId),
+        windows: state.nationalTeam.windows.map(w => ({
+          ...w,
+          callUpIds: w.callUpIds.filter(id => id !== action.nationalPlayerId),
+        })),
+      };
+      return {
+        ...state,
+        nationalTeam,
+        players: recomputeNationalDuty(nationalTeam, state.players),
+      };
+    }
+
+    case 'LINK_NATIONAL_PLAYER_TO_CLUB': {
+      if (!state.nationalTeam) return state;
+      const nationalTeam: NationalTeamState = {
+        ...state.nationalTeam,
+        talentPool: state.nationalTeam.talentPool.map(p =>
+          p.id === action.nationalPlayerId
+            ? { ...p, clubPlayerId: action.clubPlayerId ?? undefined }
+            : p,
+        ),
+      };
+      return {
+        ...state,
+        nationalTeam,
+        players: recomputeNationalDuty(nationalTeam, state.players),
+      };
+    }
+
+    case 'SET_CALL_UP_LIST': {
+      if (!state.nationalTeam) return state;
+      const window = state.nationalTeam.windows.find(w => w.id === action.windowId);
+      if (!window) return state;
+      const prevIds = new Set(window.callUpIds);
+      const nextIds = new Set(action.callUpIds);
+      const talentPool = state.nationalTeam.talentPool.map(p => {
+        const wasIn = prevIds.has(p.id);
+        const isIn = nextIds.has(p.id);
+        if (isIn && !wasIn) return { ...p, caps: p.caps + 1 };
+        if (!isIn && wasIn) return { ...p, caps: Math.max(0, p.caps - 1) };
+        return p;
+      });
+      // Convocado novo nesta janela: sugere o número da última vez que ele foi convocado.
+      const callUpNumbers = { ...window.callUpNumbers };
+      for (const id of action.callUpIds) {
+        if (prevIds.has(id) || callUpNumbers[id] != null) continue;
+        const carried = carryOverCallUpNumber(state.nationalTeam.windows, id, action.windowId);
+        if (carried != null) callUpNumbers[id] = carried;
+      }
+      const nationalTeam: NationalTeamState = {
+        ...state.nationalTeam,
+        talentPool,
+        windows: state.nationalTeam.windows.map(w =>
+          w.id === action.windowId ? { ...w, callUpIds: action.callUpIds, callUpNumbers } : w,
+        ),
+      };
+      return {
+        ...state,
+        nationalTeam,
+        players: recomputeNationalDuty(nationalTeam, state.players),
+      };
+    }
+
+    case 'SET_CALL_UP_NUMBER': {
+      if (!state.nationalTeam) return state;
+      const window = state.nationalTeam.windows.find(w => w.id === action.windowId);
+      if (!window) return state;
+      const callUpNumbers = { ...window.callUpNumbers };
+      if (action.number == null) delete callUpNumbers[action.nationalPlayerId];
+      else callUpNumbers[action.nationalPlayerId] = action.number;
+      return {
+        ...state,
+        nationalTeam: {
+          ...state.nationalTeam,
+          windows: state.nationalTeam.windows.map(w =>
+            w.id === action.windowId ? { ...w, callUpNumbers } : w,
+          ),
+        },
+      };
+    }
+
+    case 'SAVE_NATIONAL_TACTICS_PRESET': {
+      if (!state.nationalTeam) return state;
+      const window = state.nationalTeam.windows.find(w => w.id === action.windowId);
+      if (!window) return state;
+      const normalized = normalizeTacticsPreset({
+        ...action.preset,
+        updatedAt: action.preset.updatedAt ?? new Date().toISOString(),
+      });
+      if (!normalized) return state;
+
+      const presets = window.tacticsPresets;
+      const exists = presets.some(p => p.id === normalized.id);
+      if (!exists && presets.length >= MAX_TACTICS_PRESETS) return state;
+
+      const tacticsPresets = exists
+        ? presets.map(p => (p.id === normalized.id ? normalized : p))
+        : [...presets, normalized];
+
+      return {
+        ...state,
+        nationalTeam: {
+          ...state.nationalTeam,
+          windows: state.nationalTeam.windows.map(w =>
+            w.id === action.windowId
+              ? { ...w, tacticsPresets, activeTacticsId: normalized.id, tactics: tacticsBodyFromPreset(normalized) }
+              : w,
+          ),
+        },
+      };
+    }
+
+    case 'DELETE_NATIONAL_TACTICS_PRESET': {
+      if (!state.nationalTeam) return state;
+      const window = state.nationalTeam.windows.find(w => w.id === action.windowId);
+      if (!window) return state;
+      const tacticsPresets = window.tacticsPresets.filter(p => p.id !== action.id);
+      if (tacticsPresets.length === window.tacticsPresets.length) return state;
+      const activeTacticsId =
+        window.activeTacticsId === action.id ? tacticsPresets[0]?.id ?? null : window.activeTacticsId;
+      const active = tacticsPresets.find(p => p.id === activeTacticsId);
+      return {
+        ...state,
+        nationalTeam: {
+          ...state.nationalTeam,
+          windows: state.nationalTeam.windows.map(w =>
+            w.id === action.windowId
+              ? { ...w, tacticsPresets, activeTacticsId, tactics: active ? tacticsBodyFromPreset(active) : null }
+              : w,
+          ),
+        },
+      };
+    }
+
+    case 'SET_ACTIVE_NATIONAL_TACTICS': {
+      if (!state.nationalTeam) return state;
+      const window = state.nationalTeam.windows.find(w => w.id === action.windowId);
+      if (!window) return state;
+      const active = window.tacticsPresets.find(p => p.id === action.id);
+      if (!active) return state;
+      return {
+        ...state,
+        nationalTeam: {
+          ...state.nationalTeam,
+          windows: state.nationalTeam.windows.map(w =>
+            w.id === action.windowId
+              ? { ...w, activeTacticsId: action.id, tactics: tacticsBodyFromPreset(active) }
+              : w,
+          ),
+        },
+      };
+    }
+
+    case 'ADD_NATIONAL_GOAL': {
+      if (!state.nationalTeam) return state;
+      return {
+        ...state,
+        nationalTeam: { ...state.nationalTeam, goals: [...state.nationalTeam.goals, action.goal] },
+      };
+    }
+
+    case 'UPDATE_NATIONAL_GOAL': {
+      if (!state.nationalTeam) return state;
+      return {
+        ...state,
+        nationalTeam: {
+          ...state.nationalTeam,
+          goals: state.nationalTeam.goals.map(g =>
+            g.id === action.goalId ? { ...g, ...action.updates } : g,
+          ),
+        },
+      };
+    }
+
+    case 'REMOVE_NATIONAL_GOAL': {
+      if (!state.nationalTeam) return state;
+      return {
+        ...state,
+        nationalTeam: {
+          ...state.nationalTeam,
+          goals: state.nationalTeam.goals.filter(g => g.id !== action.goalId),
+        },
+      };
+    }
+
+    case 'ADJUST_FEDERATION_MOOD': {
+      if (!state.nationalTeam) return state;
+      const value = Math.max(0, Math.min(100, Math.round(state.nationalTeam.federationMood + action.delta)));
+      const entry = {
+        date: (state.currentDate ?? new Date().toISOString()).slice(0, 10),
+        value,
+        reason: action.reason,
+      };
+      return {
+        ...state,
+        nationalTeam: {
+          ...state.nationalTeam,
+          federationMood: value,
+          federationMoodHistory: [entry, ...state.nationalTeam.federationMoodHistory].slice(0, 50),
+        },
+      };
+    }
+
+    case 'RESOLVE_NATIONAL_DECONVOCATION': {
+      if (!state.nationalTeam) return state;
+      const window = state.nationalTeam.windows.find(w => w.id === action.windowId);
+      if (!window || window.deconvocationResolvedIds.includes(action.nationalPlayerId)) return state;
+      const cede = action.choice === 'cede';
+
+      const talentPool = cede
+        ? state.nationalTeam.talentPool.map(p =>
+            p.id === action.nationalPlayerId ? { ...p, caps: Math.max(0, p.caps - 1) } : p,
+          )
+        : state.nationalTeam.talentPool;
+
+      const nationalTeam: NationalTeamState = {
+        ...state.nationalTeam,
+        talentPool,
+        federationMood: Math.max(0, Math.min(100, state.nationalTeam.federationMood + (cede ? -2 : 3))),
+        windows: state.nationalTeam.windows.map(w =>
+          w.id === action.windowId
+            ? {
+                ...w,
+                deconvocationResolvedIds: [...w.deconvocationResolvedIds, action.nationalPlayerId],
+                callUpIds: cede ? w.callUpIds.filter(id => id !== action.nationalPlayerId) : w.callUpIds,
+              }
+            : w,
+        ),
+      };
+
+      const players = recomputeNationalDuty(nationalTeam, state.players);
+      const team = state.team
+        ? {
+            ...state.team,
+            boardConfidence: clampConfidence((state.team.boardConfidence ?? 50) + (cede ? 3 : -2)),
+            supporterConfidence: clampConfidence((state.team.supporterConfidence ?? 50) + (cede ? 3 : -2)),
+          }
+        : state.team;
+
+      return { ...state, nationalTeam, players, team };
+    }
+
     default:
       return state;
   }
@@ -3018,6 +3573,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         livelife: s.livelife,
         social: s.social,
         slotId,
+        activeContext: s.activeContext,
+        nationalTeam: s.nationalTeam,
       };
     }
     if (s.careerMode === 'player' && s.careerPlayer) {
@@ -3584,6 +4141,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
             activeArc: save.social?.activeArc ?? null,
             arcHistory: save.social?.arcHistory ?? [],
           },
+          activeContext: 'club',
+          nationalTeam: null,
         },
       });
       return 'player';
@@ -3668,6 +4227,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
             activeArc: save.social?.activeArc ?? null,
             arcHistory: save.social?.arcHistory ?? [],
           },
+          activeContext: save.activeContext ?? 'club',
+          nationalTeam: save.nationalTeam ?? null,
         },
       });
       return 'coach';
@@ -3704,6 +4265,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         livelife: state.livelife,
         social: state.social,
         slotId: state.saveSlotId,
+        activeContext: state.activeContext,
+        nationalTeam: state.nationalTeam,
       };
     }
     if (state.careerMode === 'player' && state.careerPlayer) {
@@ -4077,6 +4640,142 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'DISMISS_LOAN_PAYMENTS' });
   }
 
+  function setActiveContext(context: 'club' | 'national') {
+    dispatch({ type: 'SET_ACTIVE_CONTEXT', context });
+  }
+
+  function createNationalTeam(input: {
+    name: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    startingFifaRanking?: number;
+  }) {
+    dispatch({ type: 'CREATE_NATIONAL_TEAM', ...input });
+  }
+
+  function addFifaWindow(input: {
+    label?: string;
+    type: FifaWindowType;
+    typeOther?: string;
+    startDate: string;
+    endDate: string;
+    listSize: CallUpListSize;
+  }): string {
+    const window = createFifaWindow(input);
+    dispatch({ type: 'ADD_FIFA_WINDOW', window });
+    return window.id;
+  }
+
+  function updateFifaWindow(windowId: string, updates: Partial<Omit<FifaWindow, 'id'>>) {
+    dispatch({ type: 'UPDATE_FIFA_WINDOW', windowId, updates });
+  }
+
+  function addFifaWindowGame(
+    windowId: string,
+    input: { opponent: string; location: MatchLocation; date: string; opponentStrength: OpponentStrength },
+  ): string {
+    const game = createFifaWindowGame(input);
+    dispatch({ type: 'ADD_FIFA_WINDOW_GAME', windowId, game });
+    return game.id;
+  }
+
+  function updateFifaWindowGame(
+    windowId: string,
+    gameId: string,
+    updates: Partial<Omit<FifaWindowGame, 'id'>>,
+  ) {
+    dispatch({ type: 'UPDATE_FIFA_WINDOW_GAME', windowId, gameId, updates });
+  }
+
+  function addNationalPlayer(input: {
+    name: string;
+    position: PlayerPosition;
+    age: number;
+    club: string;
+    overall?: number;
+    clubPlayerId?: string;
+  }): string {
+    const player: NationalPlayer = {
+      id: uid(),
+      name: input.name,
+      position: input.position,
+      age: input.age,
+      club: input.club,
+      overall: input.overall,
+      clubPlayerId: input.clubPlayerId,
+      caps: 0,
+      stats: emptyNationalPlayerStats(),
+    };
+    dispatch({ type: 'ADD_NATIONAL_PLAYERS', players: [player] });
+    return player.id;
+  }
+
+  function importNationalPlayers(players: NationalPlayer[]) {
+    dispatch({ type: 'ADD_NATIONAL_PLAYERS', players });
+  }
+
+  function removeNationalPlayer(nationalPlayerId: string) {
+    dispatch({ type: 'REMOVE_NATIONAL_PLAYER', nationalPlayerId });
+  }
+
+  function linkNationalPlayerToClub(nationalPlayerId: string, clubPlayerId: string | null) {
+    dispatch({ type: 'LINK_NATIONAL_PLAYER_TO_CLUB', nationalPlayerId, clubPlayerId });
+  }
+
+  function setCallUpList(windowId: string, callUpIds: string[]) {
+    dispatch({ type: 'SET_CALL_UP_LIST', windowId, callUpIds });
+  }
+
+  function setCallUpNumber(windowId: string, nationalPlayerId: string, number: number | null) {
+    dispatch({ type: 'SET_CALL_UP_NUMBER', windowId, nationalPlayerId, number });
+  }
+
+  function saveNationalTacticsPreset(
+    windowId: string,
+    preset: Omit<TacticsPreset, 'updatedAt'> & { updatedAt?: string },
+  ) {
+    dispatch({
+      type: 'SAVE_NATIONAL_TACTICS_PRESET',
+      windowId,
+      preset: { ...preset, updatedAt: preset.updatedAt ?? new Date().toISOString() },
+    });
+  }
+
+  function deleteNationalTacticsPreset(windowId: string, id: string) {
+    dispatch({ type: 'DELETE_NATIONAL_TACTICS_PRESET', windowId, id });
+  }
+
+  function setActiveNationalTactics(windowId: string, id: string) {
+    dispatch({ type: 'SET_ACTIVE_NATIONAL_TACTICS', windowId, id });
+  }
+
+  function addNationalGoal(input: { kind: NationalBoardGoal['kind']; label: string; target: number }) {
+    dispatch({
+      type: 'ADD_NATIONAL_GOAL',
+      goal: { id: uid(), kind: input.kind, label: input.label, target: input.target, current: 0, status: 'active' },
+    });
+  }
+
+  function updateNationalGoal(goalId: string, updates: Partial<Omit<NationalBoardGoal, 'id'>>) {
+    dispatch({ type: 'UPDATE_NATIONAL_GOAL', goalId, updates });
+  }
+
+  function removeNationalGoal(goalId: string) {
+    dispatch({ type: 'REMOVE_NATIONAL_GOAL', goalId });
+  }
+
+  function adjustFederationMood(delta: number, reason: string) {
+    dispatch({ type: 'ADJUST_FEDERATION_MOOD', delta, reason });
+  }
+
+  function resolveNationalDeconvocation(
+    windowId: string,
+    nationalPlayerId: string,
+    choice: 'cede' | 'refuse',
+  ) {
+    dispatch({ type: 'RESOLVE_NATIONAL_DECONVOCATION', windowId, nationalPlayerId, choice });
+  }
+
   return (
     <GameContext.Provider
       value={{
@@ -4166,6 +4865,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
         addClubSponsor,
         renewClubSponsor,
         terminateClubSponsor,
+        setActiveContext,
+        createNationalTeam,
+        addFifaWindow,
+        updateFifaWindow,
+        addFifaWindowGame,
+        updateFifaWindowGame,
+        addNationalPlayer,
+        importNationalPlayers,
+        removeNationalPlayer,
+        linkNationalPlayerToClub,
+        setCallUpList,
+        setCallUpNumber,
+        saveNationalTacticsPreset,
+        deleteNationalTacticsPreset,
+        setActiveNationalTactics,
+        addNationalGoal,
+        updateNationalGoal,
+        removeNationalGoal,
+        adjustFederationMood,
+        resolveNationalDeconvocation,
       }}
     >
       {children}

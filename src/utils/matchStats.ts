@@ -1,4 +1,4 @@
-import type { Match } from '../types/Match';
+import type { Match, MatchLocation } from '../types/Match';
 import type { Player, PlayerStats } from '../types/Player';
 import { emptyPlayerStats } from '../types/Player';
 import type { Team, TeamStatistics } from '../types/Team';
@@ -43,6 +43,7 @@ export function recalculateFromMatches(
         goalsConceded: 0,
         yellowCards: 0,
         redCards: 0,
+        starts: 0,
       },
     ]),
   );
@@ -74,6 +75,11 @@ export function recalculateFromMatches(
       if (mins > 0 && playerById.get(pid)?.position === 'GK') {
         stats.goalsConceded += match.goalsAgainst;
       }
+    }
+
+    for (const slot of match.lineup?.formation ?? []) {
+      const stats = playerStatsMap.get(slot.playerId);
+      if (stats) stats.starts += 1;
     }
 
     for (const goal of match.goals.filter(g => !g.isOwnGoal && g.playerId)) {
@@ -132,6 +138,9 @@ export function statsForPlayerFromMatches(
         stats.goalsConceded = (stats.goalsConceded ?? 0) + match.goalsAgainst;
       }
     }
+    if (match.lineup?.formation?.some(slot => slot.playerId === playerId)) {
+      stats.starts = (stats.starts ?? 0) + 1;
+    }
     stats.goals += match.goals.filter(g => !g.isOwnGoal && g.playerId === playerId).length;
     stats.assists += match.assists.filter(a => a.playerId === playerId).length;
     for (const card of match.cards.filter(c => c.playerId === playerId)) {
@@ -143,9 +152,17 @@ export function statsForPlayerFromMatches(
   return stats;
 }
 
+/** Estrutura mínima necessária — `Match` e `FifaWindowGame` (Seleção) satisfazem ambas. */
+export interface HomeAwaySource {
+  location: MatchLocation;
+  opponent: string;
+  goalsFor: number;
+  goalsAgainst: number;
+}
+
 export function getHomeAway(
   teamName: string,
-  match: Match,
+  match: HomeAwaySource,
 ): { homeTeam: string; awayTeam: string; homeGoals: number; awayGoals: number } {
   if (match.location === 'home') {
     return {

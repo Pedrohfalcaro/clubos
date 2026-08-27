@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { GameProvider, useGame } from './context/GameContext';
 import Layout from './components/Layout/Layout';
 import PlayerLayout from './components/PlayerLayout/PlayerLayout';
+import NationalLayout from './components/NationalLayout/NationalLayout';
 import Splash from './pages/Splash/Splash';
 import MainMenu from './pages/MainMenu/MainMenu';
 import CareerModeSelect from './pages/CareerModeSelect/CareerModeSelect';
@@ -38,6 +39,13 @@ import PlayerProfile from './pages/Player/Profile/PlayerProfile';
 import PlayerContract from './pages/Player/Contract/PlayerContract';
 import PlayerEvolution from './pages/Player/Evolution/PlayerEvolution';
 import PlayerHistory from './pages/Player/History/PlayerHistory';
+import NationalDashboard from './pages/National/Dashboard/NationalDashboard';
+import NationalWindows from './pages/National/Windows/NationalWindows';
+import NationalWindowHub from './pages/National/WindowHub/NationalWindowHub';
+import NationalPlayerBase from './pages/National/PlayerBase/NationalPlayerBase';
+import NationalHistory from './pages/National/History/NationalHistory';
+import NationalBoard from './pages/National/Board/NationalBoard';
+import NationalMatchPlay from './pages/National/MatchPlay/NationalMatchPlay';
 import { useAuth } from './context/AuthContext';
 
 function SetupRoutes() {
@@ -65,6 +73,29 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 function CoachRoutes() {
+  const { state } = useGame();
+  // Modo Seleção (Dual Career, v1.4) — substitui o Layout de clube inteiro
+  // enquanto ativo. `nationalTeam` é a guarda real: sem ele, sempre cai no clube.
+  const inNational = state.activeContext === 'national' && !!state.nationalTeam;
+
+  if (inNational) {
+    return (
+      <Routes>
+        <Route path="/national/match/:windowId/:gameId/play" element={<NationalMatchPlay />} />
+        <Route element={<NationalLayout />}>
+          <Route path="/national/dashboard" element={<NationalDashboard />} />
+          <Route path="/national/windows" element={<NationalWindows />} />
+          <Route path="/national/windows/:windowId" element={<NationalWindowHub />} />
+          <Route path="/national/players" element={<NationalPlayerBase />} />
+          <Route path="/national/history" element={<NationalHistory />} />
+          <Route path="/national/board" element={<NationalBoard />} />
+          <Route path="*" element={<Navigate to="/national/dashboard" replace />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/national/dashboard" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       <Route path="/match/:matchId/pulse" element={<PulseMatch />} />

@@ -26,6 +26,7 @@ import { migrateBoardGoal } from '../utils/boardGoals';
 import type { TransferState } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
 import type { SeasonArchive } from '../types/SeasonHistory';
+import type { NationalTeamState } from '../types/NationalTeam';
 import { normalizeAchievements } from '../types/Achievement';
 import { nextDayAfterLastMatch } from '../utils/transferPayments';
 import { migrateTacticsPresets, normalizeMatchLineup } from '../utils/formations';
@@ -73,6 +74,10 @@ export interface GameSave {
   livelife?: LiveLifeMeta;
   /** Feed ClubOSocial. */
   social?: SocialState;
+  /** Contexto de comando ativo (v1.4) — 'club' se ausente (saves antigos). */
+  activeContext?: 'club' | 'national';
+  /** Seleção Nacional / Dual Career (v1.4). */
+  nationalTeam?: NationalTeamState | null;
   savedAt: string;
   /** Slot de carreira (1–3) quando multi-save. */
   slotId?: SaveSlotId;
@@ -298,6 +303,10 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
       activeArc: save.social?.activeArc ?? null,
       arcHistory: save.social?.arcHistory ?? [],
     },
+    // activeContext/nationalTeam (v1.4): opt-in — nationalTeam fica null até o
+    // onboarding do Modo Seleção, mesmo padrão de finance.monthlyBudget na v1.3.
+    activeContext: save.activeContext ?? 'club',
+    nationalTeam: save.nationalTeam ?? null,
   };
 
   if (careerMode === 'coach' && save.teamId && teamSynced) {

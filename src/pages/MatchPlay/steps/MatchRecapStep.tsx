@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import type { Player } from '../../../types/Player';
 import type {
+  OpponentCardEntry,
   OpponentGoalEntry,
+  OpponentSubEntry,
   SubstitutionEvent,
   TeamCardEntry,
   TeamGoalEntry,
@@ -37,6 +39,8 @@ interface MatchRecapStepProps {
   teamCards: TeamCardEntry[];
   teamSubs: SubstitutionEvent[];
   injuries: TeamInjuryEntry[];
+  opponentCards?: OpponentCardEntry[];
+  opponentSubs?: OpponentSubEntry[];
 }
 
 export default function MatchRecapStep({
@@ -53,6 +57,8 @@ export default function MatchRecapStep({
   teamCards,
   teamSubs,
   injuries,
+  opponentCards = [],
+  opponentSubs = [],
 }: MatchRecapStepProps) {
   const theirPitchSide: PitchSide = ourPitchSide === 'home' ? 'away' : 'home';
 
@@ -61,12 +67,13 @@ export default function MatchRecapStep({
 
     for (const g of teamGoals) {
       if (g.type === 'own') {
+        // Autogol do adversário a nosso favor — conta no NOSSO placar.
         list.push({
           id: g.id,
           minute: g.minute,
-          pitchSide: theirPitchSide,
-          icon: '⚽',
-          title: g.opponentScorerName?.trim() || 'Gol contra',
+          pitchSide: ourPitchSide,
+          icon: '🔴⚽',
+          title: `${g.opponentScorerName?.trim() || 'Gol contra'} (contra)`,
         });
       } else {
         const scorer = players.find(p => p.id === g.playerId)?.name ?? '—';
@@ -105,6 +112,26 @@ export default function MatchRecapStep({
       });
     }
 
+    for (const c of opponentCards) {
+      list.push({
+        id: c.id,
+        minute: c.minute,
+        pitchSide: theirPitchSide,
+        icon: c.type === 'yellow' ? '🟨' : '🟥',
+        title: c.playerName || '—',
+      });
+    }
+
+    for (const s of opponentSubs) {
+      list.push({
+        id: s.id,
+        minute: s.minute,
+        pitchSide: theirPitchSide,
+        icon: '⇅',
+        title: `${s.playerIn || '—'} ← ${s.playerOut || '—'}`,
+      });
+    }
+
     for (const i of injuries) {
       list.push({
         id: i.id,
@@ -130,6 +157,8 @@ export default function MatchRecapStep({
     teamGoals,
     opponentGoals,
     teamCards,
+    opponentCards,
+    opponentSubs,
     injuries,
     teamSubs,
     players,

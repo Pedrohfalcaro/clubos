@@ -26,6 +26,11 @@ export function createDefaultLiveLifeMeta(): LiveLifeMeta {
 
 export const LIVELIFE_CHANGELOG = [
   {
+    version: 'v1.4',
+    title: 'International Duty Update',
+    body: 'Modo Seleção / Dual Career: assuma a seleção nacional em paralelo ao clube — Datas FIFA, convocação, tática e partidas próprias, desfalque automático no clube, ranking FIFA dinâmico e Pulse Internacional.',
+  },
+  {
     version: 'v1.3',
     title: 'Financial Update',
     body: 'Dashboard financeiro redesenhado (KPIs, fluxo de caixa projetado, orçamento mensal, categorização de despesas, ranking de lançamentos), rating bancário do clube e teto de gastos com impacto na diretoria.',

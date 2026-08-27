@@ -180,7 +180,7 @@ export function generatePulse(input: {
     rolledMatchIds: [...(input.pulseState.rolledMatchIds || [])],
   };
 
-  let athletesWorking = athletes.map(a => ({ ...a }));
+  const athletesWorking = athletes.map(a => ({ ...a }));
   const athletePatches: PulseGenerateOutput['athletePatches'] = [];
   let financePatch: PulseGenerateOutput['financePatch'] = null;
   let climatePatch: PulseGenerateOutput['climatePatch'] = null;
@@ -242,17 +242,14 @@ export function generatePulse(input: {
     } else {
       const catsRecent = recentCategories(state.history, 5);
       const categoria = escolherCategoria(athletesWorking, catsRecent, club);
-      let raridade = escolherRaridade();
+      const raridade = escolherRaridade();
       let pool = elegiveis(state, athletesWorking, categoria, raridade, mode);
 
       if (pool.length === 0) {
         const order = ['comum', 'incomum', 'raro', 'muito-raro'] as const;
         for (const r of order) {
           pool = elegiveis(state, athletesWorking, categoria, r, mode);
-          if (pool.length) {
-            raridade = r;
-            break;
-          }
+          if (pool.length) break;
         }
       }
 

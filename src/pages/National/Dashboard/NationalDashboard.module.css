@@ -1,0 +1,321 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 960px;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 24px;
+}
+
+.heroBrand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.heroEyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--accent);
+  margin: 0 0 2px;
+}
+
+.heroTitle {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.heroSub {
+  font-size: 12px;
+  color: var(--text);
+  margin: 0;
+}
+
+.rankingBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+}
+
+.rankingLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.rankingValue {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.rankingUp {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--success, #22c55e);
+}
+
+.rankingDown {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--danger, #ef4444);
+}
+
+.pulseCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--card-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: 14px;
+  padding: 16px 20px;
+}
+
+.pulseEyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  margin: 0 0 4px;
+}
+
+.pulseText {
+  font-size: 13px;
+  color: var(--text-h);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.pulseActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pulseBtnPrimary {
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pulseBtnSecondary {
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.moodCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 20px;
+}
+
+.moodTop {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.moodLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.moodValue {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.moodTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.moodFill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.moodHigh { color: var(--success, #22c55e); }
+.moodHigh.moodFill { background: var(--success, #22c55e); }
+.moodMid { color: var(--warning, #eab308); }
+.moodMid.moodFill { background: var(--warning, #eab308); }
+.moodLow { color: var(--danger, #ef4444); }
+.moodLow.moodFill { background: var(--danger, #ef4444); }
+
+.leadersGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.leaderCard {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.leaderLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--accent);
+  margin: 0 0 4px;
+}
+
+.leaderName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 0;
+}
+
+.leaderValue {
+  font-size: 12px;
+  color: var(--text);
+  margin: 2px 0 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.card:hover {
+  border-color: var(--accent-border);
+  transform: translateY(-1px);
+}
+
+.cardIcon {
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+
+.cardTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 0;
+}
+
+.cardValue {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent);
+  margin: 2px 0 0;
+}
+
+.cardHint {
+  font-size: 11px;
+  color: var(--text);
+  margin: 0;
+}
+
+.roadmapNote {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.5;
+  padding: 12px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.fifaHero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: 16px;
+  padding: 20px 24px;
+}
+
+.fifaHeroEyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--accent);
+  margin: 0 0 4px;
+}
+
+.fifaHeroTitle {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.fifaHeroMeta {
+  font-size: 12px;
+  color: var(--text);
+  margin: 0;
+}
+
+.fifaHeroCta {
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}

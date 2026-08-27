@@ -112,7 +112,7 @@ export function applyMatchMoraleToPlayers(
 
     // Resultado (só quem jogou) — escala com importância e margem
     if (played) {
-      let resultDelta = 0;
+      let resultDelta: number;
       if (result === 'win') {
         resultDelta = 4 + (margin >= 3 ? 2 : 0);
         if (match.location === 'away') resultDelta += 1;

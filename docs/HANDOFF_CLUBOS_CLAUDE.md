@@ -2,8 +2,9 @@
 
 > **Audiência:** Claude / agente Cursor que vai continuar o projeto **sem** precisar vasculhar todo o repositório.
 > **Escopo:** o site ClubOS inteiro — arquitetura, estado, modos de carreira, partidas, táticas, finanças, transferências, competições, diretoria, narrativa (Pulse / Social / Coletivas / Story Arcs), persistência e nuvem.
-> **Data desta passagem:** 2026-08-07 (Financial Update v1.3 entregue).
+> **Data desta passagem:** 2026-08-27 (International Duty Update v1.4 entregue).
 > **Doc de detalhe financeiro:** `docs/HANDOFF_FINANCEIRO_CLAUDE.md` + `docs/sistema-financeiro.md` (§12 cobre a v1.3) + `FinancialUpdate - Desenvolvimento/`.
+> **Doc de detalhe do Modo Seleção:** `docs/selecao-nacional.md` + `InternationalDuty - Desenvolvimento/plano_de_desenvolvimento.md` — ver §15 abaixo.
 
 Se você ler só **este** arquivo, deve conseguir: entender a arquitetura, achar onde cada feature mora, aplicar mudanças sem quebrar invariantes e não reinventar o que já existe.
 
@@ -17,7 +18,7 @@ Dois modos de carreira:
 - **Treinador (coach)** — gerencia clube, elenco, tática, finanças, diretoria.
 - **Jogador (player)** — gerencia um atleta: desempenho, contrato, evolução.
 
-Versão atual do produto: **v1.3 “Financial Update”** (dashboard financeiro, rating bancário, teto de gastos — sobre a base v1.2 “LiveLife Update”, calendário contínuo). Save version string: `0.6.0` (inalterada — a migração não depende dessa string, só de presença/ausência de campos).
+Versão atual do produto: **v1.4 "International Duty Update"** (Modo Seleção / Dual Career — ver §15) sobre a base v1.3 "Financial Update" (dashboard financeiro, rating bancário, teto de gastos) e v1.2 "LiveLife Update" (calendário contínuo). Save version string: `0.6.0` (inalterada — a migração não depende dessa string, só de presença/ausência de campos).
 
 ---
 
@@ -80,6 +81,8 @@ Definido em `GameContext.tsx`. Campos-chave:
 | `payrollDue` / `transferPaymentsDue` / `loanPaymentsDue` / `debtPaymentsDue` | boolean | Flags de cobrança (não persistem todas) |
 | `pendingDailyPulse` / `liveLifePromptPending` | — | Modais transitórios |
 | `saveSlotId` | `'1'\|'2'\|'3'` | Slot ativo |
+| `activeContext` | `'club' \| 'national'` | v1.4 — qual layout/rotas montam em `CoachRoutes`. Só vira `'national'` se `nationalTeam` existir |
+| `nationalTeam` | `NationalTeamState \| null` | v1.4 — Modo Seleção/Dual Career, ver §15. Independente do estado do clube acima |
 
 O reducer usa `GameAction` (union grande) — cada feature tem seus tipos de ação. As APIs públicas (`useGame()`) estão listadas por área nas seções abaixo.
 
@@ -276,6 +279,7 @@ Arquivos: `types/Finance.ts`, `utils/finance.ts`, `clubLoans.ts`, `clubDebts.ts`
 | Narrativa | `pulse/*`, `pressconference/*`, `utils/storyArcs.ts`, `socialHeadlines.ts`, `pressTriggers.ts`, `clubConfidence.ts`, `pages/Social/*`, `pages/PressConference/*` |
 | Modo jogador | `pages/Player/**`, `pages/PlayerSetup/*`, `types/CareerPlayer.ts`, `CareerMode.ts`, `PlayerMatchPerformance.ts`, `utils/playerMorale.ts`, `playerMatch.ts` |
 | Tema/onboarding | `utils/clubColors.ts`, `utils/tutorials.ts`, `components/Tutorial` |
+| Modo Seleção (v1.4) | `types/NationalTeam.ts`, `pages/National/**`, `components/NationalLayout/*`, `utils/nationalWindows.ts`, `nationalStats.ts`, `nationalRanking.ts`, `nationalMatchPlay.ts`, `nationalImport.ts`, `pulse/nationalEvents.ts` |
 
 ---
 
@@ -296,6 +300,8 @@ Arquivos: `types/Finance.ts`, `utils/finance.ts`, `clubLoans.ts`, `clubDebts.ts`
 13. **Nuvem é best-effort:** nunca bloqueie a UI esperando Firestore; conflitos via `isSavePreferable`.
 14. **Firebase opcional:** o app tem que funcionar sem login (100% local).
 15. **Nunca nomeie uma propriedade de retorno de hook como `current`/`previous` sozinho.** O React Compiler deste projeto (eslint-plugin-react-hooks v7) interpreta `algumaCoisa.current` como acesso a `ref.current` e recusa memoizar o componente (`"Compilation Skipped"`). Vale para qualquer hook novo no app, não só financeiro — achado em `FinanceOverviewTab.tsx` (v1.3).
+16. **`Player.nationalDutyUntil` é ortogonal a `PlayerAvailability`** (v1.4) — não é um novo valor do enum, é um campo de data à parte, recalculado **do zero** (`recomputeNationalDuty`, nunca incrementado) a cada mudança de convocação/vínculo/janela. Prioridade de exibição sempre abaixo de lesão/suspensão/empréstimo reais.
+17. **`nationalTeam` e `board`/metas do clube nunca se misturam** (v1.4) — `NationalBoardGoal` é uma estrutura própria e menor, nunca compartilhada por herança com `BoardGoal`/`BoardState`. `Board.tsx` do clube não lê `nationalTeam.goals`, e `NationalBoard.tsx` não lê `state.board`.
 
 ---
 
@@ -323,13 +329,16 @@ Setup (clube + manager + competições + finanças) → START_CAREER
 
 **Entregue (v1.3 “Financial Update”):** dashboard financeiro na Visão geral (KPIs com variação %, gráfico de fluxo de caixa + projeção, orçamento mensal com breakdown por categoria, rosca de despesas, barras receita/despesa, ranking de lançamentos), teto de gastos mensal (penaliza diretoria se estourado, pode abrir coletiva), rating bancário do clube (badge na Diretoria), extrato com ícones + busca. Detalhe: `docs/sistema-financeiro.md` §12, `docs/HANDOFF_FINANCEIRO_CLAUDE.md` Camada D.
 
-**Backlog / WIP** (ver `LiveLife - Desenvolvimento/MELHORIAS_FUTURAS.md` e `FinancialUpdate - Desenvolvimento/MELHORIAS_FUTURAS.md`):
+**Entregue (v1.4 "International Duty Update"):** Modo Seleção / Dual Career completo — Datas FIFA como hub (jogos, convocação com numeração herdada, tática própria por janela), desfalque automático no clube (`nationalDutyUntil`), partida da seleção reaproveitando o motor do clube sem duplicar código, dashboard com líderes e ranking, diretoria da federação (metas + moral), ranking FIFA dinâmico e Pulse Internacional (pedido de desconvocação em amistosos). Detalhe: `docs/selecao-nacional.md`, `InternationalDuty - Desenvolvimento/plano_de_desenvolvimento.md`.
+
+**Backlog / WIP** (ver `LiveLife - Desenvolvimento/MELHORIAS_FUTURAS.md`, `FinancialUpdate - Desenvolvimento/MELHORIAS_FUTURAS.md` e `InternationalDuty - Desenvolvimento/MELHORIAS_FUTURAS.md`):
 - Treinamento, Metas dedicadas, Social de jogadores (`/under/*`)
 - Avançar Dia em lote; notificações PWA (folha/jogo/mudança de rating)
 - Relacionamentos interpessoais; modo Jogador com clock contínuo
 - CT/infraestrutura como investimento
 - `StylePicker` não montado em Tactics
 - Rating bancário ainda não gateia juros/limite de empréstimo na UI; ofertas de patrocínio dinâmicas por rating; conversão cambial real
+- Modo Seleção: sem simulação de clubes estrangeiros, sem treino/infraestrutura própria, `careerMode === 'player'` fora de escopo, metas da federação sem motor de progresso automático
 
 Se o usuário pedir “melhorar X”, verifique primeiro se X já existe (seção 12/§4–7) antes de reimplementar.
 
@@ -363,12 +372,42 @@ Se o usuário pedir “melhorar X”, verifique primeiro se X já existe (seçã
 | `docs/firebase-setup.md` | Configuração da nuvem |
 | `docs/financial-v1.3.md` | Spec original do Financial Update |
 | `FinancialUpdate - Desenvolvimento/` | Plano, contrato e manual de portagem da v1.3 |
+| `docs/selecao-nacional.md` | Manual do Modo Seleção / Dual Career (v1.4) |
+| `InternationalDuty - Desenvolvimento/` | Plano, contrato e manual de portagem da v1.4 |
 | `LiveLife - Desenvolvimento/MELHORIAS_FUTURAS.md` | Backlog + histórico |
 | `.cursor/skills/clubos-novo-modulo/SKILL.md` | Como integrar módulos novos |
 
 ---
 
-## 15. Mensagem final para o próximo Claude
+## 15. Modo Seleção / Dual Career (v1.4 "International Duty Update")
+
+Detalhado por `docs/selecao-nacional.md` e `InternationalDuty - Desenvolvimento/plano_de_desenvolvimento.md`. Resumo essencial:
+
+Segundo contexto de jogo inteiro, paralelo ao clube — não um substituto. `state.activeContext: 'club' | 'national'` decide qual layout/rotas montam em `CoachRoutes`; `state.nationalTeam: NationalTeamState | null` é a guarda real — sem ele, `activeContext` nunca vira `'national'` (`SET_ACTIVE_CONTEXT`). Onboarding pelo Dashboard do clube ("Modo Seleção") cria `nationalTeam` uma vez (`CREATE_NATIONAL_TEAM`), sem desfazer.
+
+| Rota | Página | O que faz |
+|---|---|---|
+| `/national/dashboard` | `NationalDashboard` | Data FIFA ativa/próxima, líderes de carreira, moral da federação, ranking FIFA + variação, card de Pulse Internacional |
+| `/national/windows` | `NationalWindows` | Lista de Datas FIFA — clicar entra no hub |
+| `/national/windows/:id` | `NationalWindowHub` | **O hub** — 3 abas (Jogos / Convocação / Tática), tudo escopado a essa Data FIFA |
+| `/national/players` | `NationalPlayerBase` | Banco recorrente de convocáveis (cadastro/importação JSON/vínculo ao clube) |
+| `/national/history` | `NationalHistory` | Retrospecto da gestão + estatísticas por convocado |
+| `/national/board` | `NationalBoard` | Metas da federação (CRUD manual) + moral com histórico |
+| `/national/match/:windowId/:gameId/play` | `NationalMatchPlay` | Partida completa — escalação, tática, eventos ao vivo, mesmo motor do clube |
+
+**Data FIFA como hub:** cada `FifaWindow` carrega sua própria `tactics`/`tacticsPresets`/`activeTacticsId` e `callUpNumbers` (numeração por convocação, sugerida automaticamente pela convocação anterior). Sem convocação ou sem jogo mapeado, um checklist de pendências trava a aba Tática e o botão de jogar partida. `listSize` (23/26) só é escolhido na criação da Data FIFA.
+
+**Desfalque no clube:** convocado com `clubPlayerId` → `Player.nationalDutyUntil` (campo ortogonal a `PlayerAvailability`, ver invariante nº16) = maior `endDate` entre as janelas em que ainda está convocado (`recomputeNationalDuty`, recálculo total). Bloqueia escalação do clube e mostra o motivo, com prioridade abaixo de lesão/suspensão reais.
+
+**Partida da Seleção sem duplicar o motor do clube:** `NationalMatchPlay`/aba Tática reaproveitam `FormationField`/`utils/formations.ts`/os steps de `pages/MatchPlay/*` sem modificação, convertendo `NationalPlayer` num `Player` "de mentirinha" via `nationalPlayerToPseudoPlayer` (nunca bloqueado — a Seleção não tem lesão/suspensão própria). `FifaWindowGame` espelha os campos de `Match`. Lesão em serviço reflete no `Player` do clube se vinculado.
+
+**Ranking FIFA + Pulse Internacional:** `applyRankingDelta` (tabela fixa por resultado × força do adversário, clamp 1–210) só na 1ª finalização de cada jogo. `findNationalDeconvocationOpportunity` (independente do Pulse do clube) — só em Data FIFA `amistoso` ativa com convocado vinculado ao elenco; nunca em `copa_mundo`/`eliminatorias`.
+
+**Fora de escopo:** `careerMode === 'player'` nunca vê o Modo Seleção; sem simulação de clubes estrangeiros nem tabela real de 200+ países; sem treino/infraestrutura da seleção; metas da federação sem motor de progresso automático.
+
+---
+
+## 16. Mensagem final para o próximo Claude
 
 ClubOS é uma SPA React madura com **estado centralizado** e um **clock contínuo (LiveLife)** que orquestra finanças, partidas, lesões e narrativa. Antes de criar algo novo:
 - Confirme que não existe (seções 4–7 e 12).

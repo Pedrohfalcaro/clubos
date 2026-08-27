@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Tutorial from '../../components/Tutorial/Tutorial';
 import ClubCrest from '../../components/ClubCrest/ClubCrest';
+import NationalOnboarding, {
+  type NationalOnboardingInput,
+} from '../../components/NationalOnboarding/NationalOnboarding';
 import { useGame } from '../../context/GameContext';
 import { calcPlayerAverageRating, getHomeAway, locationLabel } from '../../utils/matchStats';
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
@@ -112,6 +115,8 @@ export default function Dashboard() {
     setBoardGoal,
     dismissGoalPrompt,
     updateCompetition,
+    setActiveContext,
+    createNationalTeam,
   } = useGame();
   const navigate = useNavigate();
   const {
@@ -140,6 +145,22 @@ export default function Dashboard() {
   );
   const [showWelcome, setShowWelcome] = useState(() => !hasSeenWelcome());
   const [histScope, setHistScope] = useState<HistoryScope>('current');
+  const [showNationalOnboarding, setShowNationalOnboarding] = useState(false);
+
+  function openNationalMode() {
+    if (state.nationalTeam) {
+      setActiveContext('national');
+      navigate('/national/dashboard');
+      return;
+    }
+    setShowNationalOnboarding(true);
+  }
+
+  function submitNationalOnboarding(input: NationalOnboardingInput) {
+    createNationalTeam(input);
+    setShowNationalOnboarding(false);
+    navigate('/national/dashboard');
+  }
 
   const scopes = useMemo(
     () => scopeOptions(state.season, seasonHistory),
@@ -369,6 +390,20 @@ export default function Dashboard() {
 
   return (
     <div className={styles.page}>
+      <div className={styles.contextSwitch} role="tablist" aria-label="Contexto de comando">
+        <button type="button" className={`${styles.contextBtn} ${styles.contextBtnActive}`} aria-selected="true">
+          Modo Clube
+        </button>
+        <button
+          type="button"
+          className={styles.contextBtn}
+          aria-selected="false"
+          onClick={openNationalMode}
+        >
+          Modo Seleção{state.nationalTeam ? ` · ${state.nationalTeam.name}` : ''}
+        </button>
+      </div>
+
       <header className={styles.hero}>
         <div className={styles.heroGlow} aria-hidden />
         <div className={styles.heroMain}>
@@ -1058,6 +1093,13 @@ export default function Dashboard() {
             setSkippedGoalCompIds(ids => [...ids, compId]);
             finishGoalPrompt(compId);
           }}
+        />
+      )}
+
+      {showNationalOnboarding && (
+        <NationalOnboarding
+          onSubmit={submitNationalOnboarding}
+          onCancel={() => setShowNationalOnboarding(false)}
         />
       )}
 

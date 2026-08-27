@@ -28,12 +28,14 @@ export function buildMatchTimeline(
     const g = match.goals[i];
     const minute = toMinute(g.minute, g.stoppage);
     if (g.isOwnGoal) {
+      // Autogol do adversário a nosso favor — conta no NOSSO placar, então
+      // aparece do NOSSO lado da cronologia (com ícone distinto de "contra").
       list.push({
         id: `og-${i}`,
         minute,
-        pitchSide: theirPitchSide,
-        icon: '⚽',
-        title: g.opponentScorerName?.trim() || 'Gol contra',
+        pitchSide: ourPitchSide,
+        icon: '🔴⚽',
+        title: `${g.opponentScorerName?.trim() || 'Gol contra'} (contra)`,
       });
     } else {
       list.push({
@@ -47,19 +49,32 @@ export function buildMatchTimeline(
     }
   }
 
-  // Gols adversários (texto legado, sem minuto individual)
-  const oppText = match.opponentGoalScorers?.trim();
-  if (oppText) {
-    const names = oppText.split(/[,;]/).map(s => s.trim()).filter(Boolean);
-    names.forEach((name, i) => {
+  // Gols do adversário — estruturados (minuto real), com fallback pro texto legado sem minuto
+  if (match.opponentGoals?.length) {
+    match.opponentGoals.forEach((g, i) => {
       list.push({
         id: `opp-${i}`,
-        minute: { base: 0 },
+        minute: g.minute,
         pitchSide: theirPitchSide,
         icon: '⚽',
-        title: name,
+        title: g.scorerName || '—',
+        assist: g.assistName?.trim() || undefined,
       });
     });
+  } else {
+    const oppText = match.opponentGoalScorers?.trim();
+    if (oppText) {
+      const names = oppText.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+      names.forEach((name, i) => {
+        list.push({
+          id: `opp-${i}`,
+          minute: { base: 0 },
+          pitchSide: theirPitchSide,
+          icon: '⚽',
+          title: name,
+        });
+      });
+    }
   }
 
   for (let i = 0; i < (match.cards ?? []).length; i++) {
@@ -70,6 +85,28 @@ export function buildMatchTimeline(
       pitchSide: ourPitchSide,
       icon: c.type === 'yellow' ? '🟨' : '🟥',
       title: c.playerName,
+    });
+  }
+
+  for (let i = 0; i < (match.opponentCards ?? []).length; i++) {
+    const c = match.opponentCards![i];
+    list.push({
+      id: `opp-c-${i}`,
+      minute: c.minute,
+      pitchSide: theirPitchSide,
+      icon: c.type === 'yellow' ? '🟨' : '🟥',
+      title: c.playerName || '—',
+    });
+  }
+
+  for (let i = 0; i < (match.opponentSubs ?? []).length; i++) {
+    const s = match.opponentSubs![i];
+    list.push({
+      id: `opp-s-${i}`,
+      minute: s.minute,
+      pitchSide: theirPitchSide,
+      icon: '⇅',
+      title: `${s.playerIn || '—'} ← ${s.playerOut || '—'}`,
     });
   }
 

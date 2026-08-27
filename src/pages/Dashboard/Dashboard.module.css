@@ -1210,3 +1210,36 @@
     display: none;
   }
 }
+
+/* ——— Context switch (Dual Career, v1.4) ——— */
+.contextSwitch {
+  display: inline-flex;
+  gap: 4px;
+  align-self: flex-start;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.contextBtn {
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.contextBtn:hover {
+  color: var(--text-h);
+}
+
+.contextBtnActive {
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  cursor: default;
+}

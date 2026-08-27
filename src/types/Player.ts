@@ -32,6 +32,8 @@ export interface PlayerStats {
   goalsConceded?: number;
   yellowCards: number;
   redCards: number;
+  /** Jogos como titular (presente na escalação inicial), subconjunto de `matches`. */
+  starts?: number;
 }
 
 export interface Player {
@@ -68,6 +70,23 @@ export interface Player {
    * Enquanto `currentDate < availableFrom`, fica indisponível.
    */
   availableFrom?: string;
+  /**
+   * Data ISO (fim da Data FIFA) até quando o atleta está em serviço na Seleção
+   * Nacional (v1.4). Ortogonal a `availability` — não é um novo valor da enum,
+   * para não quebrar switches exaustivos existentes. `undefined`/passado = livre.
+   */
+  nationalDutyUntil?: string;
+  /**
+   * Data ISO de retorno do empréstimo. Enquanto `status === 'Emprestado'`, o atleta fica
+   * bloqueado da escalação do clube; sem data definida, bloqueia indefinidamente (até o
+   * status ser trocado manualmente).
+   */
+  loanReturnDate?: string;
+  /**
+   * Data ISO de aposentadoria agendada. Até essa data o atleta segue normalmente
+   * disponível; ao alcançá-la, `status` vira `'Aposentado'` automaticamente (ADVANCE_DAY).
+   */
+  retirementDate?: string;
   /**
    * Preenchido só em `state.formerPlayers` — quando/por que o atleta saiu do elenco.
    * `stats` fica congelado como estava no momento da saída (temporada até ali).
@@ -110,14 +129,35 @@ export function isAwaitingPresentation(
   return from > gameDate.slice(0, 10);
 }
 
-/** True se o atleta não pode ser escalado (lesão, suspensão na competição, indisponível, aposentado). */
+/** True se o atleta está em serviço na Seleção Nacional (v1.4) — `nationalDutyUntil` ainda não passou. */
+export function isOnNationalDuty(
+  player: Player,
+  gameDate?: string | null,
+): boolean {
+  if (!player.nationalDutyUntil) return false;
+  const until = player.nationalDutyUntil.slice(0, 10);
+  if (!gameDate) return true;
+  return gameDate.slice(0, 10) <= until;
+}
+
+/** True se o atleta está emprestado e ainda não retornou (`loanReturnDate` no futuro ou indefinida). */
+export function isOnLoan(player: Player, gameDate?: string | null): boolean {
+  if (player.status !== 'Emprestado') return false;
+  if (!player.loanReturnDate) return true;
+  if (!gameDate) return true;
+  return gameDate.slice(0, 10) <= player.loanReturnDate.slice(0, 10);
+}
+
+/** True se o atleta não pode ser escalado (empréstimo, lesão, suspensão na competição, indisponível, aposentado, serviço nacional). */
 export function isPlayerBlockedFromLineup(
   player: Player,
   competition?: string | null,
   gameDate?: string | null,
 ): boolean {
   if (player.status === 'Aposentado') return true;
+  if (isOnLoan(player, gameDate)) return true;
   if (isAwaitingPresentation(player, gameDate)) return true;
+  if (isOnNationalDuty(player, gameDate)) return true;
   const a = player.availability ?? 'disponivel';
   if (a === 'lesionado' || a === 'indisponivel') return true;
   if (a === 'suspenso') return isSuspendedForCompetition(player, competition);
@@ -128,6 +168,11 @@ export function availabilityStatusLabel(
   player: Player,
   gameDate?: string | null,
 ): string | null {
+  if (isOnLoan(player, gameDate)) {
+    return player.loanReturnDate
+      ? `Emprestado até ${player.loanReturnDate.slice(0, 10)}`
+      : 'Emprestado';
+  }
   if (isAwaitingPresentation(player, gameDate)) {
     return `Apresentação ${player.availableFrom!.slice(0, 10)}`;
   }
@@ -151,6 +196,9 @@ export function availabilityStatusLabel(
   }
   if (a === 'indisponivel') {
     return days != null && days > 0 ? `Indisponível · ${days} dia${days === 1 ? '' : 's'}` : 'Indisponível';
+  }
+  if (isOnNationalDuty(player, gameDate)) {
+    return `Em Serviço Nacional até ${player.nationalDutyUntil!.slice(0, 10)}`;
   }
   return null;
 }
@@ -181,5 +229,6 @@ export function emptyPlayerStats(): PlayerStats {
     goalsConceded: 0,
     yellowCards: 0,
     redCards: 0,
+    starts: 0,
   };
 }

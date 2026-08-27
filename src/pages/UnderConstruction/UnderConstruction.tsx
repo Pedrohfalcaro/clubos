@@ -16,15 +16,22 @@ const TITLES: Record<string, string> = {
   conquistas: 'Conquistas',
   redes: 'Redes Sociais',
   relations: 'Relacionamentos',
+  // Seleção Nacional (v1.4) — rotas fixas, sem :section, ver national fallback abaixo
+  windows: 'Datas FIFA',
+  squad: 'Convocação',
+  board: 'Diretoria da Federação',
 };
 
 export default function UnderConstruction() {
-  const { section } = useParams<{ section: string }>();
+  const { section: paramSection } = useParams<{ section: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const title = TITLES[section ?? ''] ?? 'Seção';
+  const isNational = location.pathname.startsWith('/national');
   const isPlayer = location.pathname.startsWith('/player');
-  const dashboardPath = isPlayer ? '/player/dashboard' : '/dashboard';
+  // Rotas da Seleção (ex.: /national/windows) não usam :section — deriva do último segmento.
+  const section = paramSection ?? (isNational ? location.pathname.split('/').filter(Boolean).pop() : undefined);
+  const title = TITLES[section ?? ''] ?? 'Seção';
+  const dashboardPath = isNational ? '/national/dashboard' : isPlayer ? '/player/dashboard' : '/dashboard';
 
   return (
     <div className={styles.page}>

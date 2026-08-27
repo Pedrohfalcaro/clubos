@@ -323,7 +323,7 @@ export function tickStoryArc(input: {
       pendingPressContext: stepDef.pressHint,
     };
 
-    let completed = false;
+    const completed = false;
     if (active.step >= def.steps.length) {
       history.unshift({
         id: active.id,

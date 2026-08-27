@@ -159,7 +159,14 @@ export interface Match {
   lineup?: MatchLineup;
   substitutions?: SubstitutionEvent[];
   injuries?: TeamInjuryEntry[];
+  /** @deprecated Texto legado sem minuto — preferir `opponentGoals`. Mantido para saves antigos. */
   opponentGoalScorers?: string;
+  /** Gols do adversário, estruturados (minuto/assistência) — fonte usada no resumo quando presente. */
+  opponentGoals?: OpponentGoalEntry[];
+  /** Cartões do adversário — só para exibição no resumo (não afeta suspensão/moral do meu elenco). */
+  opponentCards?: OpponentCardEntry[];
+  /** Substituições do adversário — só para exibição no resumo. */
+  opponentSubs?: OpponentSubEntry[];
   description?: string;
   playerRatings?: PlayerMatchRating[];
   motmPlayerId?: string;
@@ -192,6 +199,9 @@ export interface CompleteMatchInput {
   substitutions?: SubstitutionEvent[];
   injuries?: TeamInjuryEntry[];
   opponentGoalScorers?: string;
+  opponentGoals?: OpponentGoalEntry[];
+  opponentCards?: OpponentCardEntry[];
+  opponentSubs?: OpponentSubEntry[];
   description?: string;
   playerRatings?: PlayerMatchRating[];
   motmPlayerId?: string;

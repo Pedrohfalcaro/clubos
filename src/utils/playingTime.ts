@@ -1,8 +1,16 @@
-import type { Match, SubstitutionEvent, TeamInjuryEntry } from '../types/Match';
+import type { MatchLineup, SubstitutionEvent, TeamInjuryEntry } from '../types/Match';
 
 const FULL_MATCH_MINUTES = 90;
 
-function teamSubs(match: Match): SubstitutionEvent[] {
+/** Estrutura mínima necessária — `Match` e `FifaWindowGame` (Seleção) satisfazem ambas. */
+export interface PlayingTimeSource {
+  lineup?: MatchLineup;
+  substitutions?: SubstitutionEvent[];
+  injuries?: TeamInjuryEntry[];
+  playerMatches?: string[];
+}
+
+function teamSubs(match: PlayingTimeSource): SubstitutionEvent[] {
   return (match.substitutions ?? []).filter(s => s.side === 'team' && s.playerInId);
 }
 
@@ -28,7 +36,7 @@ function leaveMinute(
  * Starters count from kickoff; bench only counts if they entered via substitution.
  * Injury or sub-out ends their minutes; they never return.
  */
-export function getMatchPlayingTime(match: Match): Map<string, number> {
+export function getMatchPlayingTime(match: PlayingTimeSource): Map<string, number> {
   const result = new Map<string, number>();
   const starters = match.lineup?.formation?.map(s => s.playerId) ?? [];
   const subs = teamSubs(match);
@@ -65,6 +73,6 @@ export function getMatchPlayingTime(match: Match): Map<string, number> {
   return result;
 }
 
-export function getPlayersWhoPlayed(match: Match): string[] {
+export function getPlayersWhoPlayed(match: PlayingTimeSource): string[] {
   return Array.from(getMatchPlayingTime(match).keys());
 }

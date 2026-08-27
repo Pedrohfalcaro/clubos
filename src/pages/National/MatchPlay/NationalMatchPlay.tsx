@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import FormationField from '../../components/FormationField/FormationField';
-import FormationPicker from '../../components/FormationPicker/FormationPicker';
-import { useGame } from '../../context/GameContext';
+import FormationField from '../../../components/FormationField/FormationField';
+import FormationPicker from '../../../components/FormationPicker/FormationPicker';
+import { useGame } from '../../../context/GameContext';
 import type {
   SubstitutionEvent,
   TeamGoalEntry,
@@ -11,42 +11,32 @@ import type {
   OpponentCardEntry,
   OpponentSubEntry,
   TeamInjuryEntry,
-} from '../../types/Match';
-import type {
-  FormationKey,
-  FormationSlot,
-  TacticsDraft,
-} from '../../types/Tactics';
-import { getHomeAway } from '../../utils/matchStats';
-import {
-  getFormationPreset,
-  isLineupComplete,
-  lineupWarnings,
-  remapFormation,
-  resolveTactics,
-} from '../../utils/formations';
-import { isPlayerBlockedFromLineup } from '../../types/Player';
-import type { Player } from '../../types/Player';
-import { defaultMinute, uid } from '../../utils/matchEvents';
+  MatchLineup,
+} from '../../../types/Match';
+import type { FormationKey, FormationSlot, TacticsDraft } from '../../../types/Tactics';
+import { getHomeAway } from '../../../utils/matchStats';
+import { getFormationPreset, isLineupComplete, remapFormation, resolveTactics } from '../../../utils/formations';
+import { defaultMinute, uid } from '../../../utils/matchEvents';
 import {
   buildAssistEvents,
   buildCardEvents,
   buildGoalEvents,
   isOpponentGoalsValid,
   isTeamGoalsValid,
-  opponentGoalsText,
   syncTeamGoalsCount,
-} from '../../utils/matchPlayHelpers';
-import { kitColorForLocation, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
-import MatchSummaryStep, { buildRatingsArray } from './MatchSummaryStep';
-import MatchResultStep, { areInjuriesValid, isResultStepValid } from './MatchResultStep';
-import ScoreStep from './steps/ScoreStep';
-import TeamGoalsStep from './steps/TeamGoalsStep';
-import OpponentGoalsStep from './steps/OpponentGoalsStep';
-import PathChoiceStep from './steps/PathChoiceStep';
-import EventsStep from './steps/EventsStep';
-import MatchRecapStep from './steps/MatchRecapStep';
-import styles from './MatchPlay.module.css';
+} from '../../../utils/matchPlayHelpers';
+import { kitColorForLocation, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../../utils/clubColors';
+import { nationalPlayerToPseudoPlayer, buildNationalPerformances } from '../../../utils/nationalMatchPlay';
+import MatchSummaryStep, { buildRatingsArray } from '../../MatchPlay/MatchSummaryStep';
+import MatchResultStep, { areInjuriesValid, isResultStepValid } from '../../MatchPlay/MatchResultStep';
+import ScoreStep from '../../MatchPlay/steps/ScoreStep';
+import TeamGoalsStep from '../../MatchPlay/steps/TeamGoalsStep';
+import OpponentGoalsStep from '../../MatchPlay/steps/OpponentGoalsStep';
+import PathChoiceStep from '../../MatchPlay/steps/PathChoiceStep';
+import EventsStep from '../../MatchPlay/steps/EventsStep';
+import MatchRecapStep from '../../MatchPlay/steps/MatchRecapStep';
+// Reaproveita o CSS do MatchPlay.tsx do clube — mesma tela, mesmo visual.
+import styles from '../../MatchPlay/MatchPlay.module.css';
 
 type Step =
   | 'lineup'
@@ -90,65 +80,40 @@ function stepLabel(step: Step): string {
   }
 }
 
-function sanitizeLineup(
-  draft: TacticsDraft,
-  players: Player[],
-  competition?: string | null,
-  gameDate?: string | null,
-): TacticsDraft {
-  const ok = (id: string) => {
-    const p = players.find(x => x.id === id);
-    return !!p && !isPlayerBlockedFromLineup(p, competition, gameDate);
-  };
-  return {
-    ...draft,
-    formation: draft.formation.filter(f => ok(f.playerId)),
-    bench: draft.bench.filter(ok),
-  };
-}
-
-export default function MatchPlay() {
-  const { matchId } = useParams<{ matchId: string }>();
+export default function NationalMatchPlay() {
+  const { windowId, gameId } = useParams<{ windowId: string; gameId: string }>();
   const navigate = useNavigate();
-  const { state, getMatch, completeMatch, updateCompletedMatch } = useGame();
+  const { state, updateFifaWindowGame } = useGame();
 
-  const match = matchId ? getMatch(matchId) : undefined;
-  const isEdit = match?.status === 'completed';
-  const players = state.players;
-  const teamName = state.team?.name ?? '';
+  const nationalTeam = state.nationalTeam;
+  const activeWindow = nationalTeam?.windows.find(w => w.id === windowId) ?? null;
+  const game = activeWindow?.games.find(g => g.id === gameId) ?? null;
+  const isEdit = !!game?.played;
+  const teamName = nationalTeam?.name ?? '';
+  const players = useMemo(
+    () =>
+      (activeWindow?.callUpIds ?? [])
+        .map(id => nationalTeam?.talentPool.find(p => p.id === id))
+        .filter((p): p is NonNullable<typeof p> => !!p)
+        .map(nationalPlayerToPseudoPlayer),
+    [activeWindow, nationalTeam],
+  );
 
   const [step, setStep] = useState<Step>('lineup');
-
-  const matchCompetition = match?.competition ?? null;
-
-  // A escalação da partida parte do que já foi registrado nela, ou da tática salva
-  // (atletas lesionados/suspensos nesta competição são removidos automaticamente)
   const gameDate = state.currentDate;
+
   const [lineup, setLineup] = useState<TacticsDraft>(() =>
-    sanitizeLineup(
-      resolveTactics(match?.lineup ?? state.tactics, players),
-      players,
-      match?.competition,
-      state.currentDate,
-    ),
+    resolveTactics(game?.lineup ?? activeWindow?.tactics, players),
   );
   const { formationKey, style, formation, bench } = lineup;
   const preset = getFormationPreset(formationKey);
-  const availabilityWarnings = lineupWarnings(
-    formation,
-    formationKey,
-    players,
-    bench,
-    matchCompetition,
-    gameDate,
-  ).filter(w => w.kind === 'availability');
 
-  const [goalsFor, setGoalsFor] = useState(match?.goalsFor ?? 0);
-  const [goalsAgainst, setGoalsAgainst] = useState(match?.goalsAgainst ?? 0);
+  const [goalsFor, setGoalsFor] = useState(game?.goalsFor ?? 0);
+  const [goalsAgainst, setGoalsAgainst] = useState(game?.goalsAgainst ?? 0);
 
   const [teamGoals, setTeamGoals] = useState<TeamGoalEntry[]>(() => {
-    if (!match?.goals.length) return [];
-    return match.goals.map(g => ({
+    if (!game?.goals?.length) return [];
+    return game.goals.map(g => ({
       id: uid(),
       type: g.isOwnGoal ? ('own' as const) : ('team' as const),
       playerId: g.isOwnGoal ? undefined : g.playerId,
@@ -160,7 +125,7 @@ export default function MatchPlay() {
   });
 
   const [teamCards, setTeamCards] = useState<TeamCardEntry[]>(() =>
-    (match?.cards ?? []).map(c => ({
+    (game?.cards ?? []).map(c => ({
       id: uid(),
       playerId: c.playerId,
       playerName: c.playerName,
@@ -169,10 +134,8 @@ export default function MatchPlay() {
     })),
   );
 
-  const [teamSubs, setTeamSubs] = useState<SubstitutionEvent[]>(
-    () => (match?.substitutions ?? []).filter(s => s.side === 'team'),
-  );
-  const [injuries, setInjuries] = useState<TeamInjuryEntry[]>(() => match?.injuries ?? []);
+  const [teamSubs, setTeamSubs] = useState<SubstitutionEvent[]>(() => game?.substitutions ?? []);
+  const [injuries, setInjuries] = useState<TeamInjuryEntry[]>(() => game?.injuries ?? []);
   const [opponentGoals, setOpponentGoals] = useState<OpponentGoalEntry[]>([]);
   const [opponentCards, setOpponentCards] = useState<OpponentCardEntry[]>([]);
   const [opponentSubs, setOpponentSubs] = useState<OpponentSubEntry[]>([]);
@@ -180,31 +143,26 @@ export default function MatchPlay() {
 
   const [ratings, setRatings] = useState<Record<string, number | null>>(() => {
     const map: Record<string, number | null> = {};
-    for (const r of match?.playerRatings ?? []) map[r.playerId] = r.rating;
+    for (const r of game?.playerRatings ?? []) map[r.playerId] = r.rating;
     return map;
   });
-  const [motmPlayerId, setMotmPlayerId] = useState<string | null>(match?.motmPlayerId ?? null);
-  const [worstPlayerId, setWorstPlayerId] = useState<string | null>(match?.worstPlayerId ?? null);
-  const [description, setDescription] = useState(match?.description ?? '');
+  const [motmPlayerId, setMotmPlayerId] = useState<string | null>(game?.motmNationalPlayerId ?? null);
+  const [worstPlayerId, setWorstPlayerId] = useState<string | null>(game?.worstNationalPlayerId ?? null);
+  const [description, setDescription] = useState(game?.description ?? '');
 
-  const homeAway = match ? getHomeAway(teamName, { ...match, goalsFor, goalsAgainst }) : null;
+  const homeAway = game
+    ? getHomeAway(teamName, { location: game.location, opponent: game.opponent, goalsFor, goalsAgainst })
+    : null;
   const starters = formation.map(f => f.playerId);
-  const lineupValid =
-    isLineupComplete(formation, formationKey, players, matchCompetition, gameDate) &&
-    bench.length <= 9 &&
-    !bench.some(id => {
-      const p = players.find(x => x.id === id);
-      return !!p && isPlayerBlockedFromLineup(p, matchCompetition, gameDate);
-    });
+  const lineupValid = isLineupComplete(formation, formationKey, players, null, gameDate) && bench.length <= 9;
 
   const homeGoals = homeAway?.homeTeam === teamName ? goalsFor : goalsAgainst;
   const awayGoals = homeAway?.awayTeam === teamName ? goalsFor : goalsAgainst;
-  const ourPitchSide: 'home' | 'away' =
-    match?.location === 'away' ? 'away' : 'home';
+  const ourPitchSide: 'home' | 'away' = game?.location === 'away' ? 'away' : 'home';
   const lineupKitColor = kitColorForLocation(
-    match?.location ?? 'home',
-    state.team?.primaryColor ?? DEFAULT_PRIMARY,
-    state.team?.secondaryColor ?? DEFAULT_SECONDARY,
+    game?.location ?? 'home',
+    nationalTeam?.primaryColor ?? DEFAULT_PRIMARY,
+    nationalTeam?.secondaryColor ?? DEFAULT_SECONDARY,
   );
 
   useEffect(() => {
@@ -228,11 +186,11 @@ export default function MatchPlay() {
     });
   }, [goalsAgainst]);
 
-  if (!match || !homeAway) {
+  if (!nationalTeam || !activeWindow || !game || !homeAway) {
     return (
       <div className={styles.notFound}>
         <p>Partida não encontrada.</p>
-        <button onClick={() => navigate('/dashboard')}>Voltar</button>
+        <button onClick={() => navigate('/national/windows')}>Voltar</button>
       </div>
     );
   }
@@ -278,39 +236,47 @@ export default function MatchPlay() {
   }
 
   function handleFinish() {
-    if (!match) return;
+    if (!activeWindow || !game) return;
     const starterIds = formation.map(f => f.playerId);
     const enteredIds = teamSubs.map(s => s.playerInId).filter(Boolean);
     const playerMatches = [...new Set([...starterIds, ...enteredIds])];
+    const goals = buildGoalEvents(teamGoals, players);
+    const assists = buildAssistEvents(teamGoals, players);
+    const cards = buildCardEvents(teamCards);
+    const validInjuries = injuries.filter(i => !!i.playerId && !!i.returnDate);
+    const finishedLineup: MatchLineup = { formation, bench, formationKey, style };
 
-    const input = {
-      matchId: match.id,
+    const performances = buildNationalPerformances({
+      lineup: finishedLineup,
+      substitutions: teamSubs,
+      injuries: validInjuries,
+      playerMatches,
+      goals,
+      assists,
+      cards,
+      ratings,
+    });
+
+    updateFifaWindowGame(activeWindow.id, game.id, {
+      played: true,
       goalsFor,
       goalsAgainst,
-      goals: buildGoalEvents(teamGoals, players),
-      assists: buildAssistEvents(teamGoals, players),
-      cards: buildCardEvents(teamCards),
-      playerMatches,
-      lineup: { formation, bench, formationKey, style },
+      lineup: finishedLineup,
+      goals,
+      assists,
+      cards,
       substitutions: teamSubs,
-      injuries: injuries.filter(i => !!i.playerId && !!i.returnDate),
-      opponentGoalScorers: opponentGoalsText(opponentGoals) || undefined,
+      injuries: validInjuries,
       opponentGoals: opponentGoals.length ? opponentGoals : undefined,
       opponentCards: opponentCards.length ? opponentCards : undefined,
       opponentSubs: opponentSubs.length ? opponentSubs : undefined,
       description: description.trim() || undefined,
       playerRatings: buildRatingsArray(ratings),
-      motmPlayerId: motmPlayerId ?? undefined,
-      worstPlayerId: worstPlayerId ?? undefined,
-    };
-
-    if (isEdit) {
-      updateCompletedMatch(input);
-      navigate('/dashboard');
-    } else {
-      completeMatch(input);
-      navigate(`/press-conference?ctx=post&matchId=${match.id}`);
-    }
+      motmNationalPlayerId: motmPlayerId ?? undefined,
+      worstNationalPlayerId: worstPlayerId ?? undefined,
+      performances,
+    });
+    navigate('/national/windows');
   }
 
   function canContinue(): boolean {
@@ -333,8 +299,7 @@ export default function MatchPlay() {
     else if (step === 'score') {
       if (liveMode) setStep('ratings');
       else goAfterScore();
-    }
-    else if (step === 'teamGoals') goAfterTeamGoals();
+    } else if (step === 'teamGoals') goAfterTeamGoals();
     else if (step === 'opponentGoals') setStep('events');
     else if (step === 'events') setStep('ratings');
     else if (step === 'ratings') setStep('recap');
@@ -342,7 +307,7 @@ export default function MatchPlay() {
   }
 
   function handleBack() {
-    if (step === 'lineup') navigate('/dashboard');
+    if (step === 'lineup') navigate('/national/windows');
     else if (step === 'score') setStep('lineup');
     else if (step === 'teamGoals') setStep('score');
     else if (step === 'pathChoice') setStep(goalsFor > 0 ? 'teamGoals' : 'score');
@@ -366,9 +331,9 @@ export default function MatchPlay() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <h1 className={styles.title}>{isEdit ? 'Editar partida' : 'Registrar partida'}</h1>
+          <h1 className={styles.title}>{isEdit ? 'Editar partida' : 'Jogar partida'}</h1>
           <p className={styles.sub}>
-            {match.competition} · {new Date(match.date).toLocaleDateString('pt-BR')}
+            {activeWindow.label} · {new Date(game.date).toLocaleDateString('pt-BR')}
             {' · '}
             {liveMode && step === 'score' ? 'Ao vivo' : stepLabel(step)}
           </p>
@@ -404,7 +369,7 @@ export default function MatchPlay() {
         <section className={styles.section}>
           <div className={styles.lineupHead}>
             <h2 className={styles.sectionTitle}>Escalação titular</h2>
-            {state.tacticsPresets.length > 0 && (
+            {activeWindow.tacticsPresets.length > 0 && (
               <label className={styles.tacticsSelectWrap}>
                 <span className={styles.tacticsSelectLabel}>Tática</span>
                 <select
@@ -413,21 +378,12 @@ export default function MatchPlay() {
                   onChange={e => {
                     const id = e.target.value;
                     if (!id) return;
-                    const preset = state.tacticsPresets.find(p => p.id === id);
-                    if (preset) {
-                      setLineup(
-                        sanitizeLineup(
-                          resolveTactics(preset, players),
-                          players,
-                          matchCompetition,
-                          gameDate,
-                        ),
-                      );
-                    }
+                    const found = activeWindow.tacticsPresets.find(p => p.id === id);
+                    if (found) setLineup(resolveTactics(found, players));
                   }}
                 >
                   <option value="">Usar tática…</option>
-                  {state.tacticsPresets.map(p => (
+                  {activeWindow.tacticsPresets.map(p => (
                     <option key={p.id} value={p.id}>
                       {p.name}
                     </option>
@@ -436,11 +392,7 @@ export default function MatchPlay() {
               </label>
             )}
           </div>
-          <FormationPicker
-            value={formationKey}
-            onChange={handleFormationChange}
-            showDescription={false}
-          />
+          <FormationPicker value={formationKey} onChange={handleFormationChange} showDescription={false} />
           <div className={styles.lineupCard}>
             <FormationField
               players={players}
@@ -454,18 +406,10 @@ export default function MatchPlay() {
               slotMode
               preset={preset}
               kitColor={lineupKitColor}
-              primaryColor={state.team?.primaryColor ?? DEFAULT_PRIMARY}
-              secondaryColor={state.team?.secondaryColor ?? DEFAULT_SECONDARY}
-              competition={matchCompetition}
+              primaryColor={nationalTeam.primaryColor ?? DEFAULT_PRIMARY}
+              secondaryColor={nationalTeam.secondaryColor ?? DEFAULT_SECONDARY}
             />
           </div>
-          {availabilityWarnings.length > 0 && (
-            <ul className={styles.lineupWarnList}>
-              {availabilityWarnings.map((w, i) => (
-                <li key={i}>{w.message}</li>
-              ))}
-            </ul>
-          )}
         </section>
       )}
 
@@ -475,7 +419,7 @@ export default function MatchPlay() {
           {liveMode ? (
             <MatchResultStep
               teamName={teamName}
-              opponentName={match.opponent}
+              opponentName={game.opponent}
               homeTeam={homeAway.homeTeam}
               awayTeam={homeAway.awayTeam}
               isTeamHome={ourPitchSide === 'home'}
@@ -535,7 +479,7 @@ export default function MatchPlay() {
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Continuar</h2>
           <PathChoiceStep
-            opponentName={match.opponent}
+            opponentName={game.opponent}
             onOpponent={() => setStep('opponentGoals')}
             onEvents={() => setStep('events')}
           />
@@ -544,12 +488,8 @@ export default function MatchPlay() {
 
       {step === 'opponentGoals' && (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Gols — {match.opponent}</h2>
-          <OpponentGoalsStep
-            opponentName={match.opponent}
-            goals={opponentGoals}
-            onChange={setOpponentGoals}
-          />
+          <h2 className={styles.sectionTitle}>Gols — {game.opponent}</h2>
+          <OpponentGoalsStep opponentName={game.opponent} goals={opponentGoals} onChange={setOpponentGoals} />
         </section>
       )}
 
@@ -596,12 +536,12 @@ export default function MatchPlay() {
           <h2 className={styles.sectionTitle}>Resumo da partida</h2>
           <MatchRecapStep
             teamName={teamName}
-            opponentName={match.opponent}
+            opponentName={game.opponent}
             homeTeam={homeAway.homeTeam}
             awayTeam={homeAway.awayTeam}
             homeGoals={homeGoals}
             awayGoals={awayGoals}
-            competition={match.competition}
+            competition={activeWindow.label}
             ourPitchSide={ourPitchSide}
             players={players}
             teamGoals={teamGoals}
@@ -626,11 +566,7 @@ export default function MatchPlay() {
             disabled={!canContinue()}
             onClick={handleNext}
           >
-            {step === 'recap'
-              ? isEdit
-                ? 'Salvar e continuar'
-                : 'Continuar'
-              : 'Continuar'}
+            {step === 'recap' ? (isEdit ? 'Salvar e continuar' : 'Continuar') : 'Continuar'}
           </button>
         </div>
       )}
