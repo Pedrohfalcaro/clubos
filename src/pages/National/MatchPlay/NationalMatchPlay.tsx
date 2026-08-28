@@ -95,7 +95,7 @@ export default function NationalMatchPlay() {
       (activeWindow?.callUpIds ?? [])
         .map(id => nationalTeam?.talentPool.find(p => p.id === id))
         .filter((p): p is NonNullable<typeof p> => !!p)
-        .map(nationalPlayerToPseudoPlayer),
+        .map(p => nationalPlayerToPseudoPlayer(p, activeWindow?.callUpNumbers[p.id])),
     [activeWindow, nationalTeam],
   );
 

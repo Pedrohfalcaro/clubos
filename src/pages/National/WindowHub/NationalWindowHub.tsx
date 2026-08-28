@@ -510,8 +510,8 @@ function TaticaTab({ windowId }: { windowId: string }) {
       fifaWindow.callUpIds
         .map(id => nationalTeam.talentPool.find(p => p.id === id))
         .filter((p): p is NonNullable<typeof p> => !!p)
-        .map(nationalPlayerToPseudoPlayer),
-    [fifaWindow.callUpIds, nationalTeam.talentPool],
+        .map(p => nationalPlayerToPseudoPlayer(p, fifaWindow.callUpNumbers[p.id])),
+    [fifaWindow.callUpIds, fifaWindow.callUpNumbers, nationalTeam.talentPool],
   );
   const primaryColor = nationalTeam.primaryColor ?? DEFAULT_PRIMARY;
   const secondaryColor = nationalTeam.secondaryColor ?? DEFAULT_SECONDARY;

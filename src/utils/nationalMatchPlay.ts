@@ -23,13 +23,13 @@ import type {
 import type { NationalMatchPerformance, NationalPlayer } from '../types/NationalTeam';
 import { getMatchPlayingTime } from './playingTime';
 
-export function nationalPlayerToPseudoPlayer(np: NationalPlayer): Player {
+export function nationalPlayerToPseudoPlayer(np: NationalPlayer, number?: number | null): Player {
   return {
     id: np.id,
     teamId: '',
     name: np.name,
     position: np.position,
-    number: null,
+    number: number ?? null,
     age: np.age,
     overall: np.overall ?? 60,
     potential: np.overall ?? 60,
