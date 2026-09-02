@@ -310,6 +310,7 @@ type GameAction =
   | { type: 'SET_BOARD_GOAL'; goal: BoardGoal }
   | { type: 'REMOVE_BOARD_GOAL'; goalId: string }
   | { type: 'ADJUST_BOARD_CONFIDENCE'; delta: number; reason: string }
+  | { type: 'ADJUST_SUPPORTER_CONFIDENCE'; delta: number; reason: string }
   | { type: 'UPDATE_GOAL_PROGRESS'; updates: { goalId: string; current: number }[] }
   | { type: 'RESOLVE_BOARD_GOALS'; resolutions: GoalResolution[] }
   | { type: 'MANUALLY_RESOLVE_GOAL'; resolution: GoalResolution }
@@ -503,6 +504,7 @@ interface GameContextValue {
   setBoardGoal: (goal: BoardGoal) => void;
   removeBoardGoal: (goalId: string) => void;
   adjustBoardConfidence: (delta: number, reason: string) => void;
+  adjustSupporterConfidence: (delta: number, reason: string) => void;
   resolveBoardGoals: (resolutions: GoalResolution[]) => void;
   manuallyResolveGoal: (goal: BoardGoal, status: 'done' | 'exceeded' | 'failed') => void;
   dismissGoalPrompt: (season: number) => void;
@@ -2560,6 +2562,20 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'ADJUST_SUPPORTER_CONFIDENCE': {
+      if (!state.team) return state;
+      const newConf = clampConfidence(state.team.supporterConfidence + action.delta);
+      const entry = { date: new Date().toISOString().slice(0, 10), value: newConf, reason: action.reason };
+      return {
+        ...state,
+        team: { ...state.team, supporterConfidence: newConf },
+        board: {
+          ...state.board,
+          supporterHistory: [entry, ...(state.board.supporterHistory ?? [])].slice(0, 50),
+        },
+      };
+    }
+
     case 'UPDATE_GOAL_PROGRESS': {
       if (!action.updates.length) return state;
       const byId = new Map(action.updates.map(u => [u.goalId, u.current]));
@@ -4352,6 +4368,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'ADJUST_BOARD_CONFIDENCE', delta, reason });
   }
 
+  function adjustSupporterConfidence(delta: number, reason: string) {
+    dispatch({ type: 'ADJUST_SUPPORTER_CONFIDENCE', delta, reason });
+  }
+
   function resolveBoardGoals(resolutions: GoalResolution[]) {
     if (!resolutions.length) return;
     dispatch({ type: 'RESOLVE_BOARD_GOALS', resolutions });
@@ -4844,6 +4864,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setBoardGoal,
         removeBoardGoal,
         adjustBoardConfidence,
+        adjustSupporterConfidence,
         resolveBoardGoals,
         manuallyResolveGoal,
         dismissGoalPrompt,

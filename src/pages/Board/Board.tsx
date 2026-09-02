@@ -76,6 +76,8 @@ export default function Board() {
     state,
     setBoardGoal,
     removeBoardGoal,
+    adjustBoardConfidence,
+    adjustSupporterConfidence,
     updateTeam,
     applyLedger,
     getSaveSnapshot,
@@ -110,6 +112,27 @@ export default function Board() {
   const status = boardStatus(conf);
   const fanConf = team?.supporterConfidence ?? 65;
   const fanStatus = boardStatus(fanConf);
+
+  // Correção manual — para compensar quedas causadas por bugs (ex.: temporada
+  // avançando com dados de competição da temporada anterior ainda na tabela).
+  const [boardConfAdjust, setBoardConfAdjust] = useState('');
+  const [fanConfAdjust, setFanConfAdjust] = useState('');
+
+  function applyBoardConfAdjust() {
+    const n = parseInt(boardConfAdjust, 10);
+    if (isNaN(n)) return;
+    const delta = Math.max(0, Math.min(100, n)) - conf;
+    if (delta !== 0) adjustBoardConfidence(delta, 'Correção manual');
+    setBoardConfAdjust('');
+  }
+
+  function applyFanConfAdjust() {
+    const n = parseInt(fanConfAdjust, 10);
+    if (isNaN(n)) return;
+    const delta = Math.max(0, Math.min(100, n)) - fanConf;
+    if (delta !== 0) adjustSupporterConfidence(delta, 'Correção manual');
+    setFanConfAdjust('');
+  }
 
   // Club edit state
   const [clubName, setClubName] = useState(team?.name ?? '');
@@ -421,6 +444,20 @@ export default function Board() {
               <p className={styles.confHintMuted}>
                 Baixa → mais cobranças no Pulse · Alta → mais apoio e boas notícias
               </p>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <input
+                  className={styles.formInput}
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="Corrigir para..."
+                  value={boardConfAdjust}
+                  onChange={e => setBoardConfAdjust(e.target.value)}
+                />
+                <button type="button" className={styles.btnSecondary} onClick={applyBoardConfAdjust}>
+                  Ajustar
+                </button>
+              </div>
             </div>
 
             <div className={styles.confCard}>
@@ -443,6 +480,20 @@ export default function Board() {
               <p className={styles.confHintMuted}>
                 Baixa → protestos e críticas · Alta → festa, apoio e idolatria
               </p>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <input
+                  className={styles.formInput}
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="Corrigir para..."
+                  value={fanConfAdjust}
+                  onChange={e => setFanConfAdjust(e.target.value)}
+                />
+                <button type="button" className={styles.btnSecondary} onClick={applyFanConfAdjust}>
+                  Ajustar
+                </button>
+              </div>
             </div>
           </div>
 
