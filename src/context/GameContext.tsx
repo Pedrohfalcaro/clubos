@@ -268,6 +268,7 @@ type GameAction =
   | { type: 'UPDATE_SCHEDULED_MATCH'; matchId: string; updates: ScheduleMatchInput }
   | { type: 'COMPLETE_MATCH'; input: CompleteMatchInput }
   | { type: 'UPDATE_COMPLETED_MATCH'; input: CompleteMatchInput }
+  | { type: 'RECALC_SEASON_STATS' }
   | { type: 'COMPLETE_PLAYER_MATCH'; input: CompletePlayerMatchInput }
   | { type: 'UPDATE_PLAYER_MATCH'; input: CompletePlayerMatchInput }
   | { type: 'SAVE_TACTICS'; tactics: SavedTactics }
@@ -468,6 +469,7 @@ interface GameContextValue {
   updateScheduledMatch: (matchId: string, updates: ScheduleMatchInput) => void;
   completeMatch: (input: CompleteMatchInput) => void;
   updateCompletedMatch: (input: CompleteMatchInput) => void;
+  recalcSeasonStats: () => void;
   completePlayerMatch: (input: CompletePlayerMatchInput) => void;
   updatePlayerMatch: (input: CompletePlayerMatchInput) => void;
   saveTactics: (tactics: SavedTactics) => void;
@@ -1328,7 +1330,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         gameDate: state.currentDate,
         competition: matchComp,
       });
-      const recalculated = recalculateFromMatches(state.team, playersWithInjury, updatedMatches);
+      const recalculated = recalculateFromMatches(
+        state.team,
+        playersWithInjury,
+        updatedMatches,
+        state.season,
+      );
       const completedMatch = updatedMatches.find(m => m.id === action.input.matchId);
       const playersWithMorale = completedMatch
         ? applyMatchMoraleToPlayers(recalculated.players, completedMatch)
@@ -1661,8 +1668,27 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         competition: matchComp,
         tickSuspensions: false,
       });
-      const recalculated = recalculateFromMatches(state.team, playersWithInjury, updatedMatches);
+      const recalculated = recalculateFromMatches(
+        state.team,
+        playersWithInjury,
+        updatedMatches,
+        state.season,
+      );
       return { ...state, matches: updatedMatches, ...recalculated };
+    }
+
+    case 'RECALC_SEASON_STATS': {
+      // Recuperação para saves com `player.stats`/`team.statistics` contaminados por
+      // partidas de temporadas anteriores (bug antigo do `recalculateFromMatches` sem
+      // filtro de temporada) — reconstrói os dois só a partir dos jogos da temporada atual.
+      if (!state.team) return state;
+      const recalculated = recalculateFromMatches(
+        state.team,
+        state.players,
+        state.matches,
+        state.season,
+      );
+      return { ...state, ...recalculated };
     }
 
     case 'COMPLETE_PLAYER_MATCH': {
@@ -4049,6 +4075,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'UPDATE_COMPLETED_MATCH', input });
   }
 
+  function recalcSeasonStats() {
+    forceCloudRef.current = true;
+    dispatch({ type: 'RECALC_SEASON_STATS' });
+  }
+
   function completePlayerMatch(input: CompletePlayerMatchInput) {
     forceCloudRef.current = true;
     dispatch({ type: 'COMPLETE_PLAYER_MATCH', input });
@@ -4169,7 +4200,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (save.team && save.teamId) {
       const players = save.players ?? [];
       const matches = save.matches;
-      const recalculated = recalculateFromMatches(save.team, players, matches);
+      const recalculated = recalculateFromMatches(save.team, players, matches, save.season ?? 2026);
       const tacticsState = migrateTacticsPresets(
         save.tactics,
         save.tacticsPresets,
@@ -4837,6 +4868,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         updateScheduledMatch,
         completeMatch,
         updateCompletedMatch,
+        recalcSeasonStats,
         completePlayerMatch,
         updatePlayerMatch,
         saveTactics,

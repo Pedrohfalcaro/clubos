@@ -190,7 +190,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
 
   const players =
     team && playersRaw.length
-      ? recalculateFromMatches(team, playersRaw, matches).players
+      ? recalculateFromMatches(team, playersRaw, matches, save.season ?? 2026).players
       : playersRaw;
 
   const seasonCompetitions = migrateSeasonCompetitions(save.seasonCompetitions);

@@ -79,7 +79,7 @@ interface PlayerCompStats {
 }
 
 export default function Squad() {
-  const { state, updatePlayer } = useGame();
+  const { state, updatePlayer, recalcSeasonStats } = useGame();
   const [view, setView] = useState<'roster' | 'history'>('roster');
   const [histScope, setHistScope] = useState<HistoryScope>('current');
   const [filter, setFilter] = useState<PlayerStatus | 'Todos'>('Todos');
@@ -134,7 +134,10 @@ export default function Squad() {
     }
 
     const playerById = new Map(state.players.map(p => [p.id, p]));
-    for (const match of state.matches.filter(m => m.status === 'completed')) {
+    const seasonMatches = state.matches.filter(
+      m => m.status === 'completed' && (m.season ?? state.season) === state.season,
+    );
+    for (const match of seasonMatches) {
       const playingTime = getMatchPlayingTime(match);
       const played = new Set(playingTime.keys());
       if (played.size === 0 && match.lineup?.formation) {
@@ -164,7 +167,7 @@ export default function Squad() {
       }
     }
     return map;
-  }, [state.matches, state.players]);
+  }, [state.matches, state.players, state.season]);
 
   const compSummaries = useMemo(() => {
     return state.seasonCompetitions.map(comp => {
@@ -174,11 +177,14 @@ export default function Squad() {
         if (s && s.matches > 0) playersUsed += 1;
       }
       const matchCount = state.matches.filter(
-        m => m.competition === comp.name && m.status === 'completed',
+        m =>
+          m.competition === comp.name &&
+          m.status === 'completed' &&
+          (m.season ?? state.season) === state.season,
       ).length;
       return { ...comp, matchCount, playersUsed };
     });
-  }, [state.seasonCompetitions, state.matches, statsByPlayerComp]);
+  }, [state.seasonCompetitions, state.matches, state.season, statsByPlayerComp]);
 
   const players = state.players.filter(p => {
     const matchStatus = filter === 'Todos' || p.status === filter;
@@ -300,6 +306,22 @@ export default function Squad() {
     setEditingId(null);
   }
 
+  /**
+   * Recuperação para saves antigos: reconstrói `player.stats`/`team.statistics` a
+   * partir só dos jogos da temporada atual — corrige números que ficaram misturados
+   * com temporadas passadas (bug do `recalculateFromMatches` sem filtro de temporada).
+   */
+  function handleRecalcStats() {
+    if (
+      !window.confirm(
+        `Recalcular gols, jogos, cartões e outras estatísticas da temporada ${state.season} a partir dos jogos registrados? Isso corrige números misturados com temporadas anteriores.`,
+      )
+    ) {
+      return;
+    }
+    recalcSeasonStats();
+  }
+
   function clearAvailability(playerId: string) {
     updatePlayer(playerId, {
       availability: 'disponivel',
@@ -410,6 +432,14 @@ export default function Squad() {
               : 'Estatísticas por temporada e totais da carreira'}
           </p>
         </div>
+        <button
+          type="button"
+          className={styles.editBtn}
+          onClick={handleRecalcStats}
+          title="Use se gols/jogos/cartões da temporada aparecerem com números de temporadas anteriores"
+        >
+          Recalcular estatísticas da temporada
+        </button>
       </header>
 
       <div className={styles.viewTabs}>

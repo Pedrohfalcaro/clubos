@@ -26,8 +26,14 @@ export function recalculateFromMatches(
   team: Team,
   players: Player[],
   matches: Match[],
+  season: number,
 ): { team: Team; players: Player[] } {
-  const completed = matches.filter(m => m.status === 'completed');
+  // Só a temporada atual — sem isso, `team.statistics`/`player.stats` viram totais de
+  // carreira disfarçados: bastava completar um jogo pra "ressuscitar" números de
+  // temporadas já fechadas por cima do reset feito em ADVANCE_SEASON.
+  const completed = matches.filter(
+    m => m.status === 'completed' && (m.season ?? season) === season,
+  );
   const statistics = emptyTeamStatistics();
 
   const playerById = new Map(players.map(p => [p.id, p]));
