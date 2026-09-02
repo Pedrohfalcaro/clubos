@@ -16,7 +16,11 @@ import {
   KNOCKOUT_STAGE_LABELS,
 } from '../../types/Competition';
 import type { MatchLocation } from '../../types/Match';
-import { COMPETITION_PALETTE, createSeasonCompetition } from '../../utils/competitions';
+import {
+  COMPETITION_PALETTE,
+  createSeasonCompetition,
+  resetSeasonCompetitionForNewSeason,
+} from '../../utils/competitions';
 import {
   advanceKnockoutPhase,
   createEmptyTableRow,
@@ -204,6 +208,28 @@ export default function Competitions() {
 
   function patchComp(comp: SeasonCompetition, updates: Partial<Omit<SeasonCompetition, 'id'>>) {
     updateCompetition(comp.id, updates);
+  }
+
+  /**
+   * Recuperação para saves que avançaram de temporada antes da correção do reset
+   * automático: zera tabela/mata-mata/posição desta competição sem mexer em nome,
+   * cor, tipo ou nos jogos já registrados no calendário.
+   */
+  function resetCompetitionSeason(comp: SeasonCompetition) {
+    if (
+      !window.confirm(
+        `Reiniciar "${comp.name}" para a temporada ${season}? Isso zera tabela, mata-mata e posição atual registrados aqui. Os jogos do calendário não são afetados.`,
+      )
+    ) {
+      return;
+    }
+    const fresh = resetSeasonCompetitionForNewSeason(comp);
+    patchComp(comp, {
+      leagueTable: fresh.leagueTable,
+      knockoutPhases: fresh.knockoutPhases,
+      knockoutStarted: fresh.knockoutStarted,
+      currentPosition: null,
+    });
   }
 
   function setPosition(comp: SeasonCompetition, raw: string) {
@@ -571,6 +597,14 @@ export default function Competitions() {
               }
             >
               {editingMetaId === comp.id ? 'Fechar dados' : 'Editar dados'}
+            </button>
+            <button
+              type="button"
+              className={styles.ghostBtn}
+              onClick={() => resetCompetitionSeason(comp)}
+              title="Zera tabela, mata-mata e posição atual — use se a competição veio com dados da temporada anterior"
+            >
+              Reiniciar temporada
             </button>
             <button
               type="button"
