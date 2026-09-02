@@ -4,6 +4,7 @@ import {
   competitionNames,
   createSeasonCompetition,
   migrateSeasonCompetitions,
+  resetSeasonCompetitionsForNewSeason,
 } from '../utils/competitions';
 import type { Team } from '../types/Team';
 import type { Player } from '../types/Player';
@@ -1194,6 +1195,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ...state,
           season: newSeason,
           players,
+          seasonCompetitions: resetSeasonCompetitionsForNewSeason(state.seasonCompetitions),
           seasonHistory: [...state.seasonHistory, archive],
           manager,
           finance: {

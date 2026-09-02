@@ -112,6 +112,27 @@ export function createSeasonCompetition(
   return base;
 }
 
+/**
+ * Reseta uma competição para o início de uma nova temporada: mantém identidade
+ * (id, nome, cor, tipo, formato), mas zera tabela, fases de mata-mata e posição —
+ * senão essas sobras da temporada anterior contaminam as metas recém-criadas.
+ */
+export function resetSeasonCompetitionForNewSeason(comp: SeasonCompetition): SeasonCompetition {
+  return createSeasonCompetition(comp.name, {
+    id: comp.id,
+    color: comp.color,
+    shortName: comp.shortName,
+    type: comp.type,
+    format: comp.format,
+  });
+}
+
+export function resetSeasonCompetitionsForNewSeason(
+  comps: SeasonCompetition[],
+): SeasonCompetition[] {
+  return comps.map(resetSeasonCompetitionForNewSeason);
+}
+
 /** Converte saves antigos (string[]) ou mistos para SeasonCompetition[]. */
 export function migrateSeasonCompetitions(raw: unknown): SeasonCompetition[] {
   if (!Array.isArray(raw) || raw.length === 0) return [];
