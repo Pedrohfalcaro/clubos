@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../context/GameContext';
-import type { Player, PlayerStatus } from '../../types/Player';
+import type { Player, PlayerStats, PlayerStatus } from '../../types/Player';
 import { availabilityStatusLabel, isOnNationalDuty } from '../../types/Player';
 import {
   scopeOptions,
@@ -79,7 +79,7 @@ interface PlayerCompStats {
 }
 
 export default function Squad() {
-  const { state, updatePlayer, recalcSeasonStats } = useGame();
+  const { state, updatePlayer, updatePlayerStats, updateSeasonArchivePlayerStats, recalcSeasonStats } = useGame();
   const [view, setView] = useState<'roster' | 'history'>('roster');
   const [histScope, setHistScope] = useState<HistoryScope>('current');
   const [filter, setFilter] = useState<PlayerStatus | 'Todos'>('Todos');
@@ -88,6 +88,18 @@ export default function Squad() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [histSortKey, setHistSortKey] = useState<HistSortKey | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingStatsId, setEditingStatsId] = useState<string | null>(null);
+  const [statsEditForm, setStatsEditForm] = useState({
+    matches: 0,
+    minutes: 0,
+    goals: 0,
+    assists: 0,
+    cleanSheets: 0,
+    goalsConceded: 0,
+    yellowCards: 0,
+    redCards: 0,
+    starts: 0,
+  });
   const [editForm, setEditForm] = useState({
     name: '',
     number: '' as string | number,
@@ -102,6 +114,16 @@ export default function Squad() {
   const scopes = useMemo(
     () => scopeOptions(state.season, state.seasonHistory),
     [state.season, state.seasonHistory],
+  );
+
+  // Só jogos da temporada atual — usado para "nota" e estatísticas por competição,
+  // que não podem misturar partidas de temporadas já fechadas (bug antigo).
+  const seasonMatches = useMemo(
+    () =>
+      state.matches.filter(
+        m => m.status === 'completed' && (m.season ?? state.season) === state.season,
+      ),
+    [state.matches, state.season],
   );
 
   const statsByPlayerComp = useMemo(() => {
@@ -134,9 +156,6 @@ export default function Squad() {
     }
 
     const playerById = new Map(state.players.map(p => [p.id, p]));
-    const seasonMatches = state.matches.filter(
-      m => m.status === 'completed' && (m.season ?? state.season) === state.season,
-    );
     for (const match of seasonMatches) {
       const playingTime = getMatchPlayingTime(match);
       const played = new Set(playingTime.keys());
@@ -167,7 +186,7 @@ export default function Squad() {
       }
     }
     return map;
-  }, [state.matches, state.players, state.season]);
+  }, [seasonMatches, state.players]);
 
   const compSummaries = useMemo(() => {
     return state.seasonCompetitions.map(comp => {
@@ -176,15 +195,10 @@ export default function Squad() {
         const s = byComp.get(comp.name);
         if (s && s.matches > 0) playersUsed += 1;
       }
-      const matchCount = state.matches.filter(
-        m =>
-          m.competition === comp.name &&
-          m.status === 'completed' &&
-          (m.season ?? state.season) === state.season,
-      ).length;
+      const matchCount = seasonMatches.filter(m => m.competition === comp.name).length;
       return { ...comp, matchCount, playersUsed };
     });
-  }, [state.seasonCompetitions, state.matches, state.season, statsByPlayerComp]);
+  }, [state.seasonCompetitions, seasonMatches, statsByPlayerComp]);
 
   const players = state.players.filter(p => {
     const matchStatus = filter === 'Todos' || p.status === filter;
@@ -307,6 +321,42 @@ export default function Squad() {
   }
 
   /**
+   * Edição manual das estatísticas mostradas no Histórico — para corrigir números
+   * duplicados/contaminados (ex.: jogador vendido cujo snapshot da temporada somou
+   * jogos de mais de uma temporada por causa do bug antigo do `recalculateFromMatches`).
+   * Não é possível editar o escopo "Total da carreira" — é uma soma calculada, não um
+   * registro único; a correção deve ser feita na temporada de origem.
+   */
+  function startStatsEdit(playerId: string, stats: PlayerStats) {
+    setEditingStatsId(playerId);
+    setStatsEditForm({
+      matches: stats.matches,
+      minutes: stats.minutes,
+      goals: stats.goals,
+      assists: stats.assists,
+      cleanSheets: stats.cleanSheets ?? 0,
+      goalsConceded: stats.goalsConceded ?? 0,
+      yellowCards: stats.yellowCards,
+      redCards: stats.redCards,
+      starts: stats.starts ?? 0,
+    });
+  }
+
+  function cancelStatsEdit() {
+    setEditingStatsId(null);
+  }
+
+  function saveStatsEdit(playerId: string) {
+    if (histScope === 'total') return;
+    if (histScope === 'current' || histScope === state.season) {
+      updatePlayerStats(playerId, statsEditForm);
+    } else {
+      updateSeasonArchivePlayerStats(histScope, playerId, statsEditForm);
+    }
+    setEditingStatsId(null);
+  }
+
+  /**
    * Recuperação para saves antigos: reconstrói `player.stats`/`team.statistics` a
    * partir só dos jogos da temporada atual — corrige números que ficaram misturados
    * com temporadas passadas (bug do `recalculateFromMatches` sem filtro de temporada).
@@ -371,7 +421,7 @@ export default function Squad() {
   function displayStats(playerId: string) {
     const avg = calcPlayerAverageRating(
       playerId,
-      state.matches,
+      seasonMatches,
       compFilter === 'all' ? undefined : compFilter,
     );
     if (compFilter === 'all') {
@@ -468,7 +518,10 @@ export default function Squad() {
                   key={String(s.value)}
                   type="button"
                   className={`${styles.filterBtn} ${histScope === s.value ? styles.filterBtnActive : ''}`}
-                  onClick={() => setHistScope(s.value)}
+                  onClick={() => {
+                    setHistScope(s.value);
+                    setEditingStatsId(null);
+                  }}
                 >
                   {s.label}
                 </button>
@@ -492,6 +545,13 @@ export default function Squad() {
             <div><strong>{historyTotals.yellowCards}</strong><span>CA</span></div>
             <div><strong>{historyTotals.redCards}</strong><span>CV</span></div>
           </div>
+
+          {histScope === 'total' && (
+            <p className={styles.compBanner}>
+              "Total da carreira" é uma soma — não dá pra editar aqui. Pra corrigir um número
+              duplicado, selecione a temporada específica onde ele aparece.
+            </p>
+          )}
 
           {historyRows.length === 0 ? (
             <div className={styles.empty}>Nenhum dado neste período.</div>
@@ -551,39 +611,95 @@ export default function Squad() {
                   CV{histSortKey === 'cv' ? ' ▾' : ''}
                 </span>
               </div>
-              {historyRows.map(({ player: p, stats, former }) => (
-                <div key={p.id} className={styles.histRow}>
-                  <span className={styles.histName}>
-                    {p.name}
-                    {former && (
-                      <span className={styles.formerBadge} title="Não faz mais parte do elenco">
-                        ex
-                      </span>
-                    )}
-                  </span>
-                  <span>{p.position}</span>
-                  <span>
-                    {stats.matches}
-                    <span className={styles.startsHint} title="Jogos como titular">
-                      {' '}({stats.starts ?? 0})
+              {historyRows.map(({ player: p, stats, former }) =>
+                editingStatsId === p.id ? (
+                  <div key={p.id} className={styles.editPanel}>
+                    <div className={styles.editPanelHead}>
+                      <div>
+                        <p className={styles.editPanelEyebrow}>Editar estatísticas</p>
+                        <h3 className={styles.editPanelTitle}>{p.name}</h3>
+                      </div>
+                      <div className={styles.editPanelActions}>
+                        <button type="button" className={styles.cancelBtn} onClick={cancelStatsEdit}>
+                          Cancelar
+                        </button>
+                        <button type="button" className={styles.saveBtn} onClick={() => saveStatsEdit(p.id)}>
+                          Salvar
+                        </button>
+                      </div>
+                    </div>
+                    <div className={styles.editGrid}>
+                      {([
+                        ['matches', 'Jogos'],
+                        ['starts', 'Titular'],
+                        ['minutes', 'Minutos'],
+                        ['goals', 'Gols'],
+                        ['assists', 'Assistências'],
+                        ['cleanSheets', 'Sem sofrer gols'],
+                        ['goalsConceded', 'Gols sofridos'],
+                        ['yellowCards', 'Cartões amarelos'],
+                        ['redCards', 'Cartões vermelhos'],
+                      ] as [keyof typeof statsEditForm, string][]).map(([key, label]) => (
+                        <label key={key} className={styles.editField}>
+                          <span>{label}</span>
+                          <input
+                            className={styles.editFieldInput}
+                            type="number"
+                            min={0}
+                            value={statsEditForm[key]}
+                            onChange={e =>
+                              setStatsEditForm(f => ({ ...f, [key]: Math.max(0, Number(e.target.value) || 0) }))
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div key={p.id} className={styles.histRow}>
+                    <span className={styles.histName}>
+                      {p.name}
+                      {former && (
+                        <span className={styles.formerBadge} title="Não faz mais parte do elenco">
+                          ex
+                        </span>
+                      )}
+                      {histScope !== 'total' && (
+                        <button
+                          type="button"
+                          className={styles.editBtn}
+                          style={{ marginLeft: 6, padding: '1px 6px' }}
+                          onClick={() => startStatsEdit(p.id, stats)}
+                          title="Editar estatísticas (corrige números duplicados de outra temporada)"
+                        >
+                          ✎
+                        </button>
+                      )}
                     </span>
-                  </span>
-                  <span>{stats.minutes}'</span>
-                  <span>{stats.goals}</span>
-                  <span>{stats.assists}</span>
-                  <span>{stats.cleanSheets ?? 0}</span>
-                  <span>
-                    {p.position === 'GK'
-                      ? (() => {
-                          const pct = formatCleanSheetPct(stats.cleanSheets ?? 0, stats.matches);
-                          return pct === '—' ? pct : `${pct}%`;
-                        })()
-                      : formatMinutesPerParticipation(stats.goals, stats.assists, stats.minutes)}
-                  </span>
-                  <span>{stats.yellowCards}</span>
-                  <span>{stats.redCards}</span>
-                </div>
-              ))}
+                    <span>{p.position}</span>
+                    <span>
+                      {stats.matches}
+                      <span className={styles.startsHint} title="Jogos como titular">
+                        {' '}({stats.starts ?? 0})
+                      </span>
+                    </span>
+                    <span>{stats.minutes}'</span>
+                    <span>{stats.goals}</span>
+                    <span>{stats.assists}</span>
+                    <span>{stats.cleanSheets ?? 0}</span>
+                    <span>
+                      {p.position === 'GK'
+                        ? (() => {
+                            const pct = formatCleanSheetPct(stats.cleanSheets ?? 0, stats.matches);
+                            return pct === '—' ? pct : `${pct}%`;
+                          })()
+                        : formatMinutesPerParticipation(stats.goals, stats.assists, stats.minutes)}
+                    </span>
+                    <span>{stats.yellowCards}</span>
+                    <span>{stats.redCards}</span>
+                  </div>
+                ),
+              )}
             </div>
           )}
         </>

@@ -254,6 +254,8 @@ type GameAction =
   | { type: 'REMOVE_INJURY'; injuryId: string }
   | { type: 'ADVANCE_SEASON' }
   | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate'>> }
+  | { type: 'UPDATE_PLAYER_STATS'; playerId: string; stats: Partial<PlayerStats> }
+  | { type: 'UPDATE_SEASON_ARCHIVE_PLAYER_STATS'; season: number; playerId: string; stats: Partial<PlayerStats> }
   | {
       type: 'RENEW_PLAYER_CONTRACT';
       playerId: string;
@@ -461,6 +463,12 @@ interface GameContextValue {
   updatePlayer: (
     playerId: string,
     updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate'>>,
+  ) => void;
+  updatePlayerStats: (playerId: string, stats: Partial<PlayerStats>) => void;
+  updateSeasonArchivePlayerStats: (
+    season: number,
+    playerId: string,
+    stats: Partial<PlayerStats>,
   ) => void;
   addPlayer: (player: Player) => void;
   removePlayer: (playerId: string) => void;
@@ -1266,6 +1274,46 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           p.id === action.playerId ? { ...p, ...action.updates } : p,
         ),
       };
+
+    case 'UPDATE_PLAYER_STATS': {
+      // Correção manual — para saves com stats duplicadas/contaminadas por temporadas
+      // anteriores (ex.: jogador vendido cujo snapshot congelado somava jogos de mais
+      // de uma temporada). Procura no elenco atual e, se não achar, em ex-jogadores.
+      const playerIdx = state.players.findIndex(p => p.id === action.playerId);
+      if (playerIdx >= 0) {
+        const players = [...state.players];
+        players[playerIdx] = {
+          ...players[playerIdx],
+          stats: { ...players[playerIdx].stats, ...action.stats },
+        };
+        return { ...state, players };
+      }
+      const formerIdx = state.formerPlayers.findIndex(p => p.id === action.playerId);
+      if (formerIdx >= 0) {
+        const formerPlayers = [...state.formerPlayers];
+        formerPlayers[formerIdx] = {
+          ...formerPlayers[formerIdx],
+          stats: { ...formerPlayers[formerIdx].stats, ...action.stats },
+        };
+        return { ...state, formerPlayers };
+      }
+      return state;
+    }
+
+    case 'UPDATE_SEASON_ARCHIVE_PLAYER_STATS': {
+      const seasonHistory = state.seasonHistory.map(arch => {
+        if (arch.season !== action.season) return arch;
+        return {
+          ...arch,
+          players: arch.players.map(pl =>
+            pl.playerId === action.playerId
+              ? { ...pl, stats: { ...pl.stats, ...action.stats } }
+              : pl,
+          ),
+        };
+      });
+      return { ...state, seasonHistory };
+    }
 
     case 'ADD_PLAYER':
       return { ...state, players: [...state.players, action.player] };
@@ -4004,6 +4052,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'UPDATE_PLAYER', playerId, updates });
   }
 
+  function updatePlayerStats(playerId: string, stats: Partial<PlayerStats>) {
+    dispatch({ type: 'UPDATE_PLAYER_STATS', playerId, stats });
+  }
+
+  function updateSeasonArchivePlayerStats(
+    season: number,
+    playerId: string,
+    stats: Partial<PlayerStats>,
+  ) {
+    dispatch({ type: 'UPDATE_SEASON_ARCHIVE_PLAYER_STATS', season, playerId, stats });
+  }
+
   function addPlayer(player: Player) {
     dispatch({ type: 'ADD_PLAYER', player });
   }
@@ -4861,6 +4921,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         removeInjury,
         advanceSeason,
         updatePlayer,
+        updatePlayerStats,
+        updateSeasonArchivePlayerStats,
         addPlayer,
         removePlayer,
         scheduleMatch,
