@@ -131,6 +131,15 @@ export interface FifaWindow {
   tactics: SavedTactics | null;
   tacticsPresets: TacticsPreset[];
   activeTacticsId: string | null;
+  /**
+   * Lista de convocados anunciada (usuário confirmou os `listSize` nomes e clicou em
+   * "Convocar" — gera o pop-up de notícia). Só então tática/jogos destravam. Qualquer
+   * alteração em `callUpIds`/`callUpNumbers` depois disso volta pra `false` — mudar a
+   * lista exige um novo anúncio.
+   */
+  callUpAnnounced: boolean;
+  /** Data FIFA encerrada pelo usuário (todos os jogos mapeados já disputados). */
+  closed: boolean;
 }
 
 export type NationalBoardGoalKind = 'reach_stage' | 'win_tournament' | 'avoid_relegation_ranking';
@@ -205,6 +214,8 @@ export function normalizeFifaWindow(w: FifaWindow): FifaWindow {
     tacticsPresets: w.tacticsPresets ?? [],
     activeTacticsId: w.activeTacticsId ?? null,
     deconvocationResolvedIds: w.deconvocationResolvedIds ?? [],
+    callUpAnnounced: w.callUpAnnounced ?? false,
+    closed: w.closed ?? false,
   };
 }
 

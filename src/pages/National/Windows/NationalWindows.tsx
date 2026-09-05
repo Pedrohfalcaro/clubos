@@ -64,7 +64,7 @@ export default function NationalWindows() {
       ) : (
         <ul className={styles.windowCardList}>
           {sortedWindows.map(w => {
-            const isActive = currentDate ? isDateWithinWindow(w, currentDate) : false;
+            const isActive = !w.closed && (currentDate ? isDateWithinWindow(w, currentDate) : false);
             const played = w.games.filter(g => g.played).length;
             return (
               <li key={w.id}>
@@ -75,7 +75,11 @@ export default function NationalWindows() {
                 >
                   <div className={styles.windowListCardHead}>
                     <p className={styles.gameOpponent}>{w.label}</p>
-                    {isActive && <span className={styles.scoreBadge}>ativa agora</span>}
+                    {w.closed ? (
+                      <span className={styles.scoreBadge}>finalizada</span>
+                    ) : (
+                      isActive && <span className={styles.scoreBadge}>ativa agora</span>
+                    )}
                   </div>
                   <p className={styles.gameMeta}>
                     {FIFA_WINDOW_TYPE_LABELS[w.type]}

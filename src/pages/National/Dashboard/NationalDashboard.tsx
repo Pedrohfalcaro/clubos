@@ -20,8 +20,8 @@ export default function NationalDashboard() {
     const sorted = [...nationalTeam.windows].sort((a, b) => a.startDate.localeCompare(b.startDate));
     if (!today) return sorted[0];
     return (
-      sorted.find(w => isDateWithinWindow(w, today)) ??
-      sorted.find(w => w.startDate.slice(0, 10) > today) ??
+      sorted.find(w => !w.closed && isDateWithinWindow(w, today)) ??
+      sorted.find(w => !w.closed && w.startDate.slice(0, 10) > today) ??
       sorted[sorted.length - 1]
     );
   }, [nationalTeam, state.currentDate]);

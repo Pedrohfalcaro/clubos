@@ -56,6 +56,8 @@ export function createFifaWindow(input: {
     tactics: null,
     tacticsPresets: [],
     activeTacticsId: null,
+    callUpAnnounced: false,
+    closed: false,
   };
 }
 

@@ -3430,7 +3430,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state.nationalTeam,
         talentPool,
         windows: state.nationalTeam.windows.map(w =>
-          w.id === action.windowId ? { ...w, callUpIds: action.callUpIds, callUpNumbers } : w,
+          w.id === action.windowId
+            // Mudou a lista — o anúncio antigo não vale mais, precisa convocar de novo.
+            ? { ...w, callUpIds: action.callUpIds, callUpNumbers, callUpAnnounced: false }
+            : w,
         ),
       };
       return {

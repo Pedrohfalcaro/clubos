@@ -35,6 +35,7 @@ import {
 import { DEFAULT_STYLE_KEY } from '../../../utils/tacticalStyles';
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../../utils/clubColors';
 import { nationalPlayerToPseudoPlayer } from '../../../utils/nationalMatchPlay';
+import CallUpAnnouncementModal from '../../../components/CallUpAnnouncementModal/CallUpAnnouncementModal';
 // Reaproveita CSS dos módulos que essa hub substitui — mesmo visual, um só lugar.
 import wStyles from '../Windows/NationalWindows.module.css';
 import sStyles from '../Squad/NationalSquad.module.css';
@@ -56,7 +57,7 @@ interface AddGameInput {
 export default function NationalWindowHub() {
   const { windowId } = useParams<{ windowId: string }>();
   const navigate = useNavigate();
-  const { state, addFifaWindowGame } = useGame();
+  const { state, addFifaWindowGame, updateFifaWindow } = useGame();
   const nationalTeam = state.nationalTeam;
   const [tab, setTab] = useState<HubTab>('jogos');
   const [showAddGame, setShowAddGame] = useState(false);
@@ -87,12 +88,26 @@ export default function NationalWindowHub() {
       : null;
 
   const hasCallUps = fifaWindow.callUpIds.length > 0;
+  const callUpsAnnounced = fifaWindow.callUpAnnounced === true;
   const hasGames = fifaWindow.games.length > 0;
-  const unlocked = hasCallUps && hasGames;
+  const unlocked = callUpsAnnounced && hasGames;
+  const allGamesPlayed = hasGames && fifaWindow.games.every(g => g.played);
+  const isClosed = fifaWindow.closed === true;
 
   function handleAddGame(input: AddGameInput) {
     addFifaWindowGame(fifaWindow!.id, input);
     setShowAddGame(false);
+  }
+
+  function handleCloseWindow() {
+    if (
+      !window.confirm(
+        `Finalizar "${fifaWindow!.label}"? Todos os jogos mapeados já foram disputados — isso só marca a Data FIFA como encerrada, os dados continuam disponíveis para consulta.`,
+      )
+    ) {
+      return;
+    }
+    updateFifaWindow(fifaWindow!.id, { closed: true });
   }
 
   return (
@@ -104,6 +119,7 @@ export default function NationalWindowHub() {
           </button>
           <h1 className={wStyles.title} style={{ marginTop: 8 }}>
             {fifaWindow.label}
+            {isClosed && <span className={wStyles.scoreBadge} style={{ marginLeft: 10 }}>finalizada</span>}
           </h1>
           <p className={wStyles.hint}>
             {FIFA_WINDOW_TYPE_LABELS[fifaWindow.type]}
@@ -115,16 +131,22 @@ export default function NationalWindowHub() {
             {dayLabel ? ` · ${dayLabel}` : ''}
           </p>
         </div>
+        {allGamesPlayed && !isClosed && (
+          <button type="button" className={wStyles.btnPrimary} onClick={handleCloseWindow}>
+            Finalizar Data FIFA
+          </button>
+        )}
       </header>
 
-      {!unlocked && (
+      {!unlocked && !isClosed && (
         <div className={wStyles.pendingCard}>
           <p className={wStyles.pendingTitle}>Pendências antes de liberar tática e partidas</p>
           <ul className={wStyles.pendingList}>
-            {!hasCallUps && (
+            {!callUpsAnnounced && (
               <li>
                 <button type="button" className={wStyles.pendingItem} onClick={() => setTab('convocacao')}>
-                  <span className={wStyles.pendingDot} /> Convocar jogadores
+                  <span className={wStyles.pendingDot} />{' '}
+                  {hasCallUps ? 'Anunciar a convocação' : 'Convocar jogadores'}
                 </button>
               </li>
             )}
@@ -165,7 +187,7 @@ export default function NationalWindowHub() {
           className={`${wStyles.tab} ${tab === 'tatica' ? wStyles.tabActive : ''}`}
           onClick={() => unlocked && setTab('tatica')}
           disabled={!unlocked}
-          title={unlocked ? undefined : 'Convoque jogadores e registre os compromissos primeiro'}
+          title={unlocked ? undefined : 'Anuncie a convocação e registre os compromissos primeiro'}
         >
           {unlocked ? 'Tática' : '🔒 Tática'}
         </button>
@@ -180,7 +202,14 @@ export default function NationalWindowHub() {
           onPlayGame={gameId => navigate(`/national/match/${fifaWindow.id}/${gameId}/play`)}
         />
       )}
-      {tab === 'convocacao' && <ConvocacaoTab key={fifaWindow.id} windowId={fifaWindow.id} />}
+      {tab === 'convocacao' && (
+        <ConvocacaoTab
+          key={fifaWindow.id}
+          windowId={fifaWindow.id}
+          canGoToTactics={hasGames}
+          onGoToTactics={() => setTab('tatica')}
+        />
+      )}
       {tab === 'tatica' && <TaticaTab key={fifaWindow.id} windowId={fifaWindow.id} />}
 
       {showAddGame && (
@@ -252,7 +281,7 @@ function JogosTab({
                   className={wStyles.btnPrimary}
                   onClick={() => onPlayGame(g.id)}
                   disabled={!unlocked}
-                  title={unlocked ? undefined : 'Convoque jogadores antes de jogar'}
+                  title={unlocked ? undefined : 'Anuncie a convocação antes de jogar'}
                 >
                   {g.played ? 'Editar partida' : 'Jogar partida'}
                 </button>
@@ -369,12 +398,21 @@ function AddGameModal({
 
 // ─── Convocação ──────────────────────────────────────────────────────────────
 
-function ConvocacaoTab({ windowId }: { windowId: string }) {
-  const { state, setCallUpList, setCallUpNumber, linkNationalPlayerToClub } = useGame();
+function ConvocacaoTab({
+  windowId,
+  canGoToTactics,
+  onGoToTactics,
+}: {
+  windowId: string;
+  canGoToTactics: boolean;
+  onGoToTactics: () => void;
+}) {
+  const { state, setCallUpList, setCallUpNumber, linkNationalPlayerToClub, updateFifaWindow } = useGame();
   const navigate = useNavigate();
   const nationalTeam = state.nationalTeam!;
   const fifaWindow = nationalTeam.windows.find(w => w.id === windowId)!;
   const [search, setSearch] = useState('');
+  const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   const filteredPool = useMemo(() => {
     const q = search.toLowerCase();
@@ -383,6 +421,8 @@ function ConvocacaoTab({ windowId }: { windowId: string }) {
 
   const callUpIds = fifaWindow.callUpIds;
   const atLimit = callUpIds.length >= fifaWindow.listSize;
+  const readyToAnnounce = callUpIds.length === fifaWindow.listSize;
+  const announced = fifaWindow.callUpAnnounced === true;
 
   function toggleCallUp(playerId: string) {
     const isIn = fifaWindow.callUpIds.includes(playerId);
@@ -393,6 +433,14 @@ function ConvocacaoTab({ windowId }: { windowId: string }) {
     if (atLimit) return;
     setCallUpList(fifaWindow.id, [...fifaWindow.callUpIds, playerId]);
   }
+
+  function handleConvocar() {
+    if (!readyToAnnounce) return;
+    updateFifaWindow(fifaWindow.id, { callUpAnnounced: true });
+    setShowAnnouncement(true);
+  }
+
+  const calledUpPlayers = nationalTeam.talentPool.filter(p => callUpIds.includes(p.id));
 
   const clubPlayerOptions = [
     { value: '', label: '— Nenhum —' },
@@ -417,6 +465,28 @@ function ConvocacaoTab({ windowId }: { windowId: string }) {
         <div className={`${sStyles.counter} ${atLimit ? sStyles.counterFull : ''}`}>
           {callUpIds.length}/{fifaWindow.listSize} convocados
         </div>
+        {announced ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className={sStyles.counter}>✓ Convocação anunciada</span>
+            <button type="button" className={sStyles.btnSecondary} onClick={() => setShowAnnouncement(true)}>
+              Ver anúncio
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className={sStyles.btnPrimary}
+            onClick={handleConvocar}
+            disabled={!readyToAnnounce}
+            title={
+              readyToAnnounce
+                ? undefined
+                : `Selecione exatamente ${fifaWindow.listSize} jogadores para convocar`
+            }
+          >
+            Convocar
+          </button>
+        )}
       </div>
 
       <div className={sStyles.toolbar} style={{ marginTop: 12, marginBottom: 12 }}>
@@ -482,6 +552,28 @@ function ConvocacaoTab({ windowId }: { windowId: string }) {
           })}
         </ul>
       )}
+
+      <CallUpAnnouncementModal
+        open={showAnnouncement}
+        teamName={nationalTeam.name}
+        windowLabel={fifaWindow.label}
+        windowTypeLabel={
+          FIFA_WINDOW_TYPE_LABELS[fifaWindow.type] +
+          (fifaWindow.type === 'outros' && fifaWindow.typeOther ? ` · ${fifaWindow.typeOther}` : '')
+        }
+        listSize={fifaWindow.listSize}
+        players={calledUpPlayers}
+        callUpNumbers={fifaWindow.callUpNumbers}
+        onClose={() => setShowAnnouncement(false)}
+        onGoToTactics={
+          canGoToTactics
+            ? () => {
+                setShowAnnouncement(false);
+                onGoToTactics();
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }
