@@ -3782,6 +3782,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         slotId,
         activeContext: s.activeContext,
         nationalTeam: s.nationalTeam,
+        records: s.records,
       };
     }
     if (s.careerMode === 'player' && s.careerPlayer) {
