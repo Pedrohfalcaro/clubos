@@ -39,5 +39,10 @@ export interface Team {
   achievements?: TeamAchievement[];
   /** Contagem de troféus por competição — editada manualmente na Sala de Troféus. */
   trophyCabinet?: TrophyCabinetEntry[];
+  /**
+   * Nacionalidade "oficial" do clube para as tabelas de Recordes de estrangeiros —
+   * perguntada uma única vez (na criação da 1ª tabela desse tipo) e salva aqui.
+   */
+  homeNationality?: string;
   currentMoment?: string;
 }

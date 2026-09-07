@@ -43,6 +43,8 @@ export interface Player {
   position: PlayerPosition;
   number: number | null;
   age: number;
+  /** País de origem do atleta — usado nas tabelas de recordes só de estrangeiros. */
+  nationality?: string;
   overall: number;
   potential: number;
   morale: number;

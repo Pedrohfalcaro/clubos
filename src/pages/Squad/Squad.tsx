@@ -112,6 +112,7 @@ export default function Squad() {
     marketValue: 0,
     loanReturnDate: '',
     retirementDate: '',
+    nationality: '',
   });
   const scopes = useMemo(
     () => scopeOptions(state.season, state.seasonHistory),
@@ -297,6 +298,7 @@ export default function Squad() {
       marketValue: p.marketValue ?? 0,
       loanReturnDate: p.loanReturnDate ?? '',
       retirementDate: p.retirementDate ?? '',
+      nationality: p.nationality ?? '',
     });
   }
 
@@ -314,6 +316,7 @@ export default function Squad() {
       marketValue: editForm.marketValue,
       loanReturnDate: editForm.status === 'Emprestado' ? (editForm.loanReturnDate || undefined) : undefined,
       retirementDate: editForm.status === 'Aposentado' ? undefined : (editForm.retirementDate || undefined),
+      nationality: editForm.nationality.trim() || undefined,
     });
     setEditingId(null);
   }
@@ -896,6 +899,16 @@ export default function Squad() {
                                     max={45}
                                     value={editForm.age}
                                     onChange={e => setEditForm(f => ({ ...f, age: Number(e.target.value) }))}
+                                  />
+                                </label>
+                                <label className={styles.editField}>
+                                  <span>Nacionalidade</span>
+                                  <input
+                                    className={styles.editFieldInput}
+                                    type="text"
+                                    placeholder="Ex.: Brasil"
+                                    value={editForm.nationality}
+                                    onChange={e => setEditForm(f => ({ ...f, nationality: e.target.value }))}
                                   />
                                 </label>
                                 <label className={styles.editField}>

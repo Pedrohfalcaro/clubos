@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
 import type { TeamAchievement } from '../../types/Achievement';
 import type { Player } from '../../types/Player';
-import type { RecordMetric, RecordTable } from '../../types/Records';
+import type { Match } from '../../types/Match';
+import type { RecordMetric, RecordScope, RecordTable } from '../../types/Records';
 import { RECORD_METRIC_LABELS } from '../../types/Records';
-import { playerCumulativeValue } from '../../utils/records';
+import { isForeignPlayer, playerCumulativeValue } from '../../utils/records';
 import styles from './Trophies.module.css';
 
 function positionLabel(a: TeamAchievement): string {
@@ -21,11 +22,14 @@ const RECORD_METRICS: RecordMetric[] = [
   'goalContributions',
   'appearances',
   'starts',
+  'homeGoals',
 ];
 
 interface RecordCardProps {
   table: RecordTable;
   players: Player[];
+  matches: Match[];
+  homeNationality?: string;
   onAddEntry: (
     tableId: string,
     entry: { label: string; playerId?: string; value: number },
@@ -34,21 +38,32 @@ interface RecordCardProps {
   onRemoveTable: (tableId: string) => void;
 }
 
-function RecordCard({ table, players, onAddEntry, onRemoveEntry, onRemoveTable }: RecordCardProps) {
+function RecordCard({
+  table,
+  players,
+  matches,
+  homeNationality,
+  onAddEntry,
+  onRemoveEntry,
+  onRemoveTable,
+}: RecordCardProps) {
   const [mode, setMode] = useState<'text' | 'player'>('player');
   const [label, setLabel] = useState('');
   const [value, setValue] = useState('0');
   const [playerId, setPlayerId] = useState('');
 
+  const eligiblePlayers =
+    table.scope === 'foreign' ? players.filter(p => isForeignPlayer(p, homeNationality)) : players;
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (mode === 'player') {
-      const player = players.find(p => p.id === playerId);
+      const player = eligiblePlayers.find(p => p.id === playerId);
       if (!player) return;
       onAddEntry(table.id, {
         label: player.name,
         playerId: player.id,
-        value: playerCumulativeValue(player, table.metric),
+        value: playerCumulativeValue(player, table.metric, matches),
       });
       setPlayerId('');
     } else {
@@ -65,7 +80,10 @@ function RecordCard({ table, players, onAddEntry, onRemoveEntry, onRemoveTable }
       <div className={styles.recordCardHead}>
         <div>
           <h3 className={styles.recordCardTitle}>{table.name}</h3>
-          <p className={styles.recordCardMetric}>{RECORD_METRIC_LABELS[table.metric]}</p>
+          <p className={styles.recordCardMetric}>
+            {RECORD_METRIC_LABELS[table.metric]}
+            {table.scope === 'foreign' ? ' · Estrangeiros' : ''}
+          </p>
         </div>
         <button type="button" className={styles.removeBtn} onClick={() => onRemoveTable(table.id)}>
           Excluir tabela
@@ -94,10 +112,12 @@ function RecordCard({ table, players, onAddEntry, onRemoveEntry, onRemoveTable }
         </select>
         {mode === 'player' ? (
           <select value={playerId} onChange={e => setPlayerId(e.target.value)} required>
-            <option value="">Selecione…</option>
-            {players.map(p => (
+            <option value="">
+              {eligiblePlayers.length === 0 ? 'Nenhum estrangeiro no elenco' : 'Selecione…'}
+            </option>
+            {eligiblePlayers.map(p => (
               <option key={p.id} value={p.id}>
-                {p.name} · {playerCumulativeValue(p, table.metric)}
+                {p.name} · {playerCumulativeValue(p, table.metric, matches)}
               </option>
             ))}
           </select>
@@ -137,6 +157,7 @@ export default function Trophies() {
     addRecordEntry,
     removeRecordEntry,
     removeRecordTable,
+    setHomeNationality,
   } = useGame();
   const navigate = useNavigate();
   const team = state.team;
@@ -150,6 +171,8 @@ export default function Trophies() {
   const [showNewTable, setShowNewTable] = useState(false);
   const [newTableName, setNewTableName] = useState('');
   const [newTableMetric, setNewTableMetric] = useState<RecordMetric>('goals');
+  const [newTableScope, setNewTableScope] = useState<RecordScope>('all');
+  const [homeNatInput, setHomeNatInput] = useState('');
 
   const list = useMemo(() => {
     const raw = [...(team?.achievements ?? [])];
@@ -181,12 +204,21 @@ export default function Trophies() {
     setShowForm(false);
   }
 
+  const needsHomeNationalityPrompt = newTableScope === 'foreign' && !team?.homeNationality;
+
   function submitNewTable(e: React.FormEvent) {
     e.preventDefault();
     const name = newTableName.trim();
     if (!name) return;
-    createRecordTable(name, newTableMetric);
+    if (needsHomeNationalityPrompt) {
+      const nat = homeNatInput.trim();
+      if (!nat) return;
+      setHomeNationality(nat);
+    }
+    createRecordTable(name, newTableMetric, newTableScope);
     setNewTableName('');
+    setNewTableScope('all');
+    setHomeNatInput('');
     setShowNewTable(false);
   }
 
@@ -356,7 +388,14 @@ export default function Trophies() {
       ) : (
         <section>
           <div className={styles.recordsHeader}>
-            <h2 className={styles.sectionTitle}>Recordes do clube</h2>
+            <div>
+              <h2 className={styles.sectionTitle}>Recordes do clube</h2>
+              {team.homeNationality && (
+                <p className={styles.formHint}>
+                  Nacionalidade oficial do clube: {team.homeNationality}
+                </p>
+              )}
+            </div>
             <button type="button" className={styles.btnPrimary} onClick={() => setShowNewTable(v => !v)}>
               {showNewTable ? 'Cancelar' : 'Criar recorde'}
             </button>
@@ -389,6 +428,39 @@ export default function Trophies() {
                   ))}
                 </select>
               </label>
+              <label className={styles.label}>
+                Elegibilidade
+                <select
+                  className={styles.input}
+                  value={newTableScope}
+                  onChange={e => {
+                    const scope = e.target.value as RecordScope;
+                    setNewTableScope(scope);
+                    if (scope === 'foreign' && !team.homeNationality && !homeNatInput) {
+                      setHomeNatInput(team.country);
+                    }
+                  }}
+                >
+                  <option value="all">Geral</option>
+                  <option value="foreign">Somente estrangeiros</option>
+                </select>
+              </label>
+              {needsHomeNationalityPrompt && (
+                <label className={styles.label}>
+                  Nacionalidade oficial do clube
+                  <input
+                    className={styles.input}
+                    value={homeNatInput}
+                    onChange={e => setHomeNatInput(e.target.value)}
+                    placeholder="Ex.: Brasil"
+                    required
+                  />
+                  <span className={styles.formHint}>
+                    Perguntado só desta vez — define quem entra como "estrangeiro" em toda
+                    tabela desse tipo daqui pra frente.
+                  </span>
+                </label>
+              )}
               <button type="submit" className={styles.btnPrimary}>
                 Criar
               </button>
@@ -404,6 +476,8 @@ export default function Trophies() {
                   key={table.id}
                   table={table}
                   players={state.players}
+                  matches={state.matches}
+                  homeNationality={team.homeNationality}
                   onAddEntry={addRecordEntry}
                   onRemoveEntry={removeRecordEntry}
                   onRemoveTable={removeRecordTable}

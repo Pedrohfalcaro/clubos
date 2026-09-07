@@ -229,6 +229,7 @@ type GameAction =
   | { type: 'REMOVE_RECORD_ENTRY'; tableId: string; entryId: string }
   | { type: 'REMOVE_RECORD_TABLE'; tableId: string }
   | { type: 'DISMISS_RECORD_ALERT'; alertId: string }
+  | { type: 'SET_HOME_NATIONALITY'; country: string }
   | {
       type: 'START_CAREER';
       manager: Manager;
@@ -428,7 +429,12 @@ interface GameContextValue {
   addAchievement: (achievement: Omit<TeamAchievement, 'id'> & { id?: string }) => void;
   removeAchievement: (achievementId: string) => void;
   setTrophyCount: (competitionName: string, titles: number) => void;
-  createRecordTable: (name: string, metric: RecordTable['metric']) => void;
+  createRecordTable: (
+    name: string,
+    metric: RecordTable['metric'],
+    scope?: RecordTable['scope'],
+  ) => void;
+  setHomeNationality: (country: string) => void;
   addRecordEntry: (
     tableId: string,
     entry: { label: string; playerId?: string; value: number },
@@ -485,7 +491,7 @@ interface GameContextValue {
   advanceSeason: () => void;
   updatePlayer: (
     playerId: string,
-    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate'>>,
+    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate' | 'nationality'>>,
   ) => void;
   updatePlayerStats: (playerId: string, stats: Partial<PlayerStats>) => void;
   updateSeasonArchivePlayerStats: (
@@ -848,6 +854,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         recordAlerts: state.recordAlerts.filter(a => a.id !== action.alertId),
       };
+    }
+
+    case 'SET_HOME_NATIONALITY': {
+      if (!state.team || state.team.homeNationality) return state;
+      return { ...state, team: { ...state.team, homeNationality: action.country.trim() } };
     }
 
     case 'START_CAREER': {
@@ -1590,7 +1601,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
 
       // Recordes do clube — recalcula posições e enfileira avisos de mudança (Dashboard)
-      const recordUpdate = recalcRecordTables(state.records, playersWithMorale);
+      const recordUpdate = recalcRecordTables(
+        state.records,
+        playersWithMorale,
+        updatedMatches,
+        state.team.homeNationality,
+      );
       const recordHeadlines = recordUpdate.alerts
         .filter(a => a.isTop)
         .map(a => buildRecordHeadline(a, state.team!.name, dateStr, action.input.matchId));
@@ -4014,11 +4030,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_TROPHY_COUNT', competitionName, titles });
   }
 
-  function createRecordTable(name: string, metric: RecordTable['metric']) {
+  function createRecordTable(
+    name: string,
+    metric: RecordTable['metric'],
+    scope: RecordTable['scope'] = 'all',
+  ) {
     dispatch({
       type: 'CREATE_RECORD_TABLE',
-      table: { id: uid(), name, metric, entries: [] },
+      table: { id: uid(), name, metric, scope, entries: [] },
     });
+  }
+
+  function setHomeNationality(country: string) {
+    dispatch({ type: 'SET_HOME_NATIONALITY', country });
   }
 
   function addRecordEntry(
@@ -4180,7 +4204,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   function updatePlayer(
     playerId: string,
-    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft'>>,
+    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate' | 'nationality'>>,
   ) {
     dispatch({ type: 'UPDATE_PLAYER', playerId, updates });
   }
@@ -5045,6 +5069,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         removeRecordEntry,
         removeRecordTable,
         dismissRecordAlert,
+        setHomeNationality,
         startCareer,
         dismissLiveLifePrompt,
         dismissDailyPulse,

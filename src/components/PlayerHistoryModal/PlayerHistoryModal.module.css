@@ -17,11 +17,11 @@
   width: 100%;
   max-width: 640px;
   max-height: min(90vh, 760px);
-  overflow: auto;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow: hidden;
 }
 
 .headerTop {
@@ -74,10 +74,13 @@
 .table {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 10px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .row {

@@ -1,5 +1,11 @@
-/** Métrica calculada a partir de `PlayerStats` (temporada atual + carreira). */
-export type RecordMetric = 'goals' | 'assists' | 'goalContributions' | 'appearances' | 'starts';
+/** Métrica calculada a partir de `PlayerStats` (temporada atual + carreira) ou dos jogos. */
+export type RecordMetric =
+  | 'goals'
+  | 'assists'
+  | 'goalContributions'
+  | 'appearances'
+  | 'starts'
+  | 'homeGoals';
 
 export const RECORD_METRIC_LABELS: Record<RecordMetric, string> = {
   goals: 'Gols',
@@ -7,7 +13,11 @@ export const RECORD_METRIC_LABELS: Record<RecordMetric, string> = {
   goalContributions: 'Participações em gol',
   appearances: 'Jogos',
   starts: 'Jogos como titular',
+  homeGoals: 'Artilheiros do Estádio (gols em casa)',
 };
+
+/** Recorte de elegibilidade da tabela — 'foreign' só considera atletas de fora do país do clube. */
+export type RecordScope = 'all' | 'foreign';
 
 export interface RecordEntry {
   id: string;
@@ -22,6 +32,8 @@ export interface RecordTable {
   id: string;
   name: string;
   metric: RecordMetric;
+  /** 'foreign' = só conta/aceita atletas com `nationality` diferente da do clube. Default 'all'. */
+  scope?: RecordScope;
   /** Ordenado desc por `value`, máx. 10 entradas. */
   entries: RecordEntry[];
 }
