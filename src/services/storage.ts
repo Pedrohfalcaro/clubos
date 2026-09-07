@@ -27,6 +27,7 @@ import type { TransferState } from '../types/Transfer';
 import { createDefaultTransferState } from '../types/Transfer';
 import type { SeasonArchive } from '../types/SeasonHistory';
 import type { NationalTeamState } from '../types/NationalTeam';
+import type { RecordTable } from '../types/Records';
 import { normalizeAchievements } from '../types/Achievement';
 import { nextDayAfterLastMatch } from '../utils/transferPayments';
 import { migrateTacticsPresets, normalizeMatchLineup } from '../utils/formations';
@@ -78,6 +79,8 @@ export interface GameSave {
   activeContext?: 'club' | 'national';
   /** Seleção Nacional / Dual Career (v1.4). */
   nationalTeam?: NationalTeamState | null;
+  /** Tabelas de recordes do clube (Sala de Troféus). */
+  records?: RecordTable[];
   savedAt: string;
   /** Slot de carreira (1–3) quando multi-save. */
   slotId?: SaveSlotId;

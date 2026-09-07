@@ -60,6 +60,12 @@ export interface PressSituation {
   wageBill?: number | null;
   /** 0–100 atrito acumulado com a imprensa. */
   pressFriction?: number;
+  /** Jogador em sequência positiva de participações em gol (Sala de Troféus → Recordes). */
+  hotStreakPlayerName?: string | null;
+  /** Descrição pronta de um jogador perto de igualar/bater um recorde do clube. */
+  recordChaseLabel?: string | null;
+  /** Descrição pronta de um recorde batido na partida recém-concluída. */
+  recordBrokenLabel?: string | null;
 }
 
 export interface PressQuestionTags {
@@ -84,6 +90,9 @@ export interface PressQuestionTags {
   boardMin?: number;
   supporterMax?: number;
   supporterMin?: number;
+  requiresHotStreak?: boolean;
+  requiresRecordChase?: boolean;
+  requiresRecordBroken?: boolean;
 }
 
 export interface PressQuestion {

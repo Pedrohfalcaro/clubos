@@ -18,6 +18,7 @@ import {
 } from '../../utils/livelifeTemplates';
 import { competitionNames } from '../../utils/competitions';
 import { PERSONALIDADES, isPersonality } from '../../pulse/utils';
+import PlayerHistoryModal from '../../components/PlayerHistoryModal/PlayerHistoryModal';
 import styles from './Squad.module.css';
 
 const POSITION_ORDER = ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'CF', 'ST'];
@@ -88,6 +89,7 @@ export default function Squad() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [histSortKey, setHistSortKey] = useState<HistSortKey | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [historyPlayerId, setHistoryPlayerId] = useState<string | null>(null);
   const [editingStatsId, setEditingStatsId] = useState<string | null>(null);
   const [statsEditForm, setStatsEditForm] = useState({
     matches: 0,
@@ -1117,7 +1119,12 @@ export default function Squad() {
                               </div>
                             </div>
                           ) : (
-                            <div className={`${styles.tableRow} ${retired ? styles.rowRetired : ''}`}>
+                            <div
+                              className={`${styles.tableRow} ${retired ? styles.rowRetired : ''}`}
+                              onClick={() => setHistoryPlayerId(p.id)}
+                              style={{ cursor: 'pointer' }}
+                              title="Ver histórico de partidas"
+                            >
                               <span className={styles.colNum}>{p.number ?? '—'}</span>
                               <span className={styles.colName}>
                                 <span className={styles.nameText}>{p.name}</span>
@@ -1145,7 +1152,10 @@ export default function Squad() {
                                     <button
                                       type="button"
                                       className={styles.availBadge}
-                                      onClick={() => startEdit(p.id)}
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        startEdit(p.id);
+                                      }}
                                       title="Editar penalidade"
                                     >
                                       {availabilityStatusLabel(p, state.currentDate)}
@@ -1156,7 +1166,10 @@ export default function Squad() {
                                   <button
                                     type="button"
                                     className={`${styles.availBadge} ${styles.retirementHint}`}
-                                    onClick={() => startEdit(p.id)}
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      startEdit(p.id);
+                                    }}
                                     title="Aposentadoria agendada — editar"
                                   >
                                     Aposenta em {p.retirementDate.slice(0, 10)}
@@ -1198,7 +1211,16 @@ export default function Squad() {
                               </span>
                               <span className={styles.colStatus} style={{ color: STATUS_COLOR[p.status] }}>{p.status}</span>
                               <span className={styles.colAction}>
-                                <button type="button" className={styles.editBtn} onClick={() => startEdit(p.id)}>Editar</button>
+                                <button
+                                  type="button"
+                                  className={styles.editBtn}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    startEdit(p.id);
+                                  }}
+                                >
+                                  Editar
+                                </button>
                               </span>
                             </div>
                           )}
@@ -1212,6 +1234,16 @@ export default function Squad() {
           </div>
         </div>
       )}
+      {historyPlayerId && (() => {
+        const historyPlayer = state.players.find(p => p.id === historyPlayerId);
+        return historyPlayer ? (
+          <PlayerHistoryModal
+            playerId={historyPlayer.id}
+            playerName={historyPlayer.name}
+            onClose={() => setHistoryPlayerId(null)}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import type { Match, MatchResult, Player } from '../types';
 import type { TransferRecord } from '../types/Transfer';
+import type { RecordAlert, RecordTable } from '../types/Records';
 import type {
   PressConferenceDeltas,
   PressConferenceResult,
@@ -145,6 +146,43 @@ function avgMorale(players: Player[]): number {
   return active.reduce((s, p) => s + (p.morale ?? 70), 0) / active.length;
 }
 
+/** Jogador de linha em sequência positiva — proxy: boa taxa de gol+assistência por jogo. */
+function findHotStreakPlayer(players: Player[]): string | null {
+  const hot = players
+    .filter(p => p.status !== 'Aposentado' && p.position !== 'GK')
+    .map(p => {
+      const matches = p.stats?.matches ?? 0;
+      const contributions = (p.stats?.goals ?? 0) + (p.stats?.assists ?? 0);
+      return { name: p.name, matches, rate: matches > 0 ? contributions / matches : 0 };
+    })
+    .filter(c => c.matches >= 4 && c.rate >= 0.6)
+    .sort((a, b) => b.rate - a.rate)[0];
+  return hot?.name ?? null;
+}
+
+/** Jogador atual a até 2 unidades de igualar o líder de alguma tabela de recordes. */
+function findRecordChase(records: RecordTable[]): string | null {
+  for (const table of records) {
+    const top = table.entries[0];
+    if (!top) continue;
+    const chaser = table.entries
+      .filter(e => e.playerId && e.id !== top.id)
+      .map(e => ({ label: e.label, gap: top.value - e.value }))
+      .filter(c => c.gap > 0 && c.gap <= 2)
+      .sort((a, b) => a.gap - b.gap)[0];
+    if (chaser) {
+      return `${chaser.label} está a ${chaser.gap} de igualar o recorde de "${table.name}"`;
+    }
+  }
+  return null;
+}
+
+function findRecordBroken(alerts: RecordAlert[]): string | null {
+  const top = alerts.find(a => a.isTop);
+  if (!top) return null;
+  return `${top.playerName} quebrou o recorde de "${top.tableName}" com ${top.value}`;
+}
+
 export function buildPressSituation(input: {
   context: PressContext;
   match?: Match | null;
@@ -159,6 +197,8 @@ export function buildPressSituation(input: {
   balance?: number | null;
   wageBill?: number | null;
   pressFriction?: number;
+  records?: RecordTable[];
+  recentRecordAlerts?: RecordAlert[];
 }): PressSituation {
   const match = input.match ?? null;
   const gf = match?.goalsFor ?? 0;
@@ -203,6 +243,9 @@ export function buildPressSituation(input: {
     balance: input.balance ?? null,
     wageBill: input.wageBill ?? null,
     pressFriction: input.pressFriction ?? 0,
+    hotStreakPlayerName: findHotStreakPlayer(input.players ?? []),
+    recordChaseLabel: findRecordChase(input.records ?? []),
+    recordBrokenLabel: findRecordBroken(input.recentRecordAlerts ?? []),
   };
 }
 
@@ -235,6 +278,9 @@ function tagsMatch(tags: PressQuestionTags | undefined, s: PressSituation): bool
   if (tags.mediaMin != null && (s.mediaConfidence ?? 50) < tags.mediaMin) return false;
   if (tags.recentLossesMin != null && (s.recentLosses ?? 0) < tags.recentLossesMin) return false;
   if (tags.recentWinsMin != null && (s.recentWins ?? 0) < tags.recentWinsMin) return false;
+  if (tags.requiresHotStreak && !s.hotStreakPlayerName) return false;
+  if (tags.requiresRecordChase && !s.recordChaseLabel) return false;
+  if (tags.requiresRecordBroken && !s.recordBrokenLabel) return false;
   return true;
 }
 
@@ -274,6 +320,17 @@ function personalizePrompt(prompt: string, s: PressSituation): string {
     out = out
       .replace(/o lesionado|o atleta lesionado|o jogador lesionado/gi, s.injuredPlayerName)
       .replace(/\{\{injured\}\}/g, s.injuredPlayerName);
+  }
+  if (s.hotStreakPlayerName) {
+    out = out
+      .replace(/o jogador em grande fase|o artilheiro em alta/gi, s.hotStreakPlayerName)
+      .replace(/\{\{hotstreak\}\}/g, s.hotStreakPlayerName);
+  }
+  if (s.recordChaseLabel) {
+    out = out.replace(/\{\{record_chase\}\}/g, s.recordChaseLabel);
+  }
+  if (s.recordBrokenLabel) {
+    out = out.replace(/\{\{record_broken\}\}/g, s.recordBrokenLabel);
   }
   return out;
 }

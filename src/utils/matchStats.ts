@@ -2,7 +2,10 @@ import type { Match, MatchLocation } from '../types/Match';
 import type { Player, PlayerStats } from '../types/Player';
 import { emptyPlayerStats } from '../types/Player';
 import type { Team, TeamStatistics } from '../types/Team';
+import type { SeasonCompetition } from '../types/Competition';
+import type { TransferRecord } from '../types/Transfer';
 import { getMatchPlayingTime } from './playingTime';
+import { resolveCompetitionColor } from './competitions';
 
 export function calcResult(goalsFor: number, goalsAgainst: number): 'win' | 'draw' | 'loss' {
   if (goalsFor > goalsAgainst) return 'win';
@@ -194,6 +197,13 @@ export function getHomeAway(
   };
 }
 
+/** Partidas concluídas da temporada atual, mais recente primeiro. */
+export function currentSeasonCompletedMatches(matches: Match[], season: number): Match[] {
+  return matches
+    .filter(m => m.status === 'completed' && (m.season ?? season) === season)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
 export function locationLabel(location: Match['location']): string {
   if (location === 'home') return 'Em Casa';
   if (location === 'away') return 'Fora';
@@ -217,4 +227,96 @@ export function calcPlayerAverageRating(
   }
   if (ratings.length === 0) return null;
   return ratings.reduce((a, b) => a + b, 0) / ratings.length;
+}
+
+/**
+ * Data (ISO) em que o atleta foi contratado — última entrada de chegada
+ * (`buy`/`free`/`loan_in`) no histórico de transferências vinculada a ele.
+ * `null` = sem registro (estava no elenco desde o início da carreira).
+ */
+export function getPlayerJoinDate(
+  playerId: string,
+  transferHistory: TransferRecord[],
+): string | null {
+  const incoming = transferHistory
+    .filter(
+      t =>
+        (t.squadPlayerId === playerId || t.playerId === playerId) &&
+        t.type !== 'sell' &&
+        t.type !== 'loan_out',
+    )
+    .sort((a, b) => b.date.localeCompare(a.date));
+  return incoming[0]?.date ?? null;
+}
+
+export interface PlayerMatchHistoryEntry {
+  matchId: string;
+  date: string;
+  competition: string;
+  competitionColor: string;
+  homeTeam: string;
+  awayTeam: string;
+  homeGoals: number;
+  awayGoals: number;
+  winner: 'home' | 'away' | 'draw';
+  played: boolean;
+  rating: number | null;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+}
+
+/**
+ * Histórico completo do clube (todas as temporadas salvas) desde a contratação do atleta,
+ * anotado com a produção dele em cada partida. Jogos em que ele não jogou entram com
+ * `played: false` (nota "—", sem ícones) — é o time inteiro, não só os jogos dele.
+ */
+export function getPlayerMatchHistory(
+  playerId: string,
+  matches: Match[],
+  teamName: string,
+  seasonCompetitions: SeasonCompetition[],
+  transferHistory: TransferRecord[],
+): PlayerMatchHistoryEntry[] {
+  const joinDate = getPlayerJoinDate(playerId, transferHistory);
+  const completed = matches.filter(
+    m => m.status === 'completed' && (!joinDate || m.date >= joinDate),
+  );
+
+  return completed
+    .map((match): PlayerMatchHistoryEntry => {
+      const { homeTeam, awayTeam, homeGoals, awayGoals } = getHomeAway(teamName, match);
+      const winner: 'home' | 'away' | 'draw' =
+        homeGoals === awayGoals ? 'draw' : homeGoals > awayGoals ? 'home' : 'away';
+      const playingTime = getMatchPlayingTime(match);
+      const inLineup = match.lineup?.formation?.some(s => s.playerId === playerId) ?? false;
+      const ratingEntry = match.playerRatings?.find(r => r.playerId === playerId);
+      const goals = match.goals.filter(g => g.playerId === playerId && !g.isOwnGoal).length;
+      const assists = match.assists.filter(a => a.playerId === playerId).length;
+      const played =
+        playingTime.has(playerId) || inLineup || ratingEntry != null || goals > 0 || assists > 0;
+      return {
+        matchId: match.id,
+        date: match.date,
+        competition: match.competition,
+        competitionColor: resolveCompetitionColor(seasonCompetitions, match.competition),
+        homeTeam,
+        awayTeam,
+        homeGoals,
+        awayGoals,
+        winner,
+        played,
+        rating: played ? (ratingEntry?.rating ?? null) : null,
+        goals: played ? goals : 0,
+        assists: played ? assists : 0,
+        yellowCards: played
+          ? match.cards.filter(c => c.playerId === playerId && c.type === 'yellow').length
+          : 0,
+        redCards: played
+          ? match.cards.filter(c => c.playerId === playerId && c.type === 'red').length
+          : 0,
+      };
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
 }

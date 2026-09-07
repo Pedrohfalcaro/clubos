@@ -558,6 +558,40 @@
   color: var(--accent);
 }
 
+.h2hBlock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+}
+
+.h2hLabel {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.h2hRow {
+  display: flex;
+  gap: 6px;
+}
+
+.h2hBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .nextMatchEmpty {
   width: 100%;
   text-align: left;

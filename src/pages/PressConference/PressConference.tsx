@@ -124,6 +124,8 @@ export default function PressConference() {
       balance: state.finance.balance,
       wageBill: wageBill(state.players),
       pressFriction,
+      records: state.records,
+      recentRecordAlerts: state.recordAlerts,
     });
   }, [
     context,
@@ -136,6 +138,8 @@ export default function PressConference() {
     playerId,
     state.finance.balance,
     pressFriction,
+    state.records,
+    state.recordAlerts,
   ]);
 
   const questions = useMemo(() => {
@@ -169,6 +173,7 @@ export default function PressConference() {
         matchId: targetMatch?.id,
         deltas: out.deltas,
         headline: out.headline,
+        summary: out.summary,
         playerMorale: out.playerMorale,
         aggressiveCount: out.aggressiveCount,
         specialDoneKey: context === 'story_arc' ? undefined : specialKey,

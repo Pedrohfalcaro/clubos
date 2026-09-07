@@ -2,6 +2,12 @@ import type { TeamAchievement } from './Achievement';
 
 export type { TeamAchievement };
 
+/** Contagem manual de títulos por competição — Sala de Troféus (editável, não automática). */
+export interface TrophyCabinetEntry {
+  competitionName: string;
+  titles: number;
+}
+
 export interface TeamStatistics {
   matches: number;
   wins: number;
@@ -31,5 +37,7 @@ export interface Team {
   history?: string;
   /** Sala de Troféus / classificações finais */
   achievements?: TeamAchievement[];
+  /** Contagem de troféus por competição — editada manualmente na Sala de Troféus. */
+  trophyCabinet?: TrophyCabinetEntry[];
   currentMoment?: string;
 }

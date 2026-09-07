@@ -267,6 +267,237 @@
   opacity: 1;
 }
 
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--tr-border);
+}
+
+.tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-family: var(--tr-display);
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--tr-text);
+  padding: 8px 4px 12px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tabActive {
+  color: var(--tr-text-h);
+  border-bottom-color: var(--tr-accent);
+}
+
+.subheading {
+  font-family: var(--tr-display);
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--tr-text-h);
+  margin: 0 0 12px;
+}
+
+.compRow {
+  display: grid;
+  grid-template-columns: 14px minmax(140px, 1fr) 72px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--tr-border);
+  background: var(--tr-card);
+}
+
+.compRow + .compRow {
+  border-top: none;
+}
+
+.compDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.compName {
+  color: var(--tr-text-h);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.countInput {
+  width: 60px;
+  padding: 6px 8px;
+  border: 1px solid var(--tr-border);
+  background: #0e0c08;
+  color: var(--tr-text-h);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: center;
+}
+
+.countInput:focus {
+  outline: none;
+  border-color: var(--tr-accent);
+}
+
+.miniCupRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 22px;
+  align-items: center;
+}
+
+.miniCup {
+  width: 16px;
+  height: 18px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.miniCup::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 3px;
+  right: 3px;
+  height: 11px;
+  background: linear-gradient(180deg, #f0d060, #a67c00);
+  clip-path: polygon(0 0, 100% 0, 78% 100%, 22% 100%);
+}
+
+.miniCup::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  background: var(--tr-accent);
+  border-radius: 1px;
+}
+
+.recordsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.recordsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.recordCard {
+  border: 1px solid var(--tr-border);
+  background: var(--tr-card);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.recordCardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.recordCardTitle {
+  margin: 0;
+  font-family: var(--tr-display);
+  font-size: 22px;
+  letter-spacing: 0.5px;
+  color: var(--tr-text-h);
+}
+
+.recordCardMetric {
+  margin: 2px 0 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tr-accent);
+}
+
+.recordRow {
+  display: grid;
+  grid-template-columns: 22px 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+}
+
+.recordRow:last-child {
+  border-bottom: none;
+}
+
+.recordPos {
+  font-weight: 800;
+  color: var(--tr-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.recordName {
+  color: var(--tr-text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recordValue {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.addEntryForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--tr-border);
+}
+
+.addEntryForm select,
+.addEntryForm input {
+  padding: 6px 8px;
+  border: 1px solid var(--tr-border);
+  background: #0e0c08;
+  color: var(--tr-text-h);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.addEntryForm select:focus,
+.addEntryForm input:focus {
+  outline: none;
+  border-color: var(--tr-accent);
+}
+
+.smallBtn {
+  appearance: none;
+  border: 1px solid var(--tr-accent);
+  background: transparent;
+  color: var(--tr-accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.smallBtn:hover {
+  background: var(--tr-accent-soft);
+}
+
 .empty,
 .emptyInline {
   margin: 0;

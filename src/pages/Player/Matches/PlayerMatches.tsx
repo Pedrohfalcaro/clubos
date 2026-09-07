@@ -4,7 +4,7 @@ import MatchScheduleModal from '../../../components/MatchScheduleModal/MatchSche
 import { useGame } from '../../../context/GameContext';
 import type { Match } from '../../../types/Match';
 import { competitionNames } from '../../../utils/competitions';
-import { getHomeAway, locationLabel } from '../../../utils/matchStats';
+import { getHomeAway, locationLabel, currentSeasonCompletedMatches } from '../../../utils/matchStats';
 import { getPlayerMatchClubName } from '../../../utils/playerMatch';
 import styles from '../../Matches/Matches.module.css';
 
@@ -30,8 +30,10 @@ export default function PlayerMatches() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
 
-  const scheduled = state.matches.filter(m => m.status === 'scheduled');
-  const completed = state.matches.filter(m => m.status === 'completed');
+  const scheduled = state.matches
+    .filter(m => m.status === 'scheduled')
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const completed = currentSeasonCompletedMatches(state.matches, state.season);
 
   function openNew() {
     setEditingMatch(null);

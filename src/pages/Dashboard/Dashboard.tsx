@@ -40,6 +40,7 @@ import {
   ledgerForScope,
   type HistoryScope,
 } from '../../utils/historyScope';
+import { RECORD_METRIC_LABELS } from '../../types/Records';
 import styles from './Dashboard.module.css';
 import pulseStyles from '../PulseMatch/PulseMatch.module.css';
 
@@ -117,6 +118,7 @@ export default function Dashboard() {
     updateCompetition,
     setActiveContext,
     createNationalTeam,
+    dismissRecordAlert,
   } = useGame();
   const navigate = useNavigate();
   const {
@@ -187,6 +189,20 @@ export default function Dashboard() {
     () => (currentDate ? findMatchOnDate(matches, currentDate) : null),
     [matches, currentDate],
   );
+  const upcomingOpponent = todayMatch?.opponent ?? nextMatch?.opponent ?? null;
+  const h2hMatches = useMemo(() => {
+    if (!upcomingOpponent) return [];
+    const target = upcomingOpponent.trim().toLowerCase();
+    return matches
+      .filter(
+        m =>
+          m.status === 'completed' &&
+          m.result &&
+          m.opponent.trim().toLowerCase() === target,
+      )
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 5);
+  }, [matches, upcomingOpponent]);
   const pressPreAvailable =
     !!todayMatch &&
     todayMatch.status === 'scheduled' &&
@@ -563,6 +579,32 @@ export default function Dashboard() {
               {todayMatch ? 'Jogar →' : currentDate ? 'Avançar →' : 'Ativar →'}
             </span>
           </button>
+        </div>
+      )}
+
+      {isCurrentScope && upcomingOpponent && h2hMatches.length > 0 && (
+        <div className={styles.h2hBlock}>
+          <span className={styles.h2hLabel}>Últimos confrontos vs. {upcomingOpponent}</span>
+          <div className={styles.h2hRow}>
+            {h2hMatches.map(m => {
+              const resultInfo =
+                m.result === 'win'
+                  ? { letter: 'V', color: 'var(--success)' }
+                  : m.result === 'draw'
+                    ? { letter: 'E', color: 'var(--warning)' }
+                    : { letter: 'D', color: 'var(--danger)' };
+              return (
+                <span
+                  key={m.id}
+                  className={styles.h2hBadge}
+                  style={{ background: resultInfo.color }}
+                  title={`${formatGameDate(m.date)} · ${m.goalsFor}-${m.goalsAgainst} · ${m.competition}`}
+                >
+                  {resultInfo.letter}
+                </span>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1334,6 +1376,39 @@ export default function Dashboard() {
           }}
         />
       )}
+
+      {state.recordAlerts.length > 0 &&
+        !payrollDue &&
+        !transferPaymentsDue &&
+        !loanPaymentsDue &&
+        !debtPaymentsDue &&
+        (() => {
+          const alert = state.recordAlerts[0];
+          const metricLabel = RECORD_METRIC_LABELS[alert.metric].toLowerCase();
+          return (
+            <div className={styles.overlay}>
+              <div className={styles.modal} role="dialog" aria-labelledby="record-alert-title">
+                <p id="record-alert-title" className={styles.modalTitle}>
+                  🏆 Recorde do clube
+                </p>
+                <p className={styles.modalBody}>
+                  {alert.isTop
+                    ? `${alert.playerName} assumiu o topo de "${alert.tableName}" após ${alert.value} ${metricLabel}!`
+                    : `${alert.playerName} alcançou a ${alert.position}ª posição em "${alert.tableName}" após ${alert.value} ${metricLabel}.`}
+                </p>
+                <div className={styles.modalActions}>
+                  <button
+                    type="button"
+                    className={styles.btnPrimary}
+                    onClick={() => dismissRecordAlert(alert.id)}
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

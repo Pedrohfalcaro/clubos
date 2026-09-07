@@ -6,7 +6,7 @@ import {
   migrateSeasonCompetitions,
   resetSeasonCompetitionsForNewSeason,
 } from '../utils/competitions';
-import type { Team } from '../types/Team';
+import type { Team, TrophyCabinetEntry } from '../types/Team';
 import type { Player } from '../types/Player';
 import type {
   CallUpListSize,
@@ -35,6 +35,8 @@ import type { Match, MatchLocation, ScheduleMatchInput, CompleteMatchInput } fro
 import type { Manager } from '../types/Manager';
 import type { TeamAchievement } from '../types/Achievement';
 import { computeSeasonClosingAchievements } from '../utils/achievements';
+import type { RecordAlert, RecordEntry, RecordTable } from '../types/Records';
+import { recalcRecordTables, sortAndCapEntries } from '../utils/records';
 import { uid } from '../utils/matchEvents';
 import type { SavedTactics, TacticsPreset } from '../types/Tactics';
 import { MAX_TACTICS_PRESETS } from '../types/Tactics';
@@ -112,11 +114,12 @@ import type { SocialPost, SocialState } from '../types/Social';
 import { createDefaultSocialState } from '../types/Social';
 import { buildMatchHeadline } from '../utils/socialHeadlines';
 import { buildTransferHeadline } from '../utils/transferHeadlines';
+import { buildPressConferenceBody, buildRecordHeadline } from '../utils/pressHeadlines';
 import { currencySymbol } from '../types/Finance';
 import { newSocialPost } from '../types/Social';
 import type { PressConferenceDeltas, PressContext } from '../types/PressConference';
 import { nextPressFriction } from '../pressconference';
-import { contextLabel, pressSpecialDone } from '../utils/pressTriggers';
+import { pressSpecialDone } from '../utils/pressTriggers';
 import { getCategoryBreakdown, monthKeyFromDate } from '../utils/financeAnalytics';
 import { clearArcPendingPress, tickStoryArc } from '../utils/storyArcs';
 import type { BoardState, BoardGoal, BoardConfidenceEntry } from '../types/Board';
@@ -206,6 +209,10 @@ export interface GameState {
   activeContext: 'club' | 'national';
   /** Seleção Nacional / Dual Career (v1.4) — null até o onboarding. */
   nationalTeam: NationalTeamState | null;
+  /** Tabelas de recordes do clube (Sala de Troféus). */
+  records: RecordTable[];
+  /** Fila de avisos de recorde (subiu de posição / assumiu o topo) — não persiste no save. */
+  recordAlerts: RecordAlert[];
 }
 
 type GameAction =
@@ -216,6 +223,12 @@ type GameAction =
   | { type: 'UPDATE_MANAGER'; updates: Partial<Manager> }
   | { type: 'ADD_ACHIEVEMENT'; achievement: TeamAchievement }
   | { type: 'REMOVE_ACHIEVEMENT'; achievementId: string }
+  | { type: 'SET_TROPHY_COUNT'; competitionName: string; titles: number }
+  | { type: 'CREATE_RECORD_TABLE'; table: RecordTable }
+  | { type: 'ADD_RECORD_ENTRY'; tableId: string; entry: RecordEntry }
+  | { type: 'REMOVE_RECORD_ENTRY'; tableId: string; entryId: string }
+  | { type: 'REMOVE_RECORD_TABLE'; tableId: string }
+  | { type: 'DISMISS_RECORD_ALERT'; alertId: string }
   | {
       type: 'START_CAREER';
       manager: Manager;
@@ -287,6 +300,7 @@ type GameAction =
       matchId?: string;
       deltas: PressConferenceDeltas;
       headline: string;
+      summary?: string[];
       playerMorale?: { playerId: string; delta: number }[];
       aggressiveCount?: number;
       specialDoneKey?: string;
@@ -413,6 +427,15 @@ interface GameContextValue {
   updateManager: (updates: Partial<Manager>) => void;
   addAchievement: (achievement: Omit<TeamAchievement, 'id'> & { id?: string }) => void;
   removeAchievement: (achievementId: string) => void;
+  setTrophyCount: (competitionName: string, titles: number) => void;
+  createRecordTable: (name: string, metric: RecordTable['metric']) => void;
+  addRecordEntry: (
+    tableId: string,
+    entry: { label: string; playerId?: string; value: number },
+  ) => void;
+  removeRecordEntry: (tableId: string, entryId: string) => void;
+  removeRecordTable: (tableId: string) => void;
+  dismissRecordAlert: (alertId: string) => void;
   startCareer: (
     seasonCompetitions: string[] | SeasonCompetition[],
     slotId?: SaveSlotId,
@@ -493,6 +516,7 @@ interface GameContextValue {
     matchId?: string;
     deltas: PressConferenceDeltas;
     headline: string;
+    summary?: string[];
     playerMorale?: { playerId: string; delta: number }[];
     aggressiveCount?: number;
     specialDoneKey?: string;
@@ -686,6 +710,8 @@ const initialState: GameState = {
   debtPaymentsDue: false,
   activeContext: 'club',
   nationalTeam: null,
+  records: [],
+  recordAlerts: [],
 };
 
 function updatePlayerFromMatch(
@@ -770,6 +796,57 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ...state.team,
           achievements: (state.team.achievements ?? []).filter(a => a.id !== action.achievementId),
         },
+      };
+    }
+
+    case 'SET_TROPHY_COUNT': {
+      if (!state.team) return state;
+      const cabinet = state.team.trophyCabinet ?? [];
+      const existing = cabinet.find(e => e.competitionName === action.competitionName);
+      const titles = Math.max(0, Math.round(action.titles));
+      const nextCabinet: TrophyCabinetEntry[] = existing
+        ? cabinet.map(e => (e.competitionName === action.competitionName ? { ...e, titles } : e))
+        : [...cabinet, { competitionName: action.competitionName, titles }];
+      return {
+        ...state,
+        team: { ...state.team, trophyCabinet: nextCabinet },
+      };
+    }
+
+    case 'CREATE_RECORD_TABLE': {
+      return { ...state, records: [...state.records, action.table] };
+    }
+
+    case 'ADD_RECORD_ENTRY': {
+      return {
+        ...state,
+        records: state.records.map(t =>
+          t.id === action.tableId
+            ? { ...t, entries: sortAndCapEntries([...t.entries, action.entry]) }
+            : t,
+        ),
+      };
+    }
+
+    case 'REMOVE_RECORD_ENTRY': {
+      return {
+        ...state,
+        records: state.records.map(t =>
+          t.id === action.tableId
+            ? { ...t, entries: t.entries.filter(e => e.id !== action.entryId) }
+            : t,
+        ),
+      };
+    }
+
+    case 'REMOVE_RECORD_TABLE': {
+      return { ...state, records: state.records.filter(t => t.id !== action.tableId) };
+    }
+
+    case 'DISMISS_RECORD_ALERT': {
+      return {
+        ...state,
+        recordAlerts: state.recordAlerts.filter(a => a.id !== action.alertId),
       };
     }
 
@@ -1512,6 +1589,20 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         unseenCount: state.social.unseenCount + 1,
       };
 
+      // Recordes do clube — recalcula posições e enfileira avisos de mudança (Dashboard)
+      const recordUpdate = recalcRecordTables(state.records, playersWithMorale);
+      const recordHeadlines = recordUpdate.alerts
+        .filter(a => a.isTop)
+        .map(a => buildRecordHeadline(a, state.team!.name, dateStr, action.input.matchId));
+      const socialWithRecords: SocialState =
+        recordHeadlines.length > 0
+          ? {
+              ...social,
+              posts: [...recordHeadlines, ...social.posts].slice(0, 200),
+              unseenCount: social.unseenCount + recordHeadlines.length,
+            }
+          : social;
+
       return {
         ...state,
         matches: updatedMatches,
@@ -1520,7 +1611,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         team: teamWithBudget ?? recalculated.team,
         board: updatedBoard,
         finance: nextFinance,
-        social,
+        social: socialWithRecords,
+        records: recordUpdate.tables,
+        recordAlerts: [...state.recordAlerts, ...recordUpdate.alerts],
       };
     }
 
@@ -1549,6 +1642,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         headline,
         context,
         matchId,
+        summary = [],
         playerMorale = [],
         aggressiveCount = 0,
         specialDoneKey,
@@ -1614,18 +1708,20 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               };
             });
 
-      const fmt = (n: number) => `${n >= 0 ? '+' : ''}${n}`;
-      const targetNote =
-        playerMorale.length > 0
-          ? ` · Reforço ${playerMorale.map(p => fmt(p.delta)).join('/')}`
-          : '';
-      const frictionNote =
-        pressFriction >= 40 ? ` · Atrito imprensa ${pressFriction}` : '';
+      const pressMatch = matchId ? state.matches.find(m => m.id === matchId) : undefined;
       const post = newSocialPost({
         date: dateStr,
         type: 'headline',
         content: headline,
-        body: `Coletiva ${contextLabel(context)}. Torcida ${fmt(deltas.supporterConfidence)} · Elenco ${fmt(deltas.squadMorale)} · Diretoria ${fmt(deltas.boardConfidence)} · Mídia ${fmt(deltas.mediaConfidence ?? 0)}${targetNote}${frictionNote}.`,
+        body: buildPressConferenceBody({
+          context,
+          teamName: state.team.name,
+          opponent: pressMatch?.opponent,
+          summary,
+          deltas,
+          aggressiveCount,
+          pressFriction,
+        }),
         headlineStyle: 'journalistic',
         author: 'Gazeta ClubOS',
         matchId,
@@ -3914,6 +4010,40 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'REMOVE_ACHIEVEMENT', achievementId });
   }
 
+  function setTrophyCount(competitionName: string, titles: number) {
+    dispatch({ type: 'SET_TROPHY_COUNT', competitionName, titles });
+  }
+
+  function createRecordTable(name: string, metric: RecordTable['metric']) {
+    dispatch({
+      type: 'CREATE_RECORD_TABLE',
+      table: { id: uid(), name, metric, entries: [] },
+    });
+  }
+
+  function addRecordEntry(
+    tableId: string,
+    entry: { label: string; playerId?: string; value: number },
+  ) {
+    dispatch({
+      type: 'ADD_RECORD_ENTRY',
+      tableId,
+      entry: { id: uid(), ...entry },
+    });
+  }
+
+  function removeRecordEntry(tableId: string, entryId: string) {
+    dispatch({ type: 'REMOVE_RECORD_ENTRY', tableId, entryId });
+  }
+
+  function removeRecordTable(tableId: string) {
+    dispatch({ type: 'REMOVE_RECORD_TABLE', tableId });
+  }
+
+  function dismissRecordAlert(alertId: string) {
+    dispatch({ type: 'DISMISS_RECORD_ALERT', alertId });
+  }
+
   function startCareer(
     seasonCompetitions: string[] | SeasonCompetition[],
     slotId: SaveSlotId = activeSlotId,
@@ -4199,6 +4329,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     matchId?: string;
     deltas: PressConferenceDeltas;
     headline: string;
+    summary?: string[];
     playerMorale?: { playerId: string; delta: number }[];
     aggressiveCount?: number;
     specialDoneKey?: string;
@@ -4255,6 +4386,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           },
           activeContext: 'club',
           nationalTeam: null,
+          records: [],
+          recordAlerts: [],
         },
       });
       return 'player';
@@ -4341,6 +4474,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           },
           activeContext: save.activeContext ?? 'club',
           nationalTeam: save.nationalTeam ?? null,
+          records: save.records ?? [],
+          recordAlerts: [],
         },
       });
       return 'coach';
@@ -4379,6 +4514,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         slotId: state.saveSlotId,
         activeContext: state.activeContext,
         nationalTeam: state.nationalTeam,
+        records: state.records,
       };
     }
     if (state.careerMode === 'player' && state.careerPlayer) {
@@ -4903,6 +5039,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         updateManager,
         addAchievement,
         removeAchievement,
+        setTrophyCount,
+        createRecordTable,
+        addRecordEntry,
+        removeRecordEntry,
+        removeRecordTable,
+        dismissRecordAlert,
         startCareer,
         dismissLiveLifePrompt,
         dismissDailyPulse,

@@ -6,7 +6,7 @@ import { useGame } from '../../context/GameContext';
 import type { Match } from '../../types/Match';
 import { competitionNames } from '../../utils/competitions';
 import { matchSignificanceLabel } from '../../types/Match';
-import { getHomeAway, locationLabel } from '../../utils/matchStats';
+import { getHomeAway, locationLabel, currentSeasonCompletedMatches } from '../../utils/matchStats';
 import styles from './Matches.module.css';
 
 function resultLabel(result: string | null): { text: string; color: string } {
@@ -25,8 +25,10 @@ export default function MatchRegistration() {
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [recapMatch, setRecapMatch] = useState<Match | null>(null);
 
-  const scheduled = state.matches.filter(m => m.status === 'scheduled');
-  const completed = state.matches.filter(m => m.status === 'completed');
+  const scheduled = state.matches
+    .filter(m => m.status === 'scheduled')
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const completed = currentSeasonCompletedMatches(state.matches, state.season);
 
   function openNew() {
     setEditingMatch(null);
