@@ -23,19 +23,21 @@ function homeGoalsForPlayer(playerId: string, matches: Match[]): number {
 }
 
 /**
- * Valor acumulado de um jogador atual para uma métrica — carreira + temporada atual para as
- * métricas de `PlayerStats`, ou soma direta dos jogos em casa para `homeGoals` (Artilheiros do
- * Estádio), que não é um total acumulado em `PlayerStats`.
+ * Valor acumulado de um jogador atual para uma métrica — anterior (pré-temporada 1) + carreira
+ * + temporada atual para as métricas de `PlayerStats` (mesma soma de `playerCareerTotal` em
+ * `utils/historyScope.ts`, ou seja, igual ao "Total da carreira" do Histórico), ou soma direta
+ * dos jogos em casa para `homeGoals` (Artilheiros do Estádio), que não é um total de `PlayerStats`.
  */
 export function playerCumulativeValue(player: Player, metric: RecordMetric, matches: Match[]): number {
   if (metric === 'homeGoals') return homeGoalsForPlayer(player.id, matches);
+  const prior = player.priorStats;
   const career = player.careerStats;
   const current = player.stats;
   return recordMetricValue(metric, {
-    goals: (career?.goals ?? 0) + (current.goals ?? 0),
-    assists: (career?.assists ?? 0) + (current.assists ?? 0),
-    matches: (career?.matches ?? 0) + (current.matches ?? 0),
-    starts: (career?.starts ?? 0) + (current.starts ?? 0),
+    goals: (prior?.goals ?? 0) + (career?.goals ?? 0) + (current.goals ?? 0),
+    assists: (prior?.assists ?? 0) + (career?.assists ?? 0) + (current.assists ?? 0),
+    matches: (prior?.matches ?? 0) + (career?.matches ?? 0) + (current.matches ?? 0),
+    starts: (prior?.starts ?? 0) + (career?.starts ?? 0) + (current.starts ?? 0),
   });
 }
 
@@ -43,12 +45,53 @@ export function sortAndCapEntries(entries: RecordEntry[]): RecordEntry[] {
   return [...entries].sort((a, b) => b.value - a.value).slice(0, MAX_RECORD_ENTRIES);
 }
 
+function computeTableEntries(
+  table: RecordTable,
+  playerById: Map<string, Player>,
+  matches: Match[],
+  homeNationality?: string | null,
+): RecordEntry[] {
+  const recalculated = table.entries
+    .map(entry => {
+      if (!entry.playerId) return entry;
+      const player = playerById.get(entry.playerId);
+      if (!player) return entry; // saiu do elenco — mantém o último valor conhecido
+      return {
+        ...entry,
+        label: player.name,
+        value: playerCumulativeValue(player, table.metric, matches),
+      };
+    })
+    .filter(entry => {
+      if (!entry.playerId || table.scope !== 'foreign' || !homeNationality) return true;
+      const player = playerById.get(entry.playerId);
+      if (!player) return true;
+      return isForeignPlayer(player, homeNationality);
+    });
+  return sortAndCapEntries(recalculated);
+}
+
+/**
+ * Valores ao vivo de uma tabela — para exibir na Sala de Troféus sempre em dia com o
+ * Histórico (edições manuais de stats/"Anterior" refletem na hora, sem esperar o próximo
+ * jogo). Não dispara alertas nem grava nada; só recalcula pra tela.
+ */
+export function liveTableEntries(
+  table: RecordTable,
+  players: Player[],
+  matches: Match[],
+  homeNationality?: string | null,
+): RecordEntry[] {
+  const playerById = new Map(players.map(p => [p.id, p]));
+  return computeTableEntries(table, playerById, matches, homeNationality);
+}
+
 /**
  * Recalcula o valor de toda entrada vinculada a um jogador atual, reordena o top 10 de
  * cada tabela e detecta subidas de posição / novas entradas no top 10 / troca de líder —
- * usado após cada partida concluída para alimentar o popup do Dashboard. Em tabelas com
- * `scope: 'foreign'`, entradas vinculadas a jogadores que deixaram de ser estrangeiros (ou
- * cuja nacionalidade nunca foi preenchida) são removidas da lista.
+ * usado após cada partida concluída para congelar o resultado e alimentar o popup do
+ * Dashboard. Em tabelas com `scope: 'foreign'`, entradas vinculadas a jogadores que
+ * deixaram de ser estrangeiros (ou cuja nacionalidade nunca foi preenchida) são removidas.
  */
 export function recalcRecordTables(
   tables: RecordTable[],
@@ -65,25 +108,7 @@ export function recalcRecordTables(
       if (entry.playerId) prevPositions.set(entry.playerId, i);
     });
 
-    const recalculated = table.entries
-      .map(entry => {
-        if (!entry.playerId) return entry;
-        const player = playerById.get(entry.playerId);
-        if (!player) return entry;
-        return {
-          ...entry,
-          label: player.name,
-          value: playerCumulativeValue(player, table.metric, matches),
-        };
-      })
-      .filter(entry => {
-        if (!entry.playerId || table.scope !== 'foreign' || !homeNationality) return true;
-        const player = playerById.get(entry.playerId);
-        if (!player) return true;
-        return isForeignPlayer(player, homeNationality);
-      });
-
-    const sorted = sortAndCapEntries(recalculated);
+    const sorted = computeTableEntries(table, playerById, matches, homeNationality);
 
     sorted.forEach((entry, i) => {
       if (!entry.playerId) return;

@@ -6,7 +6,7 @@ import type { Player } from '../../types/Player';
 import type { Match } from '../../types/Match';
 import type { RecordMetric, RecordScope, RecordTable } from '../../types/Records';
 import { RECORD_METRIC_LABELS } from '../../types/Records';
-import { isForeignPlayer, playerCumulativeValue } from '../../utils/records';
+import { isForeignPlayer, liveTableEntries, playerCumulativeValue } from '../../utils/records';
 import styles from './Trophies.module.css';
 
 function positionLabel(a: TeamAchievement): string {
@@ -55,6 +55,11 @@ function RecordCard({
   const eligiblePlayers =
     table.scope === 'foreign' ? players.filter(p => isForeignPlayer(p, homeNationality)) : players;
 
+  const liveEntries = useMemo(
+    () => liveTableEntries(table, players, matches, homeNationality),
+    [table, players, matches, homeNationality],
+  );
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (mode === 'player') {
@@ -90,10 +95,10 @@ function RecordCard({
         </button>
       </div>
 
-      {table.entries.length === 0 ? (
+      {liveEntries.length === 0 ? (
         <p className={styles.emptyInline}>Nenhum registro ainda.</p>
       ) : (
-        table.entries.map((entry, i) => (
+        liveEntries.map((entry, i) => (
           <div key={entry.id} className={styles.recordRow}>
             <span className={styles.recordPos}>{i + 1}º</span>
             <span className={styles.recordName}>{entry.label}</span>
