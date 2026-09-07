@@ -57,6 +57,11 @@ export interface Player {
   stats: PlayerStats;
   /** Career totals (accumulated across closed seasons) */
   careerStats?: PlayerStats;
+  /**
+   * Estatísticas anteriores à 1ª temporada rastreada nesta carreira — editadas manualmente
+   * na aba "Anterior" do Histórico, somam ao total geral junto com `careerStats`/`stats`.
+   */
+  priorStats?: PlayerStats;
   /** Pulse fields */
   personality?: string;
   fatigue?: number;

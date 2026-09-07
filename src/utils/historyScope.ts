@@ -7,10 +7,10 @@ import type { Match } from '../types/Match';
 import type { ClubFinance } from '../types/Finance';
 import type { TransferRecord } from '../types/Transfer';
 
-export type HistoryScope = 'current' | 'total' | number; // number = closed season year
+export type HistoryScope = 'current' | 'total' | 'prior' | number; // number = closed season year
 
 export function playerCareerTotal(p: Player): PlayerStats {
-  return sumPlayerStats([p.careerStats ?? emptyPlayerStats(), p.stats]);
+  return sumPlayerStats([p.priorStats ?? emptyPlayerStats(), p.careerStats ?? emptyPlayerStats(), p.stats]);
 }
 
 /**
@@ -23,7 +23,7 @@ export function formerPlayersForScope(
   seasonHistory: SeasonArchive[],
   currentSeason: number,
 ): Player[] {
-  if (scope === 'total') return formerPlayers;
+  if (scope === 'total' || scope === 'prior') return formerPlayers;
   if (scope === 'current' || scope === currentSeason) {
     return formerPlayers.filter(p => p.departedAt?.season === currentSeason);
   }
@@ -41,6 +41,7 @@ export function playerStatsForScope(
 ): PlayerStats {
   if (scope === 'current' || scope === currentSeason) return p.stats;
   if (scope === 'total') return playerCareerTotal(p);
+  if (scope === 'prior') return p.priorStats ?? emptyPlayerStats();
   const arch = seasonHistory.find(s => s.season === scope);
   const snap = arch?.players.find(x => x.playerId === p.id);
   return snap?.stats ?? emptyPlayerStats();
@@ -57,6 +58,7 @@ export function teamStatsForScope(
   if (scope === 'total') {
     return sumTeamStats([...seasonHistory.map(s => s.teamStats), current]);
   }
+  if (scope === 'prior') return emptyTeamStats();
   return seasonHistory.find(s => s.season === scope)?.teamStats ?? emptyTeamStats();
 }
 
@@ -67,6 +69,7 @@ export function matchesForScope(
 ): Match[] {
   const completed = matches.filter(m => m.status === 'completed');
   if (scope === 'total') return completed;
+  if (scope === 'prior') return [];
   const season = scope === 'current' ? currentSeason : scope;
   return completed.filter(m => (m.season ?? currentSeason) === season);
 }

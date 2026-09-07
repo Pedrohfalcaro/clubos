@@ -269,6 +269,7 @@ type GameAction =
   | { type: 'ADVANCE_SEASON' }
   | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate'>> }
   | { type: 'UPDATE_PLAYER_STATS'; playerId: string; stats: Partial<PlayerStats> }
+  | { type: 'UPDATE_PLAYER_PRIOR_STATS'; playerId: string; stats: Partial<PlayerStats> }
   | { type: 'UPDATE_SEASON_ARCHIVE_PLAYER_STATS'; season: number; playerId: string; stats: Partial<PlayerStats> }
   | {
       type: 'RENEW_PLAYER_CONTRACT';
@@ -494,6 +495,7 @@ interface GameContextValue {
     updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate' | 'nationality'>>,
   ) => void;
   updatePlayerStats: (playerId: string, stats: Partial<PlayerStats>) => void;
+  updatePlayerPriorStats: (playerId: string, stats: Partial<PlayerStats>) => void;
   updateSeasonArchivePlayerStats: (
     season: number,
     playerId: string,
@@ -1382,6 +1384,34 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         formerPlayers[formerIdx] = {
           ...formerPlayers[formerIdx],
           stats: { ...formerPlayers[formerIdx].stats, ...action.stats },
+        };
+        return { ...state, formerPlayers };
+      }
+      return state;
+    }
+
+    case 'UPDATE_PLAYER_PRIOR_STATS': {
+      // Estatísticas "Anteriores" (pré-temporada 1) — editadas manualmente na aba
+      // "Anterior" do Histórico, somam ao total geral do jogador.
+      const playerIdx = state.players.findIndex(p => p.id === action.playerId);
+      if (playerIdx >= 0) {
+        const players = [...state.players];
+        players[playerIdx] = {
+          ...players[playerIdx],
+          priorStats: { ...emptySquadStats(), ...players[playerIdx].priorStats, ...action.stats },
+        };
+        return { ...state, players };
+      }
+      const formerPriorIdx = state.formerPlayers.findIndex(p => p.id === action.playerId);
+      if (formerPriorIdx >= 0) {
+        const formerPlayers = [...state.formerPlayers];
+        formerPlayers[formerPriorIdx] = {
+          ...formerPlayers[formerPriorIdx],
+          priorStats: {
+            ...emptySquadStats(),
+            ...formerPlayers[formerPriorIdx].priorStats,
+            ...action.stats,
+          },
         };
         return { ...state, formerPlayers };
       }
@@ -4214,6 +4244,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'UPDATE_PLAYER_STATS', playerId, stats });
   }
 
+  function updatePlayerPriorStats(playerId: string, stats: Partial<PlayerStats>) {
+    dispatch({ type: 'UPDATE_PLAYER_PRIOR_STATS', playerId, stats });
+  }
+
   function updateSeasonArchivePlayerStats(
     season: number,
     playerId: string,
@@ -5093,6 +5127,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         advanceSeason,
         updatePlayer,
         updatePlayerStats,
+        updatePlayerPriorStats,
         updateSeasonArchivePlayerStats,
         addPlayer,
         removePlayer,

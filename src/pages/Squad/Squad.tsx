@@ -80,7 +80,14 @@ interface PlayerCompStats {
 }
 
 export default function Squad() {
-  const { state, updatePlayer, updatePlayerStats, updateSeasonArchivePlayerStats, recalcSeasonStats } = useGame();
+  const {
+    state,
+    updatePlayer,
+    updatePlayerStats,
+    updatePlayerPriorStats,
+    updateSeasonArchivePlayerStats,
+    recalcSeasonStats,
+  } = useGame();
   const [view, setView] = useState<'roster' | 'history'>('roster');
   const [histScope, setHistScope] = useState<HistoryScope>('current');
   const [filter, setFilter] = useState<PlayerStatus | 'Todos'>('Todos');
@@ -114,10 +121,16 @@ export default function Squad() {
     retirementDate: '',
     nationality: '',
   });
-  const scopes = useMemo(
-    () => scopeOptions(state.season, state.seasonHistory),
-    [state.season, state.seasonHistory],
-  );
+  const scopes = useMemo(() => {
+    const base = scopeOptions(state.season, state.seasonHistory);
+    const totalIdx = base.findIndex(o => o.value === 'total');
+    const withPrior = [...base];
+    withPrior.splice(totalIdx < 0 ? base.length : totalIdx, 0, {
+      value: 'prior' as HistoryScope,
+      label: 'Anterior',
+    });
+    return withPrior;
+  }, [state.season, state.seasonHistory]);
 
   // Só jogos da temporada atual — usado para "nota" e estatísticas por competição,
   // que não podem misturar partidas de temporadas já fechadas (bug antigo).
@@ -222,7 +235,7 @@ export default function Squad() {
       }))
       .filter(row =>
         row.player.name.toLowerCase().includes(search.toLowerCase()) &&
-        (histScope === 'current' || histScope === 'total' || row.stats.matches > 0 || row.stats.goals > 0 || row.stats.assists > 0),
+        (histScope === 'current' || histScope === 'total' || histScope === 'prior' || row.stats.matches > 0 || row.stats.goals > 0 || row.stats.assists > 0),
       )
       .sort((a, b) => {
         if (histSortKey) {
@@ -353,7 +366,9 @@ export default function Squad() {
 
   function saveStatsEdit(playerId: string) {
     if (histScope === 'total') return;
-    if (histScope === 'current' || histScope === state.season) {
+    if (histScope === 'prior') {
+      updatePlayerPriorStats(playerId, statsEditForm);
+    } else if (histScope === 'current' || histScope === state.season) {
       updatePlayerStats(playerId, statsEditForm);
     } else {
       updateSeasonArchivePlayerStats(histScope, playerId, statsEditForm);
@@ -555,6 +570,14 @@ export default function Squad() {
             <p className={styles.compBanner}>
               "Total da carreira" é uma soma — não dá pra editar aqui. Pra corrigir um número
               duplicado, selecione a temporada específica onde ele aparece.
+            </p>
+          )}
+
+          {histScope === 'prior' && (
+            <p className={styles.compBanner}>
+              Estatísticas de antes da 1ª temporada rastreada (ex.: carreira anterior de um
+              jogador). Comece zerado e edite o que fizer sentido — o valor soma no "Total da
+              carreira" de cada atleta.
             </p>
           )}
 
