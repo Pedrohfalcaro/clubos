@@ -333,7 +333,7 @@ export default function NationalMatchPlay() {
         <div>
           <h1 className={styles.title}>{isEdit ? 'Editar partida' : 'Jogar partida'}</h1>
           <p className={styles.sub}>
-            {activeWindow.label} · {new Date(game.date).toLocaleDateString('pt-BR')}
+            {activeWindow.label} · {new Date(`${game.date.slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR')}
             {' · '}
             {liveMode && step === 'score' ? 'Ao vivo' : stepLabel(step)}
           </p>

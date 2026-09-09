@@ -75,7 +75,7 @@ export default function PlayerHistory() {
                   <div>
                     <strong>{getPlayerMatchClubName(m, player.currentClub.name)} × {m.opponent}</strong>
                     <span className={extra.highlightMeta}>
-                      {new Date(m.date).toLocaleDateString('pt-BR')} · {m.competition}
+                      {new Date(`${m.date.slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR')} · {m.competition}
                       {p.goals > 0 && ` · ${p.goals}G`}
                       {p.assists > 0 && ` · ${p.assists}A`}
                     </span>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGame } from '../../../context/GameContext';
 import StatCard from '../../../components/StatCard/StatCard';
+import { formatPlayerMoney } from '../../../utils/playerValue';
 import shared from '../PlayerShared.module.css';
 import styles from '../../Dashboard/Dashboard.module.css';
 
@@ -73,6 +74,8 @@ export default function PlayerProfile() {
           {player.height && <StatCard label="Altura" value={player.height} />}
           {player.preferredFoot && <StatCard label="Pé" value={player.preferredFoot} />}
           <StatCard label="Status" value={player.status} accent />
+          <StatCard label="Valor de mercado" value={formatPlayerMoney(player.marketValue)} accent />
+          <StatCard label="Moral" value={`${player.morale}%`} />
         </div>
       </section>
 

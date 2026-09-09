@@ -368,7 +368,7 @@ export default function MatchPlay() {
         <div>
           <h1 className={styles.title}>{isEdit ? 'Editar partida' : 'Registrar partida'}</h1>
           <p className={styles.sub}>
-            {match.competition} · {new Date(match.date).toLocaleDateString('pt-BR')}
+            {match.competition} · {new Date(`${match.date.slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR')}
             {' · '}
             {liveMode && step === 'score' ? 'Ao vivo' : stepLabel(step)}
           </p>

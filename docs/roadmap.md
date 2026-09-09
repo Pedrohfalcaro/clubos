@@ -3,8 +3,10 @@
 Este documento lista as seções e funcionalidades planejadas para o ClubOS, incluindo o que já está disponível e o que está em construção.
 
 > **LiveLife (v1.2):** [`livelife-v1.2.md`](./livelife-v1.2.md)  
-> **Modo Jogador:** [`modo-jogador.md`](./modo-jogador.md)  
-> **Modo Seleção / Dual Career (v1.4):** [`selecao-nacional.md`](./selecao-nacional.md)
+> **Modo Jogador (spec original):** [`modo-jogador.md`](./modo-jogador.md)  
+> **Modo Seleção / Dual Career (v1.4):** [`selecao-nacional.md`](./selecao-nacional.md)  
+> **Player Career Update (v1.5):** [`PlayerCareer - Desenvolvimento/plano_de_desenvolvimento.md`](../PlayerCareer%20-%20Desenvolvimento/plano_de_desenvolvimento.md)  
+> **Locker Room Update (v1.6):** [`PlayerTeam - Desenvolvimento/plano_de_desenvolvimento.md`](../PlayerTeam%20-%20Desenvolvimento/plano_de_desenvolvimento.md)
 
 ## Disponível agora
 
@@ -51,21 +53,22 @@ Este documento lista as seções e funcionalidades planejadas para o ClubOS, inc
 - [x] Diretoria da federação — metas e moral independentes do clube
 - [x] Pulse Internacional — pedido de desconvocação do clube em amistosos
 
----
+### Modo Jogador — aprofundamento (v1.5 — Player Career Update)
+- [x] Dashboard pessoal completo (OVR, stats, contrato, próxima partida)
+- [x] Registro de partida com foco no desempenho individual, calendário e competições da temporada
+- [x] Perfil, contrato (com expectativa do clube), evolução e histórico de clubes
+- [x] Clock LiveLife pessoal (`currentDate`/Avançar Dia) — lesões curam automaticamente por data
+- [x] Pulse pessoal — eventos aleatórios individuais (família, técnico, torcida, imprensa, lesão, mercado, escândalo)
+- [x] Coletivas de imprensa pessoais (pré/pós-jogo) e feed social pessoal (manchetes automáticas + posts)
+- [x] Sala de troféus pessoal (marcos de carreira + títulos/prêmios manuais) e histórico transparente de relacionamentos (confiança do técnico/torcida/moral, com motivo)
 
-## Próxima entrega — Modo Jogador (aprofundamento)
-
-### Fluxo e navegação
-- [ ] Dashboard pessoal completo (OVR, stats, contrato, próxima partida)
-- [ ] Registro de partida com foco no desempenho individual
-- [ ] Calendário e competições da temporada
-- [ ] Perfil, contrato, evolução e histórico de clubes
-
-### WIP futuro no jogador
-- Relacionamentos (técnico, torcida, colegas)
-- Manchetes e redes sociais pessoais
-- Conquistas e seleção nacional
-- Clock LiveLife sincronizado com lesões do atleta
+### Modo Jogador — Time e motor de partida (v1.6 — Locker Room Update)
+- [x] Aba "Time" — Metas mensais por posição (gols/assistências/jogos sem sofrer gol + nota alvo opcional, popup no início do mês) e Contrato
+- [x] Elenco de colegas — criação manual ou import de JSON (mesmo modelo do treinador), moral própria por colega (companheirismo vs. rivalidade de posição)
+- [x] Competições com editar/remover, no mesmo padrão visual do resto do app
+- [x] Motor de partida redesenhado — sem escalação, primeira tela é "Você" (titular/reserva/não relacionado); gols e incidências com autor real entre você e colegas; lesão em partida vira lesão de verdade no clock pessoal
+- [x] Popup "O que há de novo" ao entrar no Dashboard após a atualização
+- [ ] Fora de escopo (backlog): seleção nacional do jogador, colegas de time com histórico de relação próprio (grafo), financeiro pessoal mais rico, Story Arcs pessoais — ver `PlayerCareer - Desenvolvimento/plano_de_desenvolvimento.md` (Fase 6, ainda em aberto)
 
 ---
 
@@ -111,4 +114,6 @@ Ver [`MELHORIAS_FUTURAS.md`](../LiveLife%20-%20Desenvolvimento/MELHORIAS_FUTURAS
 | `0.3.x` | Modo jogador (`careerMode` / `careerPlayer`) |
 | `1.2` LiveLife | Clock contínuo, economia por partida, LIFE (social/coletivas/troféus) |
 | `1.3` Financial Update | Dashboard financeiro, rating bancário, teto de gastos |
-| **`1.4` International Duty Update** | Modo Seleção / Dual Career — Datas FIFA, convocação, tática e partidas próprias, ranking FIFA, Pulse Internacional |
+| `1.4` International Duty Update | Modo Seleção / Dual Career — Datas FIFA, convocação, tática e partidas próprias, ranking FIFA, Pulse Internacional |
+| `1.5` Player Career Update | Aprofundamento do Modo Jogador — clock pessoal, Pulse pessoal, coletivas, redes sociais, sala de troféus e relacionamentos transparentes |
+| **`1.6` Locker Room Update** | Modo Jogador — aba Time (Metas mensais + Elenco de colegas com moral própria), Competições com editar/remover, motor de partida redesenhado sem escalação, popup de novidades |

@@ -23,15 +23,25 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
+    id: 'time',
+    label: 'Time',
+    icon: '👥',
+    items: [
+      { to: '/player/team/goals', label: 'Metas' },
+      { to: '/player/team/squad', label: 'Elenco' },
+      { to: '/player/contract', label: 'Contrato' },
+    ],
+  },
+  {
     id: 'carreira',
     label: 'Carreira',
     icon: '⚽',
     items: [
       { to: '/player/profile', label: 'Perfil' },
-      { to: '/player/contract', label: 'Contrato' },
       { to: '/player/evolution', label: 'Evolução' },
       { to: '/player/history', label: 'Histórico' },
-      { to: '/player/under/conquistas', label: 'Conquistas' },
+      { to: '/player/trophies', label: 'Conquistas' },
+      { to: '/player/relations', label: 'Relacionamentos' },
     ],
   },
   {
@@ -49,19 +59,13 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Social',
     icon: '💬',
     items: [
-      { to: '/player/under/manchetes', label: 'Manchetes' },
-      { to: '/player/under/redes', label: 'Redes sociais' },
-      { to: '/player/under/relations', label: 'Relacionamentos' },
+      { to: '/player/social', label: 'Manchetes e redes' },
+      { to: '/player/press', label: 'Coletivas' },
     ],
   },
 ];
 
-const WIP_ROUTES = new Set([
-  '/player/under/conquistas',
-  '/player/under/manchetes',
-  '/player/under/redes',
-  '/player/under/relations',
-]);
+const WIP_ROUTES = new Set<string>([]);
 
 export default function PlayerLayout() {
   const { state, resetGame } = useGame();

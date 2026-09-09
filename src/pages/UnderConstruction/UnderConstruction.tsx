@@ -13,6 +13,7 @@ const TITLES: Record<string, string> = {
   'social-jogadores': 'Jogadores',
   pessoal: 'Pessoal',
   metas: 'Metas',
+  elenco: 'Elenco',
   conquistas: 'Conquistas',
   redes: 'Redes Sociais',
   relations: 'Relacionamentos',

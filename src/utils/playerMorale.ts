@@ -45,6 +45,21 @@ export function calcMoraleChanges(
   return { coachConfidence: coachDelta, fanReputation: fanDelta };
 }
 
+export function calcOverallMoraleDelta(
+  performance: PlayerMatchPerformance,
+  result: MatchResult,
+): number {
+  if (performance.role === 'notCalled') return -3;
+
+  let delta = 0;
+  if (result === 'win') delta += 2;
+  else if (result === 'loss') delta -= 2;
+  if (performance.role === 'substitute') delta -= 1;
+  if (performance.rating != null) delta += Math.round((performance.rating - 6.5) * 2);
+
+  return delta;
+}
+
 export function applyMoraleDelta(
   coachConfidence: number,
   fanReputation: number,

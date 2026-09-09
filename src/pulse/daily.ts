@@ -19,7 +19,7 @@ export interface RollDailyPulseInput {
   matches?: Match[];
 }
 
-function recentResultsFromMatches(matches: Match[] | undefined): MatchResult[] {
+export function recentResultsFromMatches(matches: Match[] | undefined): MatchResult[] {
   if (!matches?.length) return [];
   return matches
     .filter(m => m.status === 'completed' && m.result)

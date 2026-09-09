@@ -2,6 +2,8 @@
 
 Documento de especificação para implementar a carreira como **jogador**, em paralelo ao modo **treinador** já existente. Estruturado para implementação direta no próximo passo.
 
+> **Nota (Player Career Update v1.5, Fase 1):** este é o documento de planejamento **original**. O setup real ficou em **2 passos** (`/new/player` → `/setup/player-club`, que já finaliza a carreira), não 3 como descrito na §1/§7 abaixo — a ação `SET_PLAYER_CLUB` e o `setupStep: 'player-competitions'` do 3º passo nunca chegaram a ganhar UI e foram removidos como dívida técnica. Estado real, auditoria completa e próximos passos: [`PlayerCareer - Desenvolvimento/plano_de_desenvolvimento.md`](../PlayerCareer%20-%20Desenvolvimento/plano_de_desenvolvimento.md).
+
 ---
 
 ## Visão geral
@@ -567,7 +569,7 @@ Implementar nesta ordem para ter algo jogável rapidamente:
 
 1. **Isolamento total**: modo jogador nunca importa `teams.json` nem `players.json`
 2. **Clube é texto**: `currentClub.name` é string livre; troca de clube via formulário manual
-3. **Stats duplas**: `stats` (carreira total) e `seasonStats` (temporada atual); ao avançar temporada, `seasonStats` zera e soma em `stats`
+3. **Stats duplas**: `stats` (carreira total) e `seasonStats` (temporada atual). Na prática, `stats` acumula continuamente a cada partida registrada (via `updatePlayerFromMatch`, junto com `seasonStats`) — não existe uma soma explícita no momento do avanço de temporada. `ADVANCE_SEASON` apenas **zera** `seasonStats` para a nova temporada; `stats` já está sempre correto porque nunca é resetado. Decisão confirmada no Player Career Update (v1.5), Fase 1 — ver `PlayerCareer - Desenvolvimento/plano_de_desenvolvimento.md`.
 4. **Histórico automático**: ao registrar transferência, fecha entrada anterior em `careerHistory` e abre nova
 5. **Save único**: por enquanto um slot; o save sabe o modo e carrega o layout certo
 6. **Idade**: incrementa +1 ao avançar temporada

@@ -47,6 +47,7 @@ export default function PlayerCalendar() {
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
   const comps = state.seasonCompetitions;
+  const gameToday = state.currentDate?.slice(0, 10) ?? null;
 
   const matchesByDate = useMemo(() => {
     const map = new Map<string, Match[]>();
@@ -105,7 +106,8 @@ export default function PlayerCalendar() {
           if (!date) return <div key={key} className={styles.dayEmpty} aria-hidden />;
           const dateKey = toDateKey(date);
           const dayMatches = matchesByDate.get(dateKey) ?? [];
-          const isToday = dateKey === toDateKey(new Date());
+          const isRealToday = dateKey === toDateKey(new Date());
+          const isGameDay = gameToday === dateKey;
           const hasMatches = dayMatches.length > 0;
 
           return (
@@ -113,7 +115,8 @@ export default function PlayerCalendar() {
               key={key}
               className={[
                 styles.day,
-                isToday ? styles.dayToday : '',
+                isGameDay ? styles.dayGameClock : '',
+                isRealToday ? styles.dayToday : '',
                 hasMatches ? styles.dayHasMatch : '',
               ].filter(Boolean).join(' ')}
             >

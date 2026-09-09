@@ -1,0 +1,49 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.itemMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.itemMain strong {
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.itemDate {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.itemDeltas {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pos {
+  color: var(--success);
+}
+
+.neg {
+  color: var(--danger);
+}

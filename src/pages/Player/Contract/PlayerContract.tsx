@@ -1,17 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useGame } from '../../../context/GameContext';
+import { formatPlayerMoney } from '../../../utils/playerValue';
 import shared from '../PlayerShared.module.css';
 import styles from '../../Dashboard/Dashboard.module.css';
 import extra from './PlayerContract.module.css';
 
-function formatSalary(value: number): string {
-  if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(0)}K`;
-  return value > 0 ? `R$ ${value}` : 'Não informado';
-}
-
 export default function PlayerContract() {
-  const { state, transferPlayer } = useGame();
+  const { state, transferPlayer, updateCareerPlayer } = useGame();
   const player = state.careerPlayer;
   const [showTransfer, setShowTransfer] = useState(false);
   const [clubName, setClubName] = useState('');
@@ -19,6 +15,15 @@ export default function PlayerContract() {
   const [country, setCountry] = useState('Brasil');
   const [salary, setSalary] = useState(0);
   const [contractYears, setContractYears] = useState(2);
+
+  const [editingExpectation, setEditingExpectation] = useState(false);
+  const [goalsTarget, setGoalsTarget] = useState(player?.expectation.goalsTarget ?? 0);
+  const [starterTarget, setStarterTarget] = useState(player?.expectation.starterAppearancesTarget ?? 0);
+
+  const starterAppearances = useMemo(
+    () => state.matches.filter(m => m.status === 'completed' && m.playerPerformance?.role === 'starter').length,
+    [state.matches],
+  );
 
   if (!player) return null;
 
@@ -33,6 +38,16 @@ export default function PlayerContract() {
     setShowTransfer(false);
     setClubName('');
     setLeague('');
+  }
+
+  function handleSaveExpectation() {
+    updateCareerPlayer({
+      expectation: {
+        goalsTarget: goalsTarget > 0 ? goalsTarget : undefined,
+        starterAppearancesTarget: starterTarget > 0 ? starterTarget : undefined,
+      },
+    });
+    setEditingExpectation(false);
   }
 
   return (
@@ -55,7 +70,7 @@ export default function PlayerContract() {
         </div>
         <div className={shared.contractCard}>
           <span className={shared.contractLabel}>Salário mensal</span>
-          <span className={shared.contractValue}>{formatSalary(player.salary)}</span>
+          <span className={shared.contractValue}>{formatPlayerMoney(player.salary)}</span>
         </div>
         <div className={shared.contractCard}>
           <span className={shared.contractLabel}>Anos restantes</span>
@@ -67,14 +82,19 @@ export default function PlayerContract() {
           <span className={shared.contractLabel}>Status no time</span>
           <span className={shared.contractValue}>{player.status}</span>
         </div>
+        <div className={shared.contractCard}>
+          <span className={shared.contractLabel}>Valor de mercado</span>
+          <span className={shared.contractValue}>{formatPlayerMoney(player.marketValue)}</span>
+        </div>
       </div>
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Relacionamentos</h2>
         <p className={styles.sub} style={{ margin: '0 0 12px' }}>
-          Atualizados automaticamente com base nos resultados e no seu desempenho.
+          Atualizados automaticamente com base nos resultados e no seu desempenho.{' '}
+          <Link to="/player/relations">Ver histórico completo →</Link>
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
           <div className={shared.confidenceBar}>
             <p className={shared.confidenceLabel}>Confiança do técnico</p>
             <div className={shared.confidenceTrack}>
@@ -89,7 +109,53 @@ export default function PlayerContract() {
             </div>
             <p className={shared.confidenceValue}>{player.fanReputation}%</p>
           </div>
+          <div className={shared.confidenceBar}>
+            <p className={shared.confidenceLabel}>Moral</p>
+            <div className={shared.confidenceTrack}>
+              <div className={shared.confidenceFill} style={{ width: `${player.morale}%` }} />
+            </div>
+            <p className={shared.confidenceValue}>{player.morale}%</p>
+          </div>
         </div>
+      </section>
+
+      <section className={styles.section}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 className={styles.sectionTitle}>Expectativa do clube</h2>
+          <button type="button" className={extra.transferBtn} onClick={() => editingExpectation ? handleSaveExpectation() : setEditingExpectation(true)}>
+            {editingExpectation ? 'Salvar' : 'Editar'}
+          </button>
+        </header>
+        {editingExpectation ? (
+          <div className={extra.fieldRow}>
+            <div className={extra.field}>
+              <label>Meta de gols na temporada</label>
+              <input type="number" min={0} value={goalsTarget} onChange={e => setGoalsTarget(Number(e.target.value))} />
+            </div>
+            <div className={extra.field}>
+              <label>Meta de jogos como titular</label>
+              <input type="number" min={0} value={starterTarget} onChange={e => setStarterTarget(Number(e.target.value))} />
+            </div>
+          </div>
+        ) : (
+          <div className={styles.statsGrid}>
+            {player.expectation.goalsTarget ? (
+              <div className={shared.contractCard}>
+                <span className={shared.contractLabel}>Gols na temporada</span>
+                <span className={shared.contractValue}>{player.seasonStats.goals} / {player.expectation.goalsTarget}</span>
+              </div>
+            ) : null}
+            {player.expectation.starterAppearancesTarget ? (
+              <div className={shared.contractCard}>
+                <span className={shared.contractLabel}>Jogos como titular</span>
+                <span className={shared.contractValue}>{starterAppearances} / {player.expectation.starterAppearancesTarget}</span>
+              </div>
+            ) : null}
+            {!player.expectation.goalsTarget && !player.expectation.starterAppearancesTarget && (
+              <p className={styles.sub}>Nenhuma meta definida pelo clube ainda.</p>
+            )}
+          </div>
+        )}
       </section>
 
       {showTransfer && (

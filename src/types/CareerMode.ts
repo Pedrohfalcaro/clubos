@@ -7,5 +7,4 @@ export type SetupStep =
   | 'competitions'
   | 'player'
   | 'player-club'
-  | 'player-competitions'
   | 'done';

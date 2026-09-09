@@ -12,7 +12,12 @@ export interface LiveLifeMeta {
   pressFriction?: number;
   /** Chaves de coletivas especiais já feitas (callup:/injury:/finance:). */
   pressSpecialDoneKeys?: string[];
+  /** Última versão do popup "O que há de novo" (Modo Jogador) já vista neste save. */
+  seenUpdateVersion?: string;
 }
+
+/** Versão da atualização atual — usada pelo popup "O que há de novo" do Modo Jogador. */
+export const CURRENT_UPDATE_VERSION = 'v1.6';
 
 export function createDefaultLiveLifeMeta(): LiveLifeMeta {
   return {
@@ -25,6 +30,11 @@ export function createDefaultLiveLifeMeta(): LiveLifeMeta {
 }
 
 export const LIVELIFE_CHANGELOG = [
+  {
+    version: 'v1.6',
+    title: 'Locker Room Update',
+    body: 'Modo Jogador: aba Time (Metas mensais por posição + Elenco de colegas com moral própria), Competições com editar/remover, e o motor de partida redesenhado — sem escalação, com gols e incidências centrados em você.',
+  },
   {
     version: 'v1.4',
     title: 'International Duty Update',

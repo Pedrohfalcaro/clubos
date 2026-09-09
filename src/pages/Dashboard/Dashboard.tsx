@@ -1031,7 +1031,7 @@ export default function Dashboard() {
                     {ha.homeGoals}–{ha.awayGoals}
                   </span>
                   <span className={styles.matchDate}>
-                    {new Date(match.date).toLocaleDateString('pt-BR', {
+                    {new Date(`${match.date.slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR', {
                       day: '2-digit',
                       month: 'short',
                     })}

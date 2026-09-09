@@ -120,7 +120,7 @@ export default function MatchRegistration() {
                 <div className={styles.matchTop}>
                   <span className={styles.matchComp}>{match.competition}</span>
                   <span className={styles.matchDate}>
-                    {new Date(match.date).toLocaleDateString('pt-BR')} · {locationLabel(match.location)}
+                    {new Date(`${match.date.slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR')} · {locationLabel(match.location)}
                     {match.significance && match.significance !== 'normal'
                       ? ` · ${matchSignificanceLabel(match.significance)}`
                       : ''}
@@ -171,7 +171,7 @@ export default function MatchRegistration() {
                   <div className={styles.matchTop}>
                     <span className={styles.matchComp}>{match.competition}</span>
                     <span className={styles.matchDate}>
-                      {new Date(match.date).toLocaleDateString('pt-BR')}
+                      {new Date(`${match.date.slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR')}
                     </span>
                   </div>
                   <div className={styles.matchMain}>

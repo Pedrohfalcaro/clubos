@@ -39,6 +39,12 @@ import PlayerProfile from './pages/Player/Profile/PlayerProfile';
 import PlayerContract from './pages/Player/Contract/PlayerContract';
 import PlayerEvolution from './pages/Player/Evolution/PlayerEvolution';
 import PlayerHistory from './pages/Player/History/PlayerHistory';
+import PlayerSocial from './pages/Player/Social/PlayerSocial';
+import PlayerPressConference from './pages/Player/PressConference/PlayerPressConference';
+import PlayerTrophies from './pages/Player/Trophies/PlayerTrophies';
+import PlayerRelationships from './pages/Player/Relationships/PlayerRelationships';
+import PlayerSquad from './pages/Player/Squad/PlayerSquad';
+import PlayerGoals from './pages/Player/Goals/PlayerGoals';
 import NationalDashboard from './pages/National/Dashboard/NationalDashboard';
 import NationalWindows from './pages/National/Windows/NationalWindows';
 import NationalWindowHub from './pages/National/WindowHub/NationalWindowHub';
@@ -142,6 +148,18 @@ function PlayerRoutes() {
         <Route path="/player/contract" element={<PlayerContract />} />
         <Route path="/player/evolution" element={<PlayerEvolution />} />
         <Route path="/player/history" element={<PlayerHistory />} />
+        <Route path="/player/social" element={<PlayerSocial />} />
+        <Route path="/player/press" element={<PlayerPressConference />} />
+        <Route path="/player/trophies" element={<PlayerTrophies />} />
+        <Route path="/player/relations" element={<PlayerRelationships />} />
+        <Route path="/player/team/squad" element={<PlayerSquad />} />
+        <Route path="/player/team/goals" element={<PlayerGoals />} />
+        <Route path="/player/under/manchetes" element={<Navigate to="/player/social" replace />} />
+        <Route path="/player/under/redes" element={<Navigate to="/player/social" replace />} />
+        <Route path="/player/under/conquistas" element={<Navigate to="/player/trophies" replace />} />
+        <Route path="/player/under/relations" element={<Navigate to="/player/relations" replace />} />
+        <Route path="/player/under/elenco" element={<Navigate to="/player/team/squad" replace />} />
+        <Route path="/player/under/metas" element={<Navigate to="/player/team/goals" replace />} />
         <Route path="/player/under/:section" element={<UnderConstruction />} />
         <Route path="*" element={<Navigate to="/player/dashboard" replace />} />
       </Route>

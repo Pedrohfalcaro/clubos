@@ -124,3 +124,62 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.compList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.statsRow {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  flex-wrap: wrap;
+}
+
+.statCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 52px;
+  padding: 6px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.statCell span {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.statCell label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.historicalBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
+}
+
+.historicalLabel {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  margin: 0;
+}
+
+.historicalSection {
+  opacity: 0.75;
+}

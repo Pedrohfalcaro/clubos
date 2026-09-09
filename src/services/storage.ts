@@ -7,6 +7,7 @@ import type { Manager } from '../types/Manager';
 import type { SavedTactics, TacticsPreset } from '../types/Tactics';
 import type { CareerMode } from '../types/CareerMode';
 import type { CareerPlayer } from '../types/CareerPlayer';
+import { calcMarketValue } from '../utils/playerValue';
 import { createDefaultPulseState, type PulseState } from '../pulse';
 import type { ClubFinance } from '../types/Finance';
 import { createDefaultFinance, createDefaultStadiumConfig } from '../types/Finance';
@@ -338,6 +339,17 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
         overallHistory: save.careerPlayer.overallHistory ?? [{ season: save.season ?? 2026, overall: save.careerPlayer.overall }],
         injuries: save.careerPlayer.injuries ?? [],
         careerHistory: save.careerPlayer.careerHistory ?? [],
+        morale: save.careerPlayer.morale ?? 70,
+        marketValue: save.careerPlayer.marketValue ?? calcMarketValue(
+          save.careerPlayer.overall,
+          save.careerPlayer.potential,
+          save.careerPlayer.age,
+        ),
+        expectation: save.careerPlayer.expectation ?? {},
+        awards: save.careerPlayer.awards ?? [],
+        relationshipHistory: save.careerPlayer.relationshipHistory ?? [],
+        teammates: save.careerPlayer.teammates ?? [],
+        monthlyGoals: save.careerPlayer.monthlyGoals ?? [],
       },
     };
   }

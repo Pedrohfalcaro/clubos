@@ -19,6 +19,7 @@ export default function PlayerClubSetup() {
   const [status, setStatus] = useState<CareerPlayerStatus>('Reserva');
   const [salary, setSalary] = useState(0);
   const [contractYears, setContractYears] = useState(2);
+  const [startDate, setStartDate] = useState(`${state.season}-01-01`);
 
   if (state.careerMode !== 'player' || !playerName) {
     navigate('/new/player');
@@ -28,12 +29,14 @@ export default function PlayerClubSetup() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!clubName.trim() || !league.trim() || !mainCompetition.trim() || !country.trim()) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return;
     finishPlayerSetup({
       club: { name: clubName.trim(), league: league.trim(), country: country.trim() },
       status,
       salary,
       contractYearsLeft: contractYears,
       mainCompetition: mainCompetition.trim(),
+      startDate,
     });
     navigate('/player/dashboard');
   }
@@ -97,6 +100,20 @@ export default function PlayerClubSetup() {
                 {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>{y} {y === 1 ? 'ano' : 'anos'}</option>)}
               </select>
             </div>
+          </div>
+
+          <div className={styles.field}>
+            <label htmlFor="startDate">Data de início da carreira</label>
+            <input
+              id="startDate"
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              required
+            />
+            <span className={styles.fieldHint}>
+              Calendário contínuo — acompanhe lesões e o dia a dia da carreira a partir daqui. Default: 01/01/{state.season}
+            </span>
           </div>
 
           <div className={styles.actions}>

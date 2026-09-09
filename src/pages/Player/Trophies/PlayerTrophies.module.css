@@ -1,0 +1,146 @@
+.awardList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.awardItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+
+.awardItem strong {
+  display: block;
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.awardMeta {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.awardBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-right: 8px;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.removeBtn {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.awardForm {
+  background: var(--card-bg);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text);
+}
+
+.field input,
+.field select {
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.addBtn {
+  align-self: flex-start;
+  padding: 8px 16px;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.milestoneGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.milestoneBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  opacity: 0.5;
+}
+
+.milestoneBadgeAchieved {
+  opacity: 1;
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.milestoneIcon {
+  font-size: 22px;
+}
+
+.milestoneLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-h);
+  text-align: center;
+}
+
+.milestoneProgress {
+  font-size: 11px;
+  color: var(--text);
+}
+
+@media (max-width: 480px) {
+  .fieldRow {
+    grid-template-columns: 1fr;
+  }
+}

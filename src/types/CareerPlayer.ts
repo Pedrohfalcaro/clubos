@@ -1,4 +1,6 @@
 import type { PlayerPosition, PlayerStats } from './Player';
+import type { Teammate } from './Teammate';
+import type { MonthlyGoal } from './PlayerGoal';
 
 export type CareerPlayerStatus = 'Titular' | 'Reserva' | 'Promessa' | 'Em recuperação';
 export type PreferredFoot = 'Direito' | 'Esquerdo' | 'Ambidestro';
@@ -31,6 +33,33 @@ export interface InjuryEntry {
   notes?: string;
 }
 
+export interface PlayerExpectation {
+  goalsTarget?: number;
+  starterAppearancesTarget?: number;
+}
+
+export type PlayerAwardType = 'title' | 'individual';
+
+/** Título do clube ou prêmio individual — registro manual, sem detecção automática. */
+export interface PlayerAward {
+  id: string;
+  type: PlayerAwardType;
+  title: string;
+  season: number;
+  clubName?: string;
+  notes?: string;
+}
+
+/** Ajuste de confiança do técnico / reputação com a torcida / moral, com motivo — transparência em vez de barra opaca. */
+export interface RelationshipEvent {
+  id: string;
+  date: string;
+  reason: string;
+  coachDelta: number;
+  fanDelta: number;
+  moraleDelta: number;
+}
+
 export interface CareerPlayer {
   id: string;
   name: string;
@@ -48,6 +77,7 @@ export interface CareerPlayer {
   status: CareerPlayerStatus;
   salary: number;
   contractYearsLeft: number;
+  expectation: PlayerExpectation;
   coachConfidence: number;
   fanReputation: number;
 
@@ -60,6 +90,12 @@ export interface CareerPlayer {
   careerHistory: ClubHistoryEntry[];
   overallHistory: OverallHistoryEntry[];
   injuries: InjuryEntry[];
+  awards: PlayerAward[];
+  relationshipHistory: RelationshipEvent[];
+  /** Elenco fictício do clube atual — gerado 1x no fim do setup (`FINISH_PLAYER_SETUP`), nunca regenerado. */
+  teammates: Teammate[];
+  /** Metas mensais definidas pelo usuário — 1 por (season, year, month). */
+  monthlyGoals: MonthlyGoal[];
 }
 
 export function emptyPlayerStats(): PlayerStats {
@@ -94,6 +130,7 @@ export function createDefaultCareerPlayer(
     status: 'Reserva',
     salary: 0,
     contractYearsLeft: 0,
+    expectation: {},
     coachConfidence: 50,
     fanReputation: 50,
     marketValue: partial.overall * 100_000,
@@ -103,5 +140,9 @@ export function createDefaultCareerPlayer(
     careerHistory: [],
     overallHistory: [{ season: 2026, overall: partial.overall }],
     injuries: [],
+    awards: [],
+    relationshipHistory: [],
+    teammates: [],
+    monthlyGoals: [],
   };
 }

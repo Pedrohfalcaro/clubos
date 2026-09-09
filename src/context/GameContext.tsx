@@ -41,9 +41,9 @@ import { uid } from '../utils/matchEvents';
 import type { SavedTactics, TacticsPreset } from '../types/Tactics';
 import { MAX_TACTICS_PRESETS } from '../types/Tactics';
 import type { CareerMode, SetupStep } from '../types/CareerMode';
-import type { CareerPlayer, ClubInfo, InjuryEntry } from '../types/CareerPlayer';
+import type { CareerPlayer, ClubInfo, InjuryEntry, PlayerAward, RelationshipEvent } from '../types/CareerPlayer';
 import { createDefaultCareerPlayer, emptyPlayerStats } from '../types/CareerPlayer';
-import type { CompletePlayerMatchInput } from '../types/PlayerMatchPerformance';
+import type { CompletePlayerMatchInput, PlayerMatchPerformance } from '../types/PlayerMatchPerformance';
 import { clearGame, type GameSave } from '../services/storage';
 import { calcResult, recalculateFromMatches, statsForPlayerFromMatches } from '../utils/matchStats';
 import type { SeasonImportPayload } from '../utils/seasonImport';
@@ -62,7 +62,13 @@ import {
   tacticsBodyFromPreset,
 } from '../utils/formations';
 import { applyPerformanceToStats, subtractPerformanceFromStats } from '../utils/playerStats';
-import { calcMoraleChanges, applyMoraleDelta } from '../utils/playerMorale';
+import { calcMoraleChanges, applyMoraleDelta, calcOverallMoraleDelta, clampMorale } from '../utils/playerMorale';
+import { calcMarketValue } from '../utils/playerValue';
+import { reapplyTeammateMorale } from '../utils/teammateMorale';
+import type { Teammate } from '../types/Teammate';
+import type { MonthlyGoal, MonthlyGoalMetric } from '../types/PlayerGoal';
+import { isFirstOfMonth } from '../utils/playerMonthlyGoals';
+import { derivePlayerPerformance, deriveAssistedTeammateIds } from '../utils/playerMatch';
 import type { MatchResult } from '../types/Match';
 import {
   createDefaultPulseState,
@@ -73,6 +79,7 @@ import {
   type PulseSettings,
   type PulseState,
 } from '../pulse';
+import { rollDailyPlayerPulse } from '../pulse/playerDaily';
 import type {
   ClubDebt,
   ClubFinance,
@@ -113,12 +120,14 @@ import { createDefaultLiveLifeMeta } from '../types/LiveLife';
 import type { SocialPost, SocialState } from '../types/Social';
 import { createDefaultSocialState } from '../types/Social';
 import { buildMatchHeadline } from '../utils/socialHeadlines';
+import { buildPlayerMatchHeadline } from '../utils/playerHeadlines';
 import { buildTransferHeadline } from '../utils/transferHeadlines';
 import { buildPressConferenceBody, buildRecordHeadline } from '../utils/pressHeadlines';
 import { currencySymbol } from '../types/Finance';
 import { newSocialPost } from '../types/Social';
 import type { PressConferenceDeltas, PressContext } from '../types/PressConference';
 import { nextPressFriction } from '../pressconference';
+import type { PlayerPressConferenceDeltas, PlayerPressContext } from '../types/PlayerPressConference';
 import { pressSpecialDone } from '../utils/pressTriggers';
 import { getCategoryBreakdown, monthKeyFromDate } from '../utils/financeAnalytics';
 import { clearArcPendingPress, tickStoryArc } from '../utils/storyArcs';
@@ -195,6 +204,8 @@ export interface GameState {
   liveLifePromptPending: boolean;
   /** Evento Pulse diário pendente de exibição (não persiste no save). */
   pendingDailyPulse: PulseHistoryEntry | null;
+  /** Modo jogador: popup de meta mensal pendente (início de carreira ou dia 1º do mês). Não persiste. */
+  pendingMonthlyGoalPrompt: boolean;
   /** Metadados LiveLife persistidos (onboarding, etc.). */
   livelife: LiveLifeMeta;
   /** Feed ClubOSocial. */
@@ -248,12 +259,12 @@ type GameAction =
   | { type: 'DISMISS_LIVELIFE_PROMPT' }
   | { type: 'DISMISS_DAILY_PULSE' }
   | { type: 'COMPLETE_LIVELIFE_ONBOARDING' }
+  | { type: 'MARK_UPDATE_SEEN'; version: string }
   | { type: 'ADVANCE_DAY' }
   | { type: 'REWIND_DAY' }
   | { type: 'SET_CURRENT_DATE'; date: string }
   | { type: 'SET_CAREER_PLAYER'; player: Partial<CareerPlayer> }
-  | { type: 'SET_PLAYER_CLUB'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number }
-  | { type: 'FINISH_PLAYER_SETUP'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number; mainCompetition: string }
+  | { type: 'FINISH_PLAYER_SETUP'; club: ClubInfo; status: CareerPlayer['status']; salary: number; contractYearsLeft: number; mainCompetition: string; startDate: string }
   | { type: 'ADD_COMPETITION'; competition: SeasonCompetition }
   | {
       type: 'UPDATE_COMPETITION';
@@ -266,6 +277,14 @@ type GameAction =
   | { type: 'TRANSFER_PLAYER'; club: ClubInfo; salary: number; contractYears: number }
   | { type: 'ADD_INJURY'; injury: Omit<InjuryEntry, 'id'> }
   | { type: 'REMOVE_INJURY'; injuryId: string }
+  | { type: 'ADD_PLAYER_AWARD'; award: Omit<PlayerAward, 'id'> }
+  | { type: 'REMOVE_PLAYER_AWARD'; awardId: string }
+  | { type: 'ADD_TEAMMATE'; teammate: Omit<Teammate, 'id'> }
+  | { type: 'UPDATE_TEAMMATE'; teammateId: string; updates: Partial<Omit<Teammate, 'id'>> }
+  | { type: 'REMOVE_TEAMMATE'; teammateId: string }
+  | { type: 'IMPORT_TEAMMATES'; teammates: Teammate[] }
+  | { type: 'SET_MONTHLY_GOAL'; metric: MonthlyGoalMetric; target: number; ratingTarget?: number }
+  | { type: 'DISMISS_MONTHLY_GOAL_PROMPT' }
   | { type: 'ADVANCE_SEASON' }
   | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate'>> }
   | { type: 'UPDATE_PLAYER_STATS'; playerId: string; stats: Partial<PlayerStats> }
@@ -306,6 +325,13 @@ type GameAction =
       playerMorale?: { playerId: string; delta: number }[];
       aggressiveCount?: number;
       specialDoneKey?: string;
+    }
+  | {
+      type: 'APPLY_PLAYER_PRESS_CONFERENCE';
+      context: PlayerPressContext;
+      matchId?: string;
+      deltas: PlayerPressConferenceDeltas;
+      headline: string;
     }
   | { type: 'LOAD_SAVE'; state: Omit<GameState, 'started' | 'setupStep' | 'pendingTeam' | 'pendingPlayers' | 'pendingCoachCountry' | 'pendingCareerPlayer'> }
   | { type: 'COMPLETE_TUTORIAL' }
@@ -462,22 +488,18 @@ interface GameContextValue {
   dismissLiveLifePrompt: () => void;
   dismissDailyPulse: () => void;
   completeLiveLifeOnboarding: () => void;
+  markUpdateSeen: (version: string) => void;
   advanceDay: () => { matchId: string | null };
   rewindDay: () => void;
   setCurrentDate: (date: string) => void;
   setCareerPlayer: (data: Partial<CareerPlayer>) => void;
-  setPlayerClub: (data: {
-    club: ClubInfo;
-    status: CareerPlayer['status'];
-    salary: number;
-    contractYearsLeft: number;
-  }) => void;
   finishPlayerSetup: (data: {
     club: ClubInfo;
     status: CareerPlayer['status'];
     salary: number;
     contractYearsLeft: number;
     mainCompetition: string;
+    startDate: string;
   }) => void;
   addCompetition: (input: string | Partial<SeasonCompetition> & { name: string }) => void;
   updateCompetition: (id: string, updates: Partial<Omit<SeasonCompetition, 'id'>>) => void;
@@ -489,6 +511,14 @@ interface GameContextValue {
   transferPlayer: (club: ClubInfo, salary: number, contractYears: number) => void;
   addInjury: (injury: Omit<InjuryEntry, 'id'>) => void;
   removeInjury: (injuryId: string) => void;
+  addPlayerAward: (award: Omit<PlayerAward, 'id'>) => void;
+  removePlayerAward: (awardId: string) => void;
+  addTeammate: (teammate: Omit<Teammate, 'id'>) => void;
+  updateTeammate: (teammateId: string, updates: Partial<Omit<Teammate, 'id'>>) => void;
+  removeTeammate: (teammateId: string) => void;
+  importTeammates: (teammates: Teammate[]) => void;
+  setMonthlyGoal: (metric: MonthlyGoalMetric, target: number, ratingTarget?: number) => void;
+  dismissMonthlyGoalPrompt: () => void;
   advanceSeason: () => void;
   updatePlayer: (
     playerId: string,
@@ -528,6 +558,12 @@ interface GameContextValue {
     playerMorale?: { playerId: string; delta: number }[];
     aggressiveCount?: number;
     specialDoneKey?: string;
+  }) => void;
+  applyPlayerPressConference: (input: {
+    context: PlayerPressContext;
+    matchId?: string;
+    deltas: PlayerPressConferenceDeltas;
+    headline: string;
   }) => void;
   completeTutorial: () => void;
   resetGame: () => void;
@@ -711,6 +747,7 @@ const initialState: GameState = {
   payrollDue: false,
   liveLifePromptPending: false,
   pendingDailyPulse: null,
+  pendingMonthlyGoalPrompt: false,
   livelife: createDefaultLiveLifeMeta(),
   social: createDefaultSocialState(),
   transferPaymentsDue: false,
@@ -724,16 +761,17 @@ const initialState: GameState = {
 
 function updatePlayerFromMatch(
   player: CareerPlayer,
-  perf: CompletePlayerMatchInput['performance'],
+  perf: PlayerMatchPerformance,
   result: MatchResult,
   isNew: boolean,
-  oldPerf?: CompletePlayerMatchInput['performance'],
+  oldPerf?: PlayerMatchPerformance,
   oldResult?: MatchResult | null,
 ): CareerPlayer {
   let seasonStats = { ...player.seasonStats };
   let stats = { ...player.stats };
   let coachConfidence = player.coachConfidence;
   let fanReputation = player.fanReputation;
+  let morale = player.morale;
 
   if (!isNew && oldPerf && oldResult) {
     seasonStats = subtractPerformanceFromStats(seasonStats, oldPerf);
@@ -744,6 +782,7 @@ function updatePlayerFromMatch(
       fanReputation,
       { coachConfidence: -oldMorale.coachConfidence, fanReputation: -oldMorale.fanReputation },
     ));
+    morale = clampMorale(morale - calcOverallMoraleDelta(oldPerf, oldResult));
   }
 
   seasonStats = applyPerformanceToStats(seasonStats, perf);
@@ -755,8 +794,29 @@ function updatePlayerFromMatch(
     fanReputation,
     newMorale,
   ));
+  morale = clampMorale(morale + calcOverallMoraleDelta(perf, result));
 
-  return { ...player, seasonStats, stats, coachConfidence, fanReputation };
+  return { ...player, seasonStats, stats, coachConfidence, fanReputation, morale };
+}
+
+/** Registra um ajuste de confiança/moral no histórico do jogador — transparência em vez de barra opaca. */
+function pushRelationshipEvent(
+  player: CareerPlayer,
+  input: { date: string; reason: string; coachDelta: number; fanDelta: number; moraleDelta: number },
+): CareerPlayer {
+  if (input.coachDelta === 0 && input.fanDelta === 0 && input.moraleDelta === 0) return player;
+  const entry: RelationshipEvent = {
+    id: `rel-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    date: input.date,
+    reason: input.reason,
+    coachDelta: input.coachDelta,
+    fanDelta: input.fanDelta,
+    moraleDelta: input.moraleDelta,
+  };
+  return {
+    ...player,
+    relationshipHistory: [entry, ...player.relationshipHistory].slice(0, 50),
+  };
 }
 
 function gameReducer(state: GameState, action: GameAction): GameState {
@@ -926,6 +986,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         debtPaymentsDue: false,
         liveLifePromptPending: true,
         pendingDailyPulse: null,
+        pendingMonthlyGoalPrompt: false,
         livelife: createDefaultLiveLifeMeta(),
         social: createDefaultSocialState(team.name),
       };
@@ -943,27 +1004,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         livelife: { ...state.livelife, onboardingComplete: true },
       };
 
+    case 'MARK_UPDATE_SEEN':
+      return {
+        ...state,
+        livelife: { ...state.livelife, seenUpdateVersion: action.version },
+      };
+
     case 'SET_CAREER_PLAYER': {
       const base = state.pendingCareerPlayer ?? {};
       return {
         ...state,
         pendingCareerPlayer: { ...base, ...action.player },
         setupStep: 'player-club',
-      };
-    }
-
-    case 'SET_PLAYER_CLUB': {
-      if (!state.pendingCareerPlayer) return state;
-      return {
-        ...state,
-        pendingCareerPlayer: {
-          ...state.pendingCareerPlayer,
-          currentClub: action.club,
-          status: action.status,
-          salary: action.salary,
-          contractYearsLeft: action.contractYearsLeft,
-        },
-        setupStep: 'player-competitions',
       };
     }
 
@@ -989,6 +1041,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         contractYearsLeft: action.contractYearsLeft,
         coachConfidence: 50,
         fanReputation: 50,
+        marketValue: calcMarketValue(careerPlayer.overall, careerPlayer.potential, careerPlayer.age),
+        teammates: [],
         careerHistory: [{
           clubName: action.club.name,
           league: action.club.league,
@@ -1017,6 +1071,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         seasonCompetitions: [createSeasonCompetition(action.mainCompetition)],
         matches: [],
         tutorialCompleted: false,
+        currentDate: action.startDate.slice(0, 10),
+        pulse: createDefaultPulseState(),
+        pendingDailyPulse: null,
+        pendingMonthlyGoalPrompt: true,
+        social: createDefaultSocialState(),
+        livelife: createDefaultLiveLifeMeta(),
       };
     }
 
@@ -1082,9 +1142,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_SAVE_SLOT':
       return { ...state, saveSlotId: action.slotId };
 
-    case 'UPDATE_CAREER_PLAYER':
+    case 'UPDATE_CAREER_PLAYER': {
       if (!state.careerPlayer) return state;
-      return { ...state, careerPlayer: { ...state.careerPlayer, ...action.updates } };
+      const updatedPlayer = { ...state.careerPlayer, ...action.updates };
+      updatedPlayer.marketValue = calcMarketValue(
+        updatedPlayer.overall,
+        updatedPlayer.potential,
+        updatedPlayer.age,
+      );
+      return { ...state, careerPlayer: updatedPlayer };
+    }
 
     case 'TRANSFER_PLAYER': {
       if (!state.careerPlayer) return state;
@@ -1112,6 +1179,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           currentClub: action.club,
           salary: action.salary,
           contractYearsLeft: action.contractYears,
+          expectation: {},
           seasonStats: emptyPlayerStats(),
           careerHistory: history,
         },
@@ -1144,23 +1212,128 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'ADD_PLAYER_AWARD': {
+      if (!state.careerPlayer) return state;
+      const award: PlayerAward = {
+        ...action.award,
+        id: `award-${Date.now()}`,
+      };
+      return {
+        ...state,
+        careerPlayer: {
+          ...state.careerPlayer,
+          awards: [...state.careerPlayer.awards, award],
+        },
+      };
+    }
+
+    case 'REMOVE_PLAYER_AWARD': {
+      if (!state.careerPlayer) return state;
+      return {
+        ...state,
+        careerPlayer: {
+          ...state.careerPlayer,
+          awards: state.careerPlayer.awards.filter(a => a.id !== action.awardId),
+        },
+      };
+    }
+
+    case 'ADD_TEAMMATE': {
+      if (!state.careerPlayer) return state;
+      const teammate: Teammate = { ...action.teammate, id: `mate-${Date.now()}` };
+      return {
+        ...state,
+        careerPlayer: {
+          ...state.careerPlayer,
+          teammates: [...state.careerPlayer.teammates, teammate],
+        },
+      };
+    }
+
+    case 'UPDATE_TEAMMATE': {
+      if (!state.careerPlayer) return state;
+      return {
+        ...state,
+        careerPlayer: {
+          ...state.careerPlayer,
+          teammates: state.careerPlayer.teammates.map(t =>
+            t.id === action.teammateId ? { ...t, ...action.updates } : t,
+          ),
+        },
+      };
+    }
+
+    case 'REMOVE_TEAMMATE': {
+      if (!state.careerPlayer) return state;
+      return {
+        ...state,
+        careerPlayer: {
+          ...state.careerPlayer,
+          teammates: state.careerPlayer.teammates.filter(t => t.id !== action.teammateId),
+        },
+      };
+    }
+
+    case 'IMPORT_TEAMMATES': {
+      if (!state.careerPlayer) return state;
+      return {
+        ...state,
+        careerPlayer: { ...state.careerPlayer, teammates: action.teammates },
+      };
+    }
+
+    case 'SET_MONTHLY_GOAL': {
+      if (!state.careerPlayer || !state.currentDate) return state;
+      const year = Number(state.currentDate.slice(0, 4));
+      const month = Number(state.currentDate.slice(5, 7));
+      const existing = state.careerPlayer.monthlyGoals.find(
+        g => g.year === year && g.month === month,
+      );
+      const goal: MonthlyGoal = {
+        id: existing?.id ?? `goal-${Date.now()}`,
+        season: state.season,
+        year,
+        month,
+        metric: action.metric,
+        target: action.target,
+        ratingTarget: action.ratingTarget,
+      };
+      const monthlyGoals = existing
+        ? state.careerPlayer.monthlyGoals.map(g => (g.id === goal.id ? goal : g))
+        : [...state.careerPlayer.monthlyGoals, goal];
+      return {
+        ...state,
+        careerPlayer: { ...state.careerPlayer, monthlyGoals },
+        pendingMonthlyGoalPrompt: false,
+      };
+    }
+
+    case 'DISMISS_MONTHLY_GOAL_PROMPT':
+      return { ...state, pendingMonthlyGoalPrompt: false };
+
     case 'ADVANCE_SEASON': {
       const newSeason = state.season + 1;
 
       // Player career mode
       if (state.careerMode === 'player' && state.careerPlayer) {
+        const newAge = state.careerPlayer.age + 1;
         return {
           ...state,
           season: newSeason,
           careerPlayer: {
             ...state.careerPlayer,
-            age: state.careerPlayer.age + 1,
+            age: newAge,
             contractYearsLeft: Math.max(0, state.careerPlayer.contractYearsLeft - 1),
             seasonStats: emptyPlayerStats(),
             overallHistory: [
               ...state.careerPlayer.overallHistory,
               { season: newSeason, overall: state.careerPlayer.overall },
             ],
+            marketValue: calcMarketValue(
+              state.careerPlayer.overall,
+              state.careerPlayer.potential,
+              newAge,
+            ),
           },
         };
       }
@@ -1822,6 +1995,61 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'APPLY_PLAYER_PRESS_CONFERENCE': {
+      if (!state.careerPlayer) return state;
+      const dateStr = (state.currentDate ?? new Date().toISOString()).slice(0, 10);
+      const { deltas, headline, context, matchId } = action;
+
+      let careerPlayer: CareerPlayer = {
+        ...state.careerPlayer,
+        coachConfidence: clampMorale(state.careerPlayer.coachConfidence + deltas.coachConfidence),
+        fanReputation: clampMorale(state.careerPlayer.fanReputation + deltas.fanReputation),
+        morale: clampMorale(state.careerPlayer.morale + deltas.morale),
+      };
+      careerPlayer = pushRelationshipEvent(careerPlayer, {
+        date: dateStr,
+        reason: `Coletiva ${context === 'pre_match' ? 'pré-jogo' : 'pós-jogo'}`,
+        coachDelta: deltas.coachConfidence,
+        fanDelta: deltas.fanReputation,
+        moraleDelta: deltas.morale,
+      });
+
+      const post = newSocialPost({
+        date: dateStr,
+        type: 'headline',
+        content: headline,
+        headlineStyle: 'journalistic',
+        author: 'Gazeta ClubOS',
+        matchId,
+      });
+
+      const preDates = [...(state.livelife.pressPreDoneDates ?? [])];
+      const postIds = [...(state.livelife.pressPostDoneMatchIds ?? [])];
+      if (context === 'pre_match' && matchId) {
+        const m = state.matches.find(x => x.id === matchId);
+        const d = (m?.date ?? dateStr).slice(0, 10);
+        if (!preDates.includes(d)) preDates.push(d);
+      }
+      if (context === 'post_match' && matchId && !postIds.includes(matchId)) {
+        postIds.push(matchId);
+      }
+
+      return {
+        ...state,
+        careerPlayer,
+        social: {
+          ...state.social,
+          posts: [post, ...state.social.posts].slice(0, 200),
+          unseenCount: state.social.unseenCount + 1,
+        },
+        livelife: {
+          ...state.livelife,
+          pressPreDoneDates: preDates.slice(-40),
+          pressPostDoneMatchIds: postIds.slice(-80),
+        },
+      };
+    }
+
     case 'UPDATE_COMPLETED_MATCH': {
       if (!state.team) return state;
       const updatedMatches = state.matches.map(m =>
@@ -1883,7 +2111,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'COMPLETE_PLAYER_MATCH': {
       if (!state.careerPlayer) return state;
+      const selfId = state.careerPlayer.id;
+      const performance = derivePlayerPerformance(
+        selfId,
+        action.input.role,
+        action.input.minutesPlayed,
+        action.input.rating,
+        action.input.goals,
+        action.input.cards,
+      );
       const matchResult = calcResult(action.input.goalsFor, action.input.goalsAgainst);
+      const clubName = state.careerPlayer.currentClub.name;
       const updatedMatches = state.matches.map(m =>
         m.id === action.input.matchId
           ? {
@@ -1892,24 +2130,87 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               goalsFor: action.input.goalsFor,
               goalsAgainst: action.input.goalsAgainst,
               result: matchResult,
-              clubName: m.clubName ?? state.careerPlayer!.currentClub.name,
-              playerPerformance: action.input.performance,
+              clubName: m.clubName ?? clubName,
+              playerPerformance: performance,
+              goals: action.input.goals,
+              assists: action.input.assists,
+              cards: action.input.cards,
+              opponentGoals: action.input.opponentGoals ?? m.opponentGoals,
             }
           : m,
       );
-      const updatedPlayer = updatePlayerFromMatch(
-        state.careerPlayer,
-        action.input.performance,
-        matchResult,
-        true,
-      );
-      return { ...state, matches: updatedMatches, careerPlayer: updatedPlayer };
+      let updatedPlayer = updatePlayerFromMatch(state.careerPlayer, performance, matchResult, true);
+      const resultLabel = matchResult === 'win' ? 'V' : matchResult === 'draw' ? 'E' : 'D';
+      updatedPlayer = pushRelationshipEvent(updatedPlayer, {
+        date: (state.currentDate ?? new Date().toISOString()).slice(0, 10),
+        reason: `vs ${state.matches.find(m => m.id === action.input.matchId)?.opponent ?? 'adversário'} (${resultLabel} ${action.input.goalsFor}-${action.input.goalsAgainst})`,
+        coachDelta: updatedPlayer.coachConfidence - state.careerPlayer.coachConfidence,
+        fanDelta: updatedPlayer.fanReputation - state.careerPlayer.fanReputation,
+        moraleDelta: updatedPlayer.morale - state.careerPlayer.morale,
+      });
+      const assistedTeammateIds = deriveAssistedTeammateIds(action.input.goals, selfId);
+      updatedPlayer = {
+        ...updatedPlayer,
+        teammates: reapplyTeammateMorale(
+          updatedPlayer.teammates,
+          null,
+          { rating: performance.rating, goals: performance.goals, assistedTeammateIds },
+          updatedPlayer.position,
+        ),
+      };
+      if (action.input.injury) {
+        const injury: InjuryEntry = {
+          id: `injury-${Date.now()}`,
+          type: action.input.injury.type.trim() || 'Lesão em partida',
+          startDate: (state.currentDate ?? new Date().toISOString()).slice(0, 10),
+          returnDate: action.input.injury.returnDate,
+        };
+        updatedPlayer = { ...updatedPlayer, injuries: [...updatedPlayer.injuries, injury] };
+      }
+
+      const completedMatch = updatedMatches.find(m => m.id === action.input.matchId);
+      let social = state.social;
+      if (completedMatch) {
+        const headline = buildPlayerMatchHeadline({
+          playerName: state.careerPlayer.name,
+          clubName,
+          match: completedMatch,
+          performance,
+        });
+        const likeBoost = Math.round((updatedPlayer.fanReputation - 50) * 1.2);
+        const post = newSocialPost({
+          date: (state.currentDate ?? new Date().toISOString()).slice(0, 10),
+          type: 'headline',
+          content: headline.content,
+          body: headline.body,
+          headlineStyle: 'journalistic',
+          author: 'Gazeta ClubOS',
+          matchId: completedMatch.id,
+          likes: Math.max(5, 60 + likeBoost + Math.floor(Math.random() * 80)),
+        });
+        social = {
+          ...state.social,
+          posts: [post, ...state.social.posts].slice(0, 200),
+          unseenCount: state.social.unseenCount + 1,
+        };
+      }
+
+      return { ...state, matches: updatedMatches, careerPlayer: updatedPlayer, social };
     }
 
     case 'UPDATE_PLAYER_MATCH': {
       if (!state.careerPlayer) return state;
+      const selfId = state.careerPlayer.id;
       const existing = state.matches.find(m => m.id === action.input.matchId);
       const oldPerf = existing?.playerPerformance;
+      const performance = derivePlayerPerformance(
+        selfId,
+        action.input.role,
+        action.input.minutesPlayed,
+        action.input.rating,
+        action.input.goals,
+        action.input.cards,
+      );
       const matchResult = calcResult(action.input.goalsFor, action.input.goalsAgainst);
       const updatedMatches = state.matches.map(m =>
         m.id === action.input.matchId
@@ -1918,18 +2219,40 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               goalsFor: action.input.goalsFor,
               goalsAgainst: action.input.goalsAgainst,
               result: matchResult,
-              playerPerformance: action.input.performance,
+              playerPerformance: performance,
+              goals: action.input.goals,
+              assists: action.input.assists,
+              cards: action.input.cards,
+              opponentGoals: action.input.opponentGoals ?? m.opponentGoals,
             }
           : m,
       );
-      const updatedPlayer = updatePlayerFromMatch(
+      let updatedPlayer = updatePlayerFromMatch(
         state.careerPlayer,
-        action.input.performance,
+        performance,
         matchResult,
         false,
         oldPerf,
         existing?.result,
       );
+      updatedPlayer = pushRelationshipEvent(updatedPlayer, {
+        date: (state.currentDate ?? new Date().toISOString()).slice(0, 10),
+        reason: `Partida editada: vs ${existing?.opponent ?? 'adversário'}`,
+        coachDelta: updatedPlayer.coachConfidence - state.careerPlayer.coachConfidence,
+        fanDelta: updatedPlayer.fanReputation - state.careerPlayer.fanReputation,
+        moraleDelta: updatedPlayer.morale - state.careerPlayer.morale,
+      });
+      const oldAssistedTeammateIds = existing?.goals ? deriveAssistedTeammateIds(existing.goals, selfId) : [];
+      const newAssistedTeammateIds = deriveAssistedTeammateIds(action.input.goals, selfId);
+      updatedPlayer = {
+        ...updatedPlayer,
+        teammates: reapplyTeammateMorale(
+          updatedPlayer.teammates,
+          oldPerf ? { rating: oldPerf.rating, goals: oldPerf.goals, assistedTeammateIds: oldAssistedTeammateIds } : null,
+          { rating: performance.rating, goals: performance.goals, assistedTeammateIds: newAssistedTeammateIds },
+          updatedPlayer.position,
+        ),
+      };
       return { ...state, matches: updatedMatches, careerPlayer: updatedPlayer };
     }
 
@@ -2153,6 +2476,66 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'ADVANCE_DAY': {
       if (!state.currentDate) return state;
+
+      // Modo jogador: sem elenco/finanças/clima de clube — só avança a data
+      // e, em dia sem partida, rola o Pulse pessoal. Lesões pessoais
+      // (`CareerPlayer.injuries`) são baseadas em `returnDate`, não em
+      // contador de dias, então já "curam" sozinhas ao ler `currentDate`.
+      if (state.careerMode === 'player') {
+        const nextDate = addDaysIso(state.currentDate, 1);
+        const pendingMonthlyGoalPrompt = state.pendingMonthlyGoalPrompt || isFirstOfMonth(nextDate);
+        if (!state.careerPlayer) return { ...state, currentDate: nextDate, pendingMonthlyGoalPrompt };
+
+        const nextHasMatch = findMatchOnDate(state.matches, nextDate);
+        if (nextHasMatch) {
+          return { ...state, currentDate: nextDate, pendingMonthlyGoalPrompt };
+        }
+
+        const rolled = rollDailyPlayerPulse({
+          player: state.careerPlayer,
+          currentDate: nextDate,
+          season: state.season,
+          pulseState: state.pulse,
+          matches: state.matches,
+        });
+        if (!rolled) {
+          return { ...state, currentDate: nextDate, pendingMonthlyGoalPrompt };
+        }
+
+        const { output } = rolled;
+        let careerPlayer: CareerPlayer = {
+          ...state.careerPlayer,
+          morale: clampMorale(state.careerPlayer.morale + output.moraleDelta),
+          coachConfidence: clampMorale(state.careerPlayer.coachConfidence + output.coachConfidenceDelta),
+          fanReputation: clampMorale(state.careerPlayer.fanReputation + output.fanReputationDelta),
+        };
+        careerPlayer = pushRelationshipEvent(careerPlayer, {
+          date: nextDate,
+          reason: rolled.entry.titulo,
+          coachDelta: output.coachConfidenceDelta,
+          fanDelta: output.fanReputationDelta,
+          moraleDelta: output.moraleDelta,
+        });
+        if (output.injuryOutDays) {
+          const injury: InjuryEntry = {
+            id: `injury-${Date.now()}`,
+            type: output.injuryType ?? 'Lesão',
+            startDate: nextDate,
+            returnDate: addDaysIso(nextDate, output.injuryOutDays),
+          };
+          careerPlayer = { ...careerPlayer, injuries: [...careerPlayer.injuries, injury] };
+        }
+
+        return {
+          ...state,
+          currentDate: nextDate,
+          careerPlayer,
+          pulse: output.pulseState,
+          pendingDailyPulse: rolled.entry,
+          pendingMonthlyGoalPrompt,
+        };
+      }
+
       const result = computeAdvanceDay({
         currentDate: state.currentDate,
         matches: state.matches,
@@ -4142,6 +4525,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'DISMISS_DAILY_PULSE' });
   }
 
+  function markUpdateSeen(version: string) {
+    dispatch({ type: 'MARK_UPDATE_SEEN', version });
+  }
+
   function completeLiveLifeOnboarding() {
     dispatch({ type: 'COMPLETE_LIVELIFE_ONBOARDING' });
   }
@@ -4169,21 +4556,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_CAREER_PLAYER', player: data });
   }
 
-  function setPlayerClub(data: {
-    club: ClubInfo;
-    status: CareerPlayer['status'];
-    salary: number;
-    contractYearsLeft: number;
-  }) {
-    dispatch({ type: 'SET_PLAYER_CLUB', ...data });
-  }
-
   function finishPlayerSetup(data: {
     club: ClubInfo;
     status: CareerPlayer['status'];
     salary: number;
     contractYearsLeft: number;
     mainCompetition: string;
+    startDate: string;
   }) {
     dispatch({ type: 'FINISH_PLAYER_SETUP', ...data });
   }
@@ -4227,6 +4606,38 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   function removeInjury(injuryId: string) {
     dispatch({ type: 'REMOVE_INJURY', injuryId });
+  }
+
+  function addPlayerAward(award: Omit<PlayerAward, 'id'>) {
+    dispatch({ type: 'ADD_PLAYER_AWARD', award });
+  }
+
+  function removePlayerAward(awardId: string) {
+    dispatch({ type: 'REMOVE_PLAYER_AWARD', awardId });
+  }
+
+  function addTeammate(teammate: Omit<Teammate, 'id'>) {
+    dispatch({ type: 'ADD_TEAMMATE', teammate });
+  }
+
+  function updateTeammate(teammateId: string, updates: Partial<Omit<Teammate, 'id'>>) {
+    dispatch({ type: 'UPDATE_TEAMMATE', teammateId, updates });
+  }
+
+  function removeTeammate(teammateId: string) {
+    dispatch({ type: 'REMOVE_TEAMMATE', teammateId });
+  }
+
+  function importTeammates(teammates: Teammate[]) {
+    dispatch({ type: 'IMPORT_TEAMMATES', teammates });
+  }
+
+  function setMonthlyGoal(metric: MonthlyGoalMetric, target: number, ratingTarget?: number) {
+    dispatch({ type: 'SET_MONTHLY_GOAL', metric, target, ratingTarget });
+  }
+
+  function dismissMonthlyGoalPrompt() {
+    dispatch({ type: 'DISMISS_MONTHLY_GOAL_PROMPT' });
   }
 
   function advanceSeason() {
@@ -4397,6 +4808,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'APPLY_PRESS_CONFERENCE', ...input });
   }
 
+  function applyPlayerPressConference(input: {
+    context: PlayerPressContext;
+    matchId?: string;
+    deltas: PlayerPressConferenceDeltas;
+    headline: string;
+  }) {
+    forceCloudRef.current = true;
+    dispatch({ type: 'APPLY_PLAYER_PRESS_CONFERENCE', ...input });
+  }
+
   async function loadSavedGame(slotId: SaveSlotId = activeSlotId): Promise<CareerMode | null> {
     const save = await fetchCloudSave(slotId);
     if (!save) return null;
@@ -4433,6 +4854,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           debtPaymentsDue: false,
           liveLifePromptPending: false,
           pendingDailyPulse: null,
+          pendingMonthlyGoalPrompt: false,
           livelife: {
             ...createDefaultLiveLifeMeta(),
             ...(save.livelife ?? {}),
@@ -4521,6 +4943,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ),
           liveLifePromptPending: true,
           pendingDailyPulse: null,
+          pendingMonthlyGoalPrompt: false,
           livelife: {
             ...createDefaultLiveLifeMeta(),
             ...(save.livelife ?? {}),
@@ -5109,11 +5532,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         dismissLiveLifePrompt,
         dismissDailyPulse,
         completeLiveLifeOnboarding,
+        markUpdateSeen,
         advanceDay,
         rewindDay,
         setCurrentDate,
         setCareerPlayer,
-        setPlayerClub,
         finishPlayerSetup,
         addCompetition,
         updateCompetition,
@@ -5124,6 +5547,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
         transferPlayer,
         addInjury,
         removeInjury,
+        addPlayerAward,
+        removePlayerAward,
+        addTeammate,
+        updateTeammate,
+        removeTeammate,
+        importTeammates,
+        setMonthlyGoal,
+        dismissMonthlyGoalPrompt,
         advanceSeason,
         updatePlayer,
         updatePlayerStats,
@@ -5148,6 +5579,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         addSocialPost,
         markSocialSeen,
         applyPressConference,
+        applyPlayerPressConference,
         loadSavedGame,
         completeTutorial,
         resetGame,
