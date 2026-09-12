@@ -17,6 +17,7 @@ import {
   formatCleanSheetPct,
 } from '../../utils/livelifeTemplates';
 import { competitionNames } from '../../utils/competitions';
+import { buildSquadExport, downloadSquadExport } from '../../utils/squadExport';
 import { PERSONALIDADES, isPersonality } from '../../pulse/utils';
 import PlayerHistoryModal from '../../components/PlayerHistoryModal/PlayerHistoryModal';
 import styles from './Squad.module.css';
@@ -392,6 +393,13 @@ export default function Squad() {
     recalcSeasonStats();
   }
 
+  function handleDownloadSquad() {
+    if (!state.team) return;
+    downloadSquadExport(
+      buildSquadExport(state.team, state.players, state.matches, state.season, state.currentDate),
+    );
+  }
+
   function clearAvailability(playerId: string) {
     updatePlayer(playerId, {
       availability: 'disponivel',
@@ -502,14 +510,24 @@ export default function Squad() {
               : 'Estatísticas por temporada e totais da carreira'}
           </p>
         </div>
-        <button
-          type="button"
-          className={styles.editBtn}
-          onClick={handleRecalcStats}
-          title="Use se gols/jogos/cartões da temporada aparecerem com números de temporadas anteriores"
-        >
-          Recalcular estatísticas da temporada
-        </button>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={styles.editBtn}
+            onClick={handleDownloadSquad}
+            title="Baixa um JSON com nome, atributos, contrato e estatísticas da temporada de todo o elenco atual"
+          >
+            Baixar JSON do elenco
+          </button>
+          <button
+            type="button"
+            className={styles.editBtn}
+            onClick={handleRecalcStats}
+            title="Use se gols/jogos/cartões da temporada aparecerem com números de temporadas anteriores"
+          >
+            Recalcular estatísticas da temporada
+          </button>
+        </div>
       </header>
 
       <div className={styles.viewTabs}>
