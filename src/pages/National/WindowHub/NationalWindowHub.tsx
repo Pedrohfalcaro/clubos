@@ -8,12 +8,14 @@ import {
   FIFA_WINDOW_TYPE_LABELS,
   OPPONENT_STRENGTH_LABELS,
   type FifaWindow,
+  type FifaWindowGame,
+  type NationalTeamState,
   type OpponentStrength,
 } from '../../../types/NationalTeam';
 import type { MatchLocation } from '../../../types/Match';
 import type { FormationKey, TacticsDraft, TacticsPreset } from '../../../types/Tactics';
 import { MAX_TACTICS_PRESETS } from '../../../types/Tactics';
-import { locationLabel } from '../../../utils/matchStats';
+import { calcResult, locationLabel } from '../../../utils/matchStats';
 import { formatGameDate } from '../../../livelife';
 import {
   isGameOutsideWindow,
@@ -35,7 +37,10 @@ import {
 import { DEFAULT_STYLE_KEY } from '../../../utils/tacticalStyles';
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../../utils/clubColors';
 import { nationalPlayerToPseudoPlayer } from '../../../utils/nationalMatchPlay';
+import { aggregateCallUpOverview, type CallUpOverviewRow } from '../../../utils/nationalStats';
+import { buildMatchTimeline, formatTimelineMinute } from '../../../utils/matchTimeline';
 import CallUpAnnouncementModal from '../../../components/CallUpAnnouncementModal/CallUpAnnouncementModal';
+import NationalMatchRecapModal from '../../../components/NationalMatchRecapModal/NationalMatchRecapModal';
 // Reaproveita CSS dos módulos que essa hub substitui — mesmo visual, um só lugar.
 import wStyles from '../Windows/NationalWindows.module.css';
 import sStyles from '../Squad/NationalSquad.module.css';
@@ -57,10 +62,12 @@ interface AddGameInput {
 export default function NationalWindowHub() {
   const { windowId } = useParams<{ windowId: string }>();
   const navigate = useNavigate();
-  const { state, addFifaWindowGame, updateFifaWindow } = useGame();
+  const { state, addFifaWindowGame, updateFifaWindow, advanceDay } = useGame();
   const nationalTeam = state.nationalTeam;
   const [tab, setTab] = useState<HubTab>('jogos');
   const [showAddGame, setShowAddGame] = useState(false);
+  const [recapGameId, setRecapGameId] = useState<string | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
 
   const fifaWindow = nationalTeam?.windows.find(w => w.id === windowId) ?? null;
 
@@ -93,6 +100,15 @@ export default function NationalWindowHub() {
   const unlocked = callUpsAnnounced && hasGames;
   const allGamesPlayed = hasGames && fifaWindow.games.every(g => g.played);
   const isClosed = fifaWindow.closed === true;
+  const recapGame = recapGameId ? fifaWindow.games.find(g => g.id === recapGameId) ?? null : null;
+
+  // Só dá pra avançar o dia por aqui depois que o calendário do clube chegou no início
+  // da janela — antes disso o controle nem aparece (o dia avança normalmente pelo clube).
+  const hasStarted = !!currentDate && currentDate.slice(0, 10) >= fifaWindow.startDate.slice(0, 10);
+  const withinRange = hasStarted && currentDate!.slice(0, 10) <= fifaWindow.endDate.slice(0, 10);
+  const todayGame = currentDate
+    ? fifaWindow.games.find(g => !g.played && g.date.slice(0, 10) === currentDate.slice(0, 10))
+    : undefined;
 
   function handleAddGame(input: AddGameInput) {
     addFifaWindowGame(fifaWindow!.id, input);
@@ -108,6 +124,17 @@ export default function NationalWindowHub() {
       return;
     }
     updateFifaWindow(fifaWindow!.id, { closed: true });
+  }
+
+  function handleAdvanceWindowDay() {
+    if (todayGame) {
+      navigate(`/national/match/${fifaWindow!.id}/${todayGame.id}/play`);
+      return;
+    }
+    const result = advanceDay();
+    if (result.matchId) {
+      navigate(`/match/${result.matchId}/pulse`);
+    }
   }
 
   return (
@@ -136,7 +163,35 @@ export default function NationalWindowHub() {
             Finalizar Data FIFA
           </button>
         )}
+        {isClosed && (
+          <button type="button" className={wStyles.btnPrimary} onClick={() => setShowSummary(true)}>
+            Resumo
+          </button>
+        )}
       </header>
+
+      {!isClosed && currentDate && (
+        <div className={sStyles.windowBar}>
+          {!hasStarted ? (
+            <span className={sStyles.counter}>
+              Começa quando o calendário do clube chegar em{' '}
+              {formatGameDate(fifaWindow.startDate, { day: '2-digit', month: 'short' })}
+            </span>
+          ) : withinRange ? (
+            <>
+              <span className={sStyles.counter}>{dayLabel}</span>
+              <button type="button" className={sStyles.btnPrimary} onClick={handleAdvanceWindowDay}>
+                {todayGame ? 'Jogar partida →' : 'Avançar dia →'}
+              </button>
+            </>
+          ) : (
+            <span className={sStyles.counter}>
+              Janela encerrou em {formatGameDate(fifaWindow.endDate, { day: '2-digit', month: 'short' })} — finalize a
+              Data FIFA quando os jogos estiverem todos disputados.
+            </span>
+          )}
+        </div>
+      )}
 
       {!unlocked && !isClosed && (
         <div className={wStyles.pendingCard}>
@@ -198,8 +253,10 @@ export default function NationalWindowHub() {
           key={fifaWindow.id}
           fifaWindow={fifaWindow}
           unlocked={unlocked}
+          currentDate={currentDate}
           onAddGame={() => setShowAddGame(true)}
           onPlayGame={gameId => navigate(`/national/match/${fifaWindow.id}/${gameId}/play`)}
+          onViewRecap={gameId => setRecapGameId(gameId)}
         />
       )}
       {tab === 'convocacao' && (
@@ -220,6 +277,36 @@ export default function NationalWindowHub() {
           onCancel={() => setShowAddGame(false)}
         />
       )}
+
+      <NationalMatchRecapModal
+        open={!!recapGame}
+        game={recapGame}
+        windowLabel={fifaWindow.label}
+        players={nationalTeam.talentPool}
+        teamName={nationalTeam.name}
+        onClose={() => setRecapGameId(null)}
+        onEdit={
+          recapGame
+            ? () => {
+                setRecapGameId(null);
+                navigate(`/national/match/${fifaWindow.id}/${recapGame.id}/play`);
+              }
+            : undefined
+        }
+      />
+
+      {showSummary && (
+        <WindowSummaryModal
+          fifaWindow={fifaWindow}
+          nationalTeam={nationalTeam}
+          teamName={nationalTeam.name}
+          onViewGame={gameId => {
+            setShowSummary(false);
+            setRecapGameId(gameId);
+          }}
+          onClose={() => setShowSummary(false)}
+        />
+      )}
     </div>
   );
 }
@@ -229,13 +316,17 @@ export default function NationalWindowHub() {
 function JogosTab({
   fifaWindow,
   unlocked,
+  currentDate,
   onAddGame,
   onPlayGame,
+  onViewRecap,
 }: {
   fifaWindow: FifaWindow;
   unlocked: boolean;
+  currentDate: string | null;
   onAddGame: () => void;
   onPlayGame: (gameId: string) => void;
+  onViewRecap: (gameId: string) => void;
 }) {
   return (
     <div className={wStyles.windowCard}>
@@ -254,40 +345,51 @@ function JogosTab({
         <p className={wStyles.emptyHint}>Nenhum jogo mapeado nesta Data FIFA ainda.</p>
       ) : (
         <ul className={wStyles.gameList}>
-          {fifaWindow.games.map(g => (
-            <li key={g.id} className={wStyles.gameRow}>
-              <div>
-                <p className={wStyles.gameOpponent}>
-                  {g.opponent}
-                  {g.played && (
-                    <span className={wStyles.scoreBadge}>
-                      {g.goalsFor ?? 0} × {g.goalsAgainst ?? 0}
-                    </span>
-                  )}
-                </p>
-                <p className={wStyles.gameMeta}>
-                  {locationLabel(g.location)} · Dia {dayInWindow(fifaWindow, g.date)}
-                  {isGameOutsideWindow(fifaWindow, g.date) && (
-                    <span className={wStyles.warnBadge} title="Data fora da janela da Data FIFA">
-                      {' '}⚠ fora da janela
-                    </span>
-                  )}
-                </p>
-              </div>
-              <div className={wStyles.gameRowActions}>
-                <span className={wStyles.strengthBadge}>{OPPONENT_STRENGTH_LABELS[g.opponentStrength]}</span>
-                <button
-                  type="button"
-                  className={wStyles.btnPrimary}
-                  onClick={() => onPlayGame(g.id)}
-                  disabled={!unlocked}
-                  title={unlocked ? undefined : 'Anuncie a convocação antes de jogar'}
-                >
-                  {g.played ? 'Editar partida' : 'Jogar partida'}
-                </button>
-              </div>
-            </li>
-          ))}
+          {fifaWindow.games.map(g => {
+            // Jogo só pode ser jogado quando o calendário chegar no dia dele — evita
+            // "adiantar" resultados antes da data marcada.
+            const availableToday = !currentDate || g.date.slice(0, 10) <= currentDate.slice(0, 10);
+            const playDisabled = !unlocked || (!g.played && !availableToday);
+            const playTitle = !unlocked
+              ? 'Anuncie a convocação antes de jogar'
+              : !g.played && !availableToday
+                ? `Disponível em ${formatGameDate(g.date, { day: '2-digit', month: 'short' })}`
+                : undefined;
+            return (
+              <li key={g.id} className={wStyles.gameRow}>
+                <div>
+                  <p className={wStyles.gameOpponent}>
+                    {g.opponent}
+                    {g.played && (
+                      <span className={wStyles.scoreBadge}>
+                        {g.goalsFor ?? 0} × {g.goalsAgainst ?? 0}
+                      </span>
+                    )}
+                  </p>
+                  <p className={wStyles.gameMeta}>
+                    {locationLabel(g.location)} · Dia {dayInWindow(fifaWindow, g.date)}
+                    {isGameOutsideWindow(fifaWindow, g.date) && (
+                      <span className={wStyles.warnBadge} title="Data fora da janela da Data FIFA">
+                        {' '}⚠ fora da janela
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className={wStyles.gameRowActions}>
+                  <span className={wStyles.strengthBadge}>{OPPONENT_STRENGTH_LABELS[g.opponentStrength]}</span>
+                  <button
+                    type="button"
+                    className={wStyles.btnPrimary}
+                    onClick={() => (g.played ? onViewRecap(g.id) : onPlayGame(g.id))}
+                    disabled={playDisabled}
+                    title={playTitle}
+                  >
+                    {g.played ? 'Ver resumo' : 'Jogar partida'}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
@@ -389,6 +491,171 @@ function AddGameModal({
           </button>
           <button type="button" className={wStyles.btnPrimary} onClick={submit} disabled={!canSubmit}>
             Adicionar jogo
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Resumo da Data FIFA ───────────────────────────────────────────────────
+
+function GameSummaryRow({
+  game,
+  onViewGame,
+}: {
+  game: FifaWindowGame;
+  onViewGame: (gameId: string) => void;
+}) {
+  const goalsFor = game.goalsFor ?? 0;
+  const goalsAgainst = game.goalsAgainst ?? 0;
+  const result = calcResult(goalsFor, goalsAgainst);
+  const events = useMemo(
+    () => buildMatchTimeline(game, game.location === 'away' ? 'away' : 'home'),
+    [game],
+  );
+  const resultClass =
+    result === 'win'
+      ? wStyles.scoreBadgeWin
+      : result === 'draw'
+        ? wStyles.scoreBadgeDraw
+        : wStyles.scoreBadgeLoss;
+
+  return (
+    <li className={wStyles.gameRow} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <p className={wStyles.gameOpponent}>
+            {game.opponent}
+            <span className={`${wStyles.scoreBadge} ${resultClass}`}>
+              {goalsFor} × {goalsAgainst}
+            </span>
+          </p>
+          <p className={wStyles.gameMeta}>
+            {locationLabel(game.location)} ·{' '}
+            {formatGameDate(game.date, { day: '2-digit', month: 'short', year: 'numeric' })}
+          </p>
+        </div>
+        <button type="button" className={wStyles.btnSecondary} onClick={() => onViewGame(game.id)}>
+          Ver notas
+        </button>
+      </div>
+      {events.length > 0 && (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {events.map(ev => (
+            <li key={ev.id} className={wStyles.gameMeta}>
+              {formatTimelineMinute(ev.minute)} {ev.icon} {ev.title}
+              {ev.assist ? ` (${ev.assist})` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function WindowSummaryModal({
+  fifaWindow,
+  nationalTeam,
+  teamName,
+  onViewGame,
+  onClose,
+}: {
+  fifaWindow: FifaWindow;
+  nationalTeam: NationalTeamState;
+  teamName: string;
+  onViewGame: (gameId: string) => void;
+  onClose: () => void;
+}) {
+  const playedGames = useMemo(
+    () => [...fifaWindow.games].filter(g => g.played).sort((a, b) => a.date.localeCompare(b.date)),
+    [fifaWindow.games],
+  );
+  const totals = useMemo(() => {
+    let wins = 0, draws = 0, losses = 0, goalsFor = 0, goalsAgainst = 0;
+    for (const g of playedGames) {
+      const gf = g.goalsFor ?? 0;
+      const ga = g.goalsAgainst ?? 0;
+      goalsFor += gf;
+      goalsAgainst += ga;
+      const r = calcResult(gf, ga);
+      if (r === 'win') wins += 1;
+      else if (r === 'draw') draws += 1;
+      else losses += 1;
+    }
+    return { wins, draws, losses, goalsFor, goalsAgainst };
+  }, [playedGames]);
+  const rows: (CallUpOverviewRow & { ga: number })[] = useMemo(
+    () =>
+      aggregateCallUpOverview(nationalTeam, fifaWindow.id)
+        .map(r => ({ ...r, ga: r.goals + r.assists }))
+        .sort((a, b) => b.ga - a.ga),
+    [nationalTeam, fifaWindow.id],
+  );
+
+  return (
+    <div className={wStyles.overlay} onClick={onClose}>
+      <div className={wStyles.modal} style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
+        <p className={wStyles.modalTitle}>Resumo · {fifaWindow.label}</p>
+        <p className={wStyles.hint}>
+          {teamName} · {formatGameDate(fifaWindow.startDate, { day: '2-digit', month: 'short' })}
+          {' – '}
+          {formatGameDate(fifaWindow.endDate, { day: '2-digit', month: 'short', year: 'numeric' })}
+        </p>
+
+        <div className={sStyles.windowBar}>
+          <span className={sStyles.counter}>
+            {totals.wins}V {totals.draws}E {totals.losses}D · {totals.goalsFor}-{totals.goalsAgainst}
+          </span>
+        </div>
+
+        {playedGames.length === 0 ? (
+          <p className={wStyles.emptyHint}>Nenhum jogo disputado nesta Data FIFA.</p>
+        ) : (
+          <ul className={wStyles.gameList}>
+            {playedGames.map(g => (
+              <GameSummaryRow key={g.id} game={g} onViewGame={onViewGame} />
+            ))}
+          </ul>
+        )}
+
+        {rows.length > 0 && (
+          <div className={sStyles.overviewTableWrap}>
+            <table className={sStyles.overviewTable}>
+              <thead>
+                <tr>
+                  <th>Atleta</th>
+                  <th>J</th>
+                  <th>Min</th>
+                  <th>G</th>
+                  <th>A</th>
+                  <th>G/A</th>
+                  <th>Nota</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(row => (
+                  <tr key={row.nationalPlayerId}>
+                    <td className={sStyles.overviewName}>
+                      {row.name}
+                      <span className={sStyles.overviewMeta}>{row.position} · {row.club}</span>
+                    </td>
+                    <td>{row.matches}</td>
+                    <td>{row.minutes}'</td>
+                    <td>{row.goals}</td>
+                    <td>{row.assists}</td>
+                    <td>{row.ga}</td>
+                    <td>{row.avgRating != null ? row.avgRating.toFixed(1) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className={wStyles.actions}>
+          <button type="button" className={wStyles.btnPrimary} onClick={onClose}>
+            Fechar
           </button>
         </div>
       </div>

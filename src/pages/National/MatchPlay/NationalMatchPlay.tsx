@@ -276,7 +276,9 @@ export default function NationalMatchPlay() {
       worstNationalPlayerId: worstPlayerId ?? undefined,
       performances,
     });
-    navigate('/national/windows');
+    // Volta pro hub da própria Data FIFA (não pra lista) — é de lá que o avanço de
+    // dia continua, com o próximo compromisso ou o botão de avançar já à mão.
+    navigate(`/national/windows/${activeWindow.id}`);
   }
 
   function canContinue(): boolean {

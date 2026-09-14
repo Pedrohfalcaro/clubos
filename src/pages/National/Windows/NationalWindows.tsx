@@ -144,7 +144,11 @@ export default function NationalWindows() {
       )}
 
       {showCreate && (
-        <CreateWindowModal onSubmit={handleCreateWindow} onCancel={() => setShowCreate(false)} />
+        <CreateWindowModal
+          defaultStartDate={currentDate ?? undefined}
+          onSubmit={handleCreateWindow}
+          onCancel={() => setShowCreate(false)}
+        />
       )}
 
       {editingWindow && (
@@ -160,16 +164,20 @@ export default function NationalWindows() {
 
 function CreateWindowModal({
   editing,
+  defaultStartDate,
   onSubmit,
   onCancel,
 }: {
   editing?: FifaWindow;
+  defaultStartDate?: string;
   onSubmit: (input: CreateWindowInput) => void;
   onCancel: () => void;
 }) {
   const [type, setType] = useState<FifaWindowType>(editing?.type ?? 'amistoso');
   const [typeOther, setTypeOther] = useState(editing?.typeOther ?? '');
-  const [startDate, setStartDate] = useState(editing?.startDate.slice(0, 10) ?? '');
+  const [startDate, setStartDate] = useState(
+    editing?.startDate.slice(0, 10) ?? defaultStartDate?.slice(0, 10) ?? '',
+  );
   const [endDate, setEndDate] = useState(editing?.endDate.slice(0, 10) ?? '');
   const [listSize, setListSize] = useState<CallUpListSize>(editing?.listSize ?? 23);
   const [labelOverride, setLabelOverride] = useState(editing?.label ?? '');

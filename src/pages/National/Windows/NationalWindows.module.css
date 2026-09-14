@@ -185,6 +185,24 @@
   font-weight: 600;
 }
 
+.scoreBadgeWin {
+  color: var(--success);
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.scoreBadgeDraw {
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.scoreBadgeLoss {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 .strengthBadge {
   font-size: 10px;
   font-weight: 700;

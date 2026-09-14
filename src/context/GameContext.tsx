@@ -220,6 +220,14 @@ export interface GameState {
   activeContext: 'club' | 'national';
   /** Seleção Nacional / Dual Career (v1.4) — null até o onboarding. */
   nationalTeam: NationalTeamState | null;
+  /**
+   * Id da `FifaWindow` cujo `startDate` acabou de chegar (não persiste) — dispara o popup
+   * "Seguir para a Seleção" no Dashboard do clube. Enquanto uma Data FIFA está em
+   * andamento (`activeContext` continua 'club', mas há uma janela não encerrada cobrindo
+   * `currentDate`), o avanço de dia do clube redireciona para o hub da Data FIFA em vez
+   * de avançar direto — ver `NationalWindowHub`.
+   */
+  pendingFifaWindowId: string | null;
   /** Tabelas de recordes do clube (Sala de Troféus). */
   records: RecordTable[];
   /** Fila de avisos de recorde (subiu de posição / assumiu o topo) — não persiste no save. */
@@ -258,6 +266,7 @@ type GameAction =
     }
   | { type: 'DISMISS_LIVELIFE_PROMPT' }
   | { type: 'DISMISS_DAILY_PULSE' }
+  | { type: 'DISMISS_FIFA_WINDOW_PROMPT' }
   | { type: 'COMPLETE_LIVELIFE_ONBOARDING' }
   | { type: 'MARK_UPDATE_SEEN'; version: string }
   | { type: 'ADVANCE_DAY' }
@@ -493,6 +502,8 @@ interface GameContextValue {
   ) => void;
   dismissLiveLifePrompt: () => void;
   dismissDailyPulse: () => void;
+  /** Fecha o popup "Seguir para a Seleção" disparado ao chegar no início de uma Data FIFA. */
+  dismissFifaWindowPrompt: () => void;
   completeLiveLifeOnboarding: () => void;
   markUpdateSeen: (version: string) => void;
   advanceDay: () => { matchId: string | null };
@@ -768,6 +779,7 @@ const initialState: GameState = {
   debtPaymentsDue: false,
   activeContext: 'club',
   nationalTeam: null,
+  pendingFifaWindowId: null,
   records: [],
   recordAlerts: [],
 };
@@ -1010,6 +1022,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'DISMISS_DAILY_PULSE':
       return { ...state, pendingDailyPulse: null };
+
+    case 'DISMISS_FIFA_WINDOW_PROMPT':
+      return { ...state, pendingFifaWindowId: null };
 
     case 'COMPLETE_LIVELIFE_ONBOARDING':
       return {
@@ -2924,6 +2939,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         health: computeFinancialHealth({ finance, players, currentDate: result.nextDate }),
       };
 
+      // Dia chegou no início de uma Data FIFA aberta — dispara o popup "Seguir para a
+      // Seleção" no Dashboard (ver `pendingFifaWindowId` em GameState).
+      const arrivedWindow = state.nationalTeam?.windows.find(
+        w => !w.closed && w.startDate.slice(0, 10) === result.nextDate.slice(0, 10),
+      );
+
       return {
         ...state,
         currentDate: result.nextDate,
@@ -2934,6 +2955,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         loanPaymentsDue,
         debtPaymentsDue,
         pendingDailyPulse,
+        pendingFifaWindowId: arrivedWindow?.id ?? null,
         finance,
         team,
         board,
@@ -4577,6 +4599,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'DISMISS_DAILY_PULSE' });
   }
 
+  function dismissFifaWindowPrompt() {
+    dispatch({ type: 'DISMISS_FIFA_WINDOW_PROMPT' });
+  }
+
   function markUpdateSeen(version: string) {
     dispatch({ type: 'MARK_UPDATE_SEEN', version });
   }
@@ -4919,6 +4945,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           },
           activeContext: 'club',
           nationalTeam: null,
+          pendingFifaWindowId: null,
           records: [],
           recordAlerts: [],
         },
@@ -5008,6 +5035,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           },
           activeContext: save.activeContext ?? 'club',
           nationalTeam: save.nationalTeam ?? null,
+          pendingFifaWindowId: null,
           records: save.records ?? [],
           recordAlerts: [],
         },
@@ -5594,6 +5622,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         startCareer,
         dismissLiveLifePrompt,
         dismissDailyPulse,
+        dismissFifaWindowPrompt,
         completeLiveLifeOnboarding,
         markUpdateSeen,
         advanceDay,

@@ -1,7 +1,36 @@
-import type { Match, MatchMinute } from '../types/Match';
+import type {
+  AssistEvent,
+  CardEvent,
+  GoalEvent,
+  MatchLocation,
+  MatchMinute,
+  OpponentCardEntry,
+  OpponentGoalEntry,
+  OpponentSubEntry,
+  SubstitutionEvent,
+  TeamInjuryEntry,
+} from '../types/Match';
 import { formatMinute, minuteSortValue } from './matchEvents';
 
 export type TimelinePitchSide = 'home' | 'away';
+
+/**
+ * Estrutura mínima necessária para montar a cronologia — `Match` e `FifaWindowGame`
+ * (Seleção) satisfazem ambas, sem cast (ver `HomeAwaySource` em `utils/matchStats.ts`
+ * pro mesmo padrão de reuso clube/seleção).
+ */
+export interface MatchTimelineSource {
+  location: MatchLocation;
+  goals?: GoalEvent[];
+  assists?: AssistEvent[];
+  cards?: CardEvent[];
+  opponentGoalScorers?: string;
+  opponentGoals?: OpponentGoalEntry[];
+  opponentCards?: OpponentCardEntry[];
+  opponentSubs?: OpponentSubEntry[];
+  substitutions?: SubstitutionEvent[];
+  injuries?: TeamInjuryEntry[];
+}
 
 export interface MatchTimelineEvent {
   id: string;
@@ -16,16 +45,17 @@ function toMinute(base: number, stoppage?: number): MatchMinute {
   return stoppage && stoppage > 0 ? { base, stoppage } : { base };
 }
 
-/** Monta a cronologia a partir do Match persistido (gols, cartões, subs, lesões). */
+/** Monta a cronologia a partir do Match/FifaWindowGame persistido (gols, cartões, subs, lesões). */
 export function buildMatchTimeline(
-  match: Match,
+  match: MatchTimelineSource,
   ourPitchSide: TimelinePitchSide = match.location === 'away' ? 'away' : 'home',
 ): MatchTimelineEvent[] {
   const theirPitchSide: TimelinePitchSide = ourPitchSide === 'home' ? 'away' : 'home';
   const list: MatchTimelineEvent[] = [];
 
-  for (let i = 0; i < (match.goals ?? []).length; i++) {
-    const g = match.goals[i];
+  const goals = match.goals ?? [];
+  for (let i = 0; i < goals.length; i++) {
+    const g = goals[i];
     const minute = toMinute(g.minute, g.stoppage);
     if (g.isOwnGoal) {
       // Autogol do adversário a nosso favor — conta no NOSSO placar, então
@@ -77,8 +107,9 @@ export function buildMatchTimeline(
     }
   }
 
-  for (let i = 0; i < (match.cards ?? []).length; i++) {
-    const c = match.cards[i];
+  const cards = match.cards ?? [];
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i];
     list.push({
       id: `c-${i}`,
       minute: toMinute(c.minute, c.stoppage),
@@ -153,7 +184,7 @@ export function formatTimelineMinute(m: MatchMinute): string {
   return formatMinute(m);
 }
 
-export function resultLetter(result: Match['result']): string {
+export function resultLetter(result: 'win' | 'draw' | 'loss' | null | undefined): string {
   if (result === 'win') return 'V';
   if (result === 'draw') return 'E';
   if (result === 'loss') return 'D';

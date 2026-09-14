@@ -21,6 +21,7 @@ import { boardStatus } from '../../types/Board';
 import { leagueGoalAwaitingUpdate } from '../../utils/boardGoals';
 import GoalSetupModal from '../../components/GoalSetupModal/GoalSetupModal';
 import { findMatchOnDate, formatGameDate } from '../../livelife';
+import { isDateWithinWindow } from '../../utils/nationalWindows';
 import { CATEGORIA_LABELS, RARIDADE_LABELS } from '../../pulse';
 import { paymentsDueOnDate } from '../../utils/transferPayments';
 import { loanPaymentsDueOnDate } from '../../utils/clubLoans';
@@ -107,6 +108,7 @@ export default function Dashboard() {
     dismissPayroll,
     dismissLiveLifePrompt,
     dismissDailyPulse,
+    dismissFifaWindowPrompt,
     payTransferPayment,
     dismissTransferPayments,
     payLoanPayment,
@@ -124,8 +126,19 @@ export default function Dashboard() {
   const {
     team, matches, manager, finance, board, transfers, players, formerPlayers, seasonHistory, currentDate, payrollDue,
     liveLifePromptPending, seasonCompetitions, pendingDailyPulse, transferPaymentsDue, loanPaymentsDue,
-    debtPaymentsDue,
+    debtPaymentsDue, pendingFifaWindowId,
   } = state;
+  const activeNationalWindow = useMemo(
+    () =>
+      currentDate
+        ? state.nationalTeam?.windows.find(w => !w.closed && isDateWithinWindow(w, currentDate)) ?? null
+        : null,
+    [state.nationalTeam, currentDate],
+  );
+  const pendingFifaWindow = useMemo(
+    () => state.nationalTeam?.windows.find(w => w.id === pendingFifaWindowId) ?? null,
+    [state.nationalTeam, pendingFifaWindowId],
+  );
   const dueTransferPayments = useMemo(
     () =>
       currentDate
@@ -254,6 +267,12 @@ export default function Dashboard() {
   function handleAdvanceDay() {
     if (!currentDate) {
       navigate('/diretoria');
+      return;
+    }
+    // Data FIFA em andamento (sem jogo do clube hoje) — o avanço de dia passa a
+    // acontecer no hub da Seleção até a janela terminar.
+    if (!todayMatch && activeNationalWindow) {
+      navigate(`/national/windows/${activeNationalWindow.id}`);
       return;
     }
     const result = advanceDay();
@@ -561,22 +580,32 @@ export default function Dashboard() {
               <span className={styles.nextMatchTeams}>
                 {todayMatch
                   ? `Dia de jogo · ${todayMatch.opponent}`
-                  : currentDate
-                    ? 'Avançar Dia'
-                    : 'Definir data base'}
+                  : activeNationalWindow
+                    ? `Data FIFA · ${activeNationalWindow.label}`
+                    : currentDate
+                      ? 'Avançar Dia'
+                      : 'Definir data base'}
               </span>
               <span className={styles.nextMatchMeta}>
                 {currentDate
                   ? todayMatch
                     ? `Partida agendada para hoje · ${todayMatch.competition} · ${locationLabel(todayMatch.location)}`
-                    : nextMatch
-                      ? `Próximo jogo: ${nextMatch.opponent} em ${formatGameDate(nextMatch.date)}`
-                      : 'Nenhuma partida agendada — avance o calendário ou agende um jogo'
+                    : activeNationalWindow
+                      ? 'Seus convocados estão em serviço nacional — avance o calendário pela Seleção'
+                      : nextMatch
+                        ? `Próximo jogo: ${nextMatch.opponent} em ${formatGameDate(nextMatch.date)}`
+                        : 'Nenhuma partida agendada — avance o calendário ou agende um jogo'
                   : 'Abra a Diretoria e escolha a data inicial do calendário contínuo'}
               </span>
             </div>
             <span className={styles.nextMatchCta}>
-              {todayMatch ? 'Jogar →' : currentDate ? 'Avançar →' : 'Ativar →'}
+              {todayMatch
+                ? 'Jogar →'
+                : activeNationalWindow
+                  ? 'Ir à Seleção →'
+                  : currentDate
+                    ? 'Avançar →'
+                    : 'Ativar →'}
             </span>
           </button>
         </div>
@@ -1366,6 +1395,34 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {pendingFifaWindow &&
+        !payrollDue &&
+        !transferPaymentsDue &&
+        !loanPaymentsDue &&
+        !debtPaymentsDue && (
+          <div className={styles.overlay}>
+            <div className={styles.modal} role="dialog" aria-labelledby="fifa-window-title">
+              <p id="fifa-window-title" className={styles.modalTitle}>🌐 Data FIFA</p>
+              <p className={styles.modalBody}>
+                {`"${pendingFifaWindow.label}" começa hoje. Seus convocados se apresentam à Seleção
+                — o calendário do clube fica pausado até o fim da janela.`}
+              </p>
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.btnPrimary}
+                  onClick={() => {
+                    dismissFifaWindowPrompt();
+                    navigate(`/national/windows/${pendingFifaWindow.id}`);
+                  }}
+                >
+                  Seguir →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       {showWelcome && (
         <Tutorial

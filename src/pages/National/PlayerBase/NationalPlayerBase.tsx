@@ -3,6 +3,7 @@ import { useGame } from '../../../context/GameContext';
 import SearchableSelect from '../../../components/SearchableSelect/SearchableSelect';
 import { PLAYER_POSITIONS, type PlayerPosition, type Player } from '../../../types/Player';
 import type { NationalPlayer } from '../../../types/NationalTeam';
+import NationalPlayerHistoryModal from '../../../components/NationalPlayerHistoryModal/NationalPlayerHistoryModal';
 import {
   downloadNationalImportTemplate,
   parseNationalImport,
@@ -22,6 +23,7 @@ export default function NationalPlayerBase() {
   const nationalTeam = state.nationalTeam;
   const [showCreate, setShowCreate] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<NationalPlayer | null>(null);
+  const [historyPlayer, setHistoryPlayer] = useState<NationalPlayer | null>(null);
   const [search, setSearch] = useState('');
   const [importError, setImportError] = useState('');
 
@@ -105,7 +107,12 @@ export default function NationalPlayerBase() {
         <ul className={styles.poolList}>
           {filteredPool.map(p => (
             <li key={p.id} className={styles.baseRow}>
-              <div className={styles.poolInfo}>
+              <div
+                className={styles.poolInfo}
+                onClick={() => setHistoryPlayer(p)}
+                style={{ cursor: 'pointer' }}
+                title="Ver histórico de partidas pela Seleção"
+              >
                 <p className={styles.poolName}>
                   {p.name}
                   {p.caps > 0 && <span className={styles.capsBadge}>{p.caps}x convocado</span>}
@@ -171,6 +178,14 @@ export default function NationalPlayerBase() {
             setEditingPlayer(null);
           }}
           onCancel={() => setEditingPlayer(null)}
+        />
+      )}
+
+      {historyPlayer && (
+        <NationalPlayerHistoryModal
+          nationalPlayerId={historyPlayer.id}
+          playerName={historyPlayer.name}
+          onClose={() => setHistoryPlayer(null)}
         />
       )}
     </div>
