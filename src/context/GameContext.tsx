@@ -420,6 +420,7 @@ type GameAction =
     }
   | { type: 'ADD_FIFA_WINDOW'; window: FifaWindow }
   | { type: 'UPDATE_FIFA_WINDOW'; windowId: string; updates: Partial<Omit<FifaWindow, 'id'>> }
+  | { type: 'DELETE_FIFA_WINDOW'; windowId: string }
   | { type: 'ADD_FIFA_WINDOW_GAME'; windowId: string; game: FifaWindowGame }
   | {
       type: 'UPDATE_FIFA_WINDOW_GAME';
@@ -668,6 +669,8 @@ interface GameContextValue {
     listSize: CallUpListSize;
   }) => string;
   updateFifaWindow: (windowId: string, updates: Partial<Omit<FifaWindow, 'id'>>) => void;
+  /** Remove uma Data FIFA (jogos, convocação e tática dela vão junto) e recalcula o desfalque. */
+  deleteFifaWindow: (windowId: string) => void;
   /** Cria e adiciona um jogo mapeado à Data FIFA; retorna o id gerado. */
   addFifaWindowGame: (
     windowId: string,
@@ -2959,6 +2962,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         action.state.tacticsPresets,
         action.state.activeTacticsId,
       );
+      const loadedNationalTeam = normalizeNationalTeam(action.state.nationalTeam);
+      // Recalcula o desfalque por Serviço Nacional ao carregar — corrige saves salvos
+      // antes da distinção entre "convocado" e "dentro da janela da Data FIFA".
+      const loadedPlayers = loadedNationalTeam
+        ? recomputeNationalDuty(loadedNationalTeam, action.state.players ?? [])
+        : action.state.players ?? [];
       return {
         started: true,
         setupStep: 'done',
@@ -3017,7 +3026,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           arcHistory: action.state.social?.arcHistory ?? [],
         },
         activeContext: action.state.activeContext ?? 'club',
-        nationalTeam: normalizeNationalTeam(action.state.nationalTeam),
+        nationalTeam: loadedNationalTeam,
+        players: loadedPlayers,
       };
     }
 
@@ -3811,6 +3821,19 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         nationalTeam,
         // endDate pode mudar aqui — recalcula o desfalque pra não ficar com data velha.
+        players: recomputeNationalDuty(nationalTeam, state.players),
+      };
+    }
+
+    case 'DELETE_FIFA_WINDOW': {
+      if (!state.nationalTeam) return state;
+      const nationalTeam: NationalTeamState = {
+        ...state.nationalTeam,
+        windows: state.nationalTeam.windows.filter(w => w.id !== action.windowId),
+      };
+      return {
+        ...state,
+        nationalTeam,
         players: recomputeNationalDuty(nationalTeam, state.players),
       };
     }
@@ -5433,6 +5456,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'UPDATE_FIFA_WINDOW', windowId, updates });
   }
 
+  function deleteFifaWindow(windowId: string) {
+    dispatch({ type: 'DELETE_FIFA_WINDOW', windowId });
+  }
+
   function addFifaWindowGame(
     windowId: string,
     input: { opponent: string; location: MatchLocation; date: string; opponentStrength: OpponentStrength },
@@ -5660,6 +5687,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         createNationalTeam,
         addFifaWindow,
         updateFifaWindow,
+        deleteFifaWindow,
         addFifaWindowGame,
         updateFifaWindowGame,
         addNationalPlayer,

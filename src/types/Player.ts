@@ -78,6 +78,11 @@ export interface Player {
    */
   availableFrom?: string;
   /**
+   * Data ISO (início da Data FIFA) a partir de quando o atleta fica em serviço —
+   * antes dela, mesmo já convocado, o atleta segue disponível no clube.
+   */
+  nationalDutyFrom?: string;
+  /**
    * Data ISO (fim da Data FIFA) até quando o atleta está em serviço na Seleção
    * Nacional (v1.4). Ortogonal a `availability` — não é um novo valor da enum,
    * para não quebrar switches exaustivos existentes. `undefined`/passado = livre.
@@ -136,7 +141,11 @@ export function isAwaitingPresentation(
   return from > gameDate.slice(0, 10);
 }
 
-/** True se o atleta está em serviço na Seleção Nacional (v1.4) — `nationalDutyUntil` ainda não passou. */
+/**
+ * True se o atleta está em serviço na Seleção Nacional (v1.4) — dentro do intervalo
+ * [`nationalDutyFrom`, `nationalDutyUntil`]. Convocado para uma Data FIFA futura não
+ * bloqueia o clube antes dela começar.
+ */
 export function isOnNationalDuty(
   player: Player,
   gameDate?: string | null,
@@ -144,7 +153,9 @@ export function isOnNationalDuty(
   if (!player.nationalDutyUntil) return false;
   const until = player.nationalDutyUntil.slice(0, 10);
   if (!gameDate) return true;
-  return gameDate.slice(0, 10) <= until;
+  const date = gameDate.slice(0, 10);
+  if (player.nationalDutyFrom && date < player.nationalDutyFrom.slice(0, 10)) return false;
+  return date <= until;
 }
 
 /** True se o atleta está emprestado e ainda não retornou (`loanReturnDate` no futuro ou indefinida). */

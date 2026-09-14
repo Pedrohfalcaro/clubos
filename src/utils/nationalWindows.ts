@@ -92,32 +92,34 @@ export function sortWindowsByStart(windows: FifaWindow[]): FifaWindow[] {
 }
 
 /**
- * Recalcula `Player.nationalDutyUntil` para todo o elenco a partir das convocações
- * ativas em `nationalTeam.windows` — usa o maior `endDate` entre as janelas em que o
- * convocado vinculado (`clubPlayerId`) ainda está em `callUpIds`. Sem convocação ativa
- * (removido da lista, atleta excluído, vínculo desfeito), o campo é limpo. Datas de
- * janelas já encerradas ficam inofensivas — `isOnNationalDuty` já as trata como expiradas.
+ * Recalcula `Player.nationalDutyFrom`/`nationalDutyUntil` para todo o elenco a partir das
+ * convocações ativas em `nationalTeam.windows` — usa a janela com maior `endDate` entre
+ * aquelas em que o convocado vinculado (`clubPlayerId`) ainda está em `callUpIds`, e leva
+ * junto o `startDate` dela (o atleta só fica indisponível a partir do início da Data FIFA,
+ * não desde o momento da convocação). Sem convocação ativa (removido da lista, atleta
+ * excluído, vínculo desfeito), os campos são limpos. Datas de janelas já encerradas ficam
+ * inofensivas — `isOnNationalDuty` já as trata como expiradas.
  */
 export function recomputeNationalDuty(
   nationalTeam: NationalTeamState,
   players: Player[],
 ): Player[] {
-  const dutyUntilByClubPlayerId = new Map<string, string>();
+  const dutyByClubPlayerId = new Map<string, { from: string; until: string }>();
   for (const w of nationalTeam.windows) {
     for (const npId of w.callUpIds) {
       const np = nationalTeam.talentPool.find(p => p.id === npId);
       if (!np?.clubPlayerId) continue;
-      const current = dutyUntilByClubPlayerId.get(np.clubPlayerId);
-      if (!current || w.endDate > current) {
-        dutyUntilByClubPlayerId.set(np.clubPlayerId, w.endDate);
+      const current = dutyByClubPlayerId.get(np.clubPlayerId);
+      if (!current || w.endDate > current.until) {
+        dutyByClubPlayerId.set(np.clubPlayerId, { from: w.startDate, until: w.endDate });
       }
     }
   }
 
   return players.map(p => {
-    const until = dutyUntilByClubPlayerId.get(p.id);
-    if (until === p.nationalDutyUntil) return p;
-    return { ...p, nationalDutyUntil: until };
+    const duty = dutyByClubPlayerId.get(p.id);
+    if (duty?.from === p.nationalDutyFrom && duty?.until === p.nationalDutyUntil) return p;
+    return { ...p, nationalDutyFrom: duty?.from, nationalDutyUntil: duty?.until };
   });
 }
 

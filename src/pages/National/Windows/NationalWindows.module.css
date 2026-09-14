@@ -260,7 +260,15 @@
   gap: 10px;
 }
 
+.windowCardRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
 .windowListCard {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   text-align: left;
   background: var(--card-bg);
@@ -273,6 +281,36 @@
   gap: 4px;
   transition: border-color 0.15s, background 0.15s;
   font-family: inherit;
+}
+
+.cardActions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.iconBtn,
+.iconBtnDanger {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.iconBtnDanger:hover {
+  border-color: var(--danger, #ef4444);
+  color: var(--danger, #ef4444);
 }
 
 .windowListCard:hover {

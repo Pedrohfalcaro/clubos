@@ -5,6 +5,7 @@ import {
   FIFA_WINDOW_TYPE_LABELS,
   CALL_UP_LIST_SIZES,
   type CallUpListSize,
+  type FifaWindow,
   type FifaWindowType,
 } from '../../../types/NationalTeam';
 import { formatGameDate } from '../../../livelife';
@@ -23,20 +24,43 @@ interface CreateWindowInput {
 }
 
 export default function NationalWindows() {
-  const { state, addFifaWindow } = useGame();
+  const { state, addFifaWindow, updateFifaWindow, deleteFifaWindow } = useGame();
   const navigate = useNavigate();
   const nationalTeam = state.nationalTeam;
   const [showCreate, setShowCreate] = useState(false);
+  const [editingWindowId, setEditingWindowId] = useState<string | null>(null);
 
   if (!nationalTeam) return null;
 
   const sortedWindows = sortWindowsByStart(nationalTeam.windows);
   const currentDate = state.currentDate;
+  const editingWindow = editingWindowId
+    ? nationalTeam.windows.find(w => w.id === editingWindowId) ?? null
+    : null;
 
   function handleCreateWindow(input: CreateWindowInput) {
     const id = addFifaWindow(input);
     setShowCreate(false);
     navigate(`/national/windows/${id}`);
+  }
+
+  function handleUpdateWindow(input: CreateWindowInput) {
+    if (!editingWindow) return;
+    updateFifaWindow(editingWindow.id, {
+      label: input.label?.trim() || suggestWindowLabel(input.startDate, input.type, input.typeOther),
+      type: input.type,
+      typeOther: input.type === 'outros' ? input.typeOther?.trim() : undefined,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      listSize: input.listSize,
+    });
+    setEditingWindowId(null);
+  }
+
+  function handleDeleteWindow(windowId: string, label: string) {
+    if (!window.confirm(`Excluir "${label}"? Jogos, convocação e tática desta Data FIFA se perdem.`)) return;
+    deleteFifaWindow(windowId);
+    setEditingWindowId(null);
   }
 
   return (
@@ -67,7 +91,7 @@ export default function NationalWindows() {
             const isActive = !w.closed && (currentDate ? isDateWithinWindow(w, currentDate) : false);
             const played = w.games.filter(g => g.played).length;
             return (
-              <li key={w.id}>
+              <li key={w.id} className={styles.windowCardRow}>
                 <button
                   type="button"
                   className={`${styles.windowListCard} ${isActive ? styles.windowListCardActive : ''}`}
@@ -93,6 +117,26 @@ export default function NationalWindows() {
                     {w.callUpIds.length}/{w.listSize} convocados · {played}/{w.games.length} jogos disputados
                   </p>
                 </button>
+                <div className={styles.cardActions}>
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={() => setEditingWindowId(w.id)}
+                    aria-label="Editar Data FIFA"
+                    title="Editar Data FIFA"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.iconBtnDanger}
+                    onClick={() => handleDeleteWindow(w.id, w.label)}
+                    aria-label="Excluir Data FIFA"
+                    title="Excluir Data FIFA"
+                  >
+                    ×
+                  </button>
+                </div>
               </li>
             );
           })}
@@ -102,23 +146,33 @@ export default function NationalWindows() {
       {showCreate && (
         <CreateWindowModal onSubmit={handleCreateWindow} onCancel={() => setShowCreate(false)} />
       )}
+
+      {editingWindow && (
+        <CreateWindowModal
+          editing={editingWindow}
+          onSubmit={handleUpdateWindow}
+          onCancel={() => setEditingWindowId(null)}
+        />
+      )}
     </div>
   );
 }
 
 function CreateWindowModal({
+  editing,
   onSubmit,
   onCancel,
 }: {
+  editing?: FifaWindow;
   onSubmit: (input: CreateWindowInput) => void;
   onCancel: () => void;
 }) {
-  const [type, setType] = useState<FifaWindowType>('amistoso');
-  const [typeOther, setTypeOther] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [listSize, setListSize] = useState<CallUpListSize>(23);
-  const [labelOverride, setLabelOverride] = useState('');
+  const [type, setType] = useState<FifaWindowType>(editing?.type ?? 'amistoso');
+  const [typeOther, setTypeOther] = useState(editing?.typeOther ?? '');
+  const [startDate, setStartDate] = useState(editing?.startDate.slice(0, 10) ?? '');
+  const [endDate, setEndDate] = useState(editing?.endDate.slice(0, 10) ?? '');
+  const [listSize, setListSize] = useState<CallUpListSize>(editing?.listSize ?? 23);
+  const [labelOverride, setLabelOverride] = useState(editing?.label ?? '');
 
   const suggested = startDate ? suggestWindowLabel(startDate, type, typeOther) : '';
   const canSubmit =
@@ -142,7 +196,7 @@ function CreateWindowModal({
   return (
     <div className={styles.overlay} onClick={onCancel}>
       <div className={styles.modal} onClick={e => e.stopPropagation()}>
-        <p className={styles.modalTitle}>Adicionar Data FIFA</p>
+        <p className={styles.modalTitle}>{editing ? `Editar ${editing.label}` : 'Adicionar Data FIFA'}</p>
 
         <div className={styles.formGroup}>
           <label className={styles.formLabel}>Tipo de competição</label>
@@ -227,7 +281,7 @@ function CreateWindowModal({
             Cancelar
           </button>
           <button type="button" className={styles.btnPrimary} onClick={submit} disabled={!canSubmit}>
-            Criar Data FIFA
+            {editing ? 'Salvar alterações' : 'Criar Data FIFA'}
           </button>
         </div>
       </div>
