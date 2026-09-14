@@ -290,6 +290,29 @@
   color: var(--danger, #ef4444);
 }
 
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editBtn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.editBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .btnPrimary {
   padding: 9px 16px;
   border-radius: 8px;

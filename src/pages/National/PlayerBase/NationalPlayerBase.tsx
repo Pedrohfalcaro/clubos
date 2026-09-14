@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useGame } from '../../../context/GameContext';
 import SearchableSelect from '../../../components/SearchableSelect/SearchableSelect';
 import { PLAYER_POSITIONS, type PlayerPosition, type Player } from '../../../types/Player';
+import type { NationalPlayer } from '../../../types/NationalTeam';
 import {
   downloadNationalImportTemplate,
   parseNationalImport,
@@ -16,9 +17,11 @@ export default function NationalPlayerBase() {
     importNationalPlayers,
     removeNationalPlayer,
     linkNationalPlayerToClub,
+    updateNationalPlayer,
   } = useGame();
   const nationalTeam = state.nationalTeam;
   const [showCreate, setShowCreate] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<NationalPlayer | null>(null);
   const [search, setSearch] = useState('');
   const [importError, setImportError] = useState('');
 
@@ -120,15 +123,26 @@ export default function NationalPlayerBase() {
                   placeholder="Vincular ao clube..."
                 />
               </div>
-              <button
-                type="button"
-                className={styles.removeBtn}
-                onClick={() => removeNationalPlayer(p.id)}
-                aria-label="Remover da base"
-                title="Remover da Base de Jogadores"
-              >
-                ×
-              </button>
+              <div className={styles.rowActions}>
+                <button
+                  type="button"
+                  className={styles.editBtn}
+                  onClick={() => setEditingPlayer(p)}
+                  aria-label="Editar atleta"
+                  title="Editar time, overall e idade"
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  className={styles.removeBtn}
+                  onClick={() => removeNationalPlayer(p.id)}
+                  aria-label="Remover da base"
+                  title="Remover da Base de Jogadores"
+                >
+                  ×
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -146,6 +160,17 @@ export default function NationalPlayerBase() {
             setShowCreate(false);
           }}
           onCancel={() => setShowCreate(false)}
+        />
+      )}
+
+      {editingPlayer && (
+        <EditPlayerModal
+          player={editingPlayer}
+          onSubmit={updates => {
+            updateNationalPlayer(editingPlayer.id, updates);
+            setEditingPlayer(null);
+          }}
+          onCancel={() => setEditingPlayer(null)}
         />
       )}
     </div>
@@ -347,6 +372,91 @@ function CreatePlayerModal({
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function EditPlayerModal({
+  player,
+  onSubmit,
+  onCancel,
+}: {
+  player: NationalPlayer;
+  onSubmit: (updates: { club: string; overall?: number; age: number }) => void;
+  onCancel: () => void;
+}) {
+  const [club, setClub] = useState(player.club);
+  const [age, setAge] = useState(String(player.age));
+  const [overall, setOverall] = useState(player.overall != null ? String(player.overall) : '');
+
+  const ageNum = parseInt(age, 10);
+  const overallNum = overall.trim() ? parseInt(overall, 10) : undefined;
+  const canSubmit =
+    club.trim().length > 0 &&
+    Number.isInteger(ageNum) &&
+    ageNum >= 15 &&
+    ageNum <= 45 &&
+    (overallNum === undefined || (Number.isInteger(overallNum) && overallNum >= 1 && overallNum <= 99));
+
+  function submit() {
+    if (!canSubmit) return;
+    onSubmit({ club: club.trim(), age: ageNum, overall: overallNum });
+  }
+
+  return (
+    <div className={styles.overlay} onClick={onCancel}>
+      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+        <p className={styles.modalTitle}>Editar {player.name}</p>
+
+        <div className={styles.formGroup}>
+          <label className={styles.formLabel}>Clube</label>
+          <input
+            className={styles.formInput}
+            type="text"
+            value={club}
+            onChange={e => setClub(e.target.value)}
+            placeholder="ex.: Flamengo"
+            autoFocus
+          />
+        </div>
+
+        <div className={styles.row}>
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Idade</label>
+            <input
+              className={styles.formInput}
+              type="number"
+              min={15}
+              max={45}
+              value={age}
+              onChange={e => setAge(e.target.value)}
+            />
+            <span className={styles.hint}>
+              Sobe 1 automaticamente a cada temporada; ajuste aqui só se precisar corrigir.
+            </span>
+          </div>
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Overall (opcional)</label>
+            <input
+              className={styles.formInput}
+              type="number"
+              min={1}
+              max={99}
+              value={overall}
+              onChange={e => setOverall(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className={styles.actions}>
+          <button type="button" className={styles.btnSecondary} onClick={onCancel}>
+            Cancelar
+          </button>
+          <button type="button" className={styles.btnPrimary} onClick={submit} disabled={!canSubmit}>
+            Salvar
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -430,6 +430,11 @@ type GameAction =
   | { type: 'ADD_NATIONAL_PLAYERS'; players: NationalPlayer[] }
   | { type: 'REMOVE_NATIONAL_PLAYER'; nationalPlayerId: string }
   | { type: 'LINK_NATIONAL_PLAYER_TO_CLUB'; nationalPlayerId: string; clubPlayerId: string | null }
+  | {
+      type: 'UPDATE_NATIONAL_PLAYER';
+      nationalPlayerId: string;
+      updates: Partial<Pick<NationalPlayer, 'club' | 'overall' | 'age'>>;
+    }
   | { type: 'SET_CALL_UP_LIST'; windowId: string; callUpIds: string[] }
   | { type: 'SET_CALL_UP_NUMBER'; windowId: string; nationalPlayerId: string; number: number | null }
   | { type: 'SAVE_NATIONAL_TACTICS_PRESET'; windowId: string; preset: TacticsPreset }
@@ -687,6 +692,11 @@ interface GameContextValue {
   removeNationalPlayer: (nationalPlayerId: string) => void;
   /** Vincula/desvincula um convocado a um `Player` do elenco do clube (dispara desfalque na Fase 5). */
   linkNationalPlayerToClub: (nationalPlayerId: string, clubPlayerId: string | null) => void;
+  /** Edita clube, overall e/ou idade de um convocado da base. Idade também sobe 1 por temporada automaticamente. */
+  updateNationalPlayer: (
+    nationalPlayerId: string,
+    updates: Partial<Pick<NationalPlayer, 'club' | 'overall' | 'age'>>,
+  ) => void;
   /** Define a lista definitiva de convocados de uma Data FIFA (ajusta `caps` por diff). */
   setCallUpList: (windowId: string, callUpIds: string[]) => void;
   /** Numeração de camisa do convocado, específica desta Data FIFA. */
@@ -1524,6 +1534,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             ...state.pulse,
             rolledMatchIds: [],
           },
+          // Base de jogadores da seleção envelhece junto — idade parte da temporada em
+          // que o atleta foi convocado/cadastrado pela 1ª vez e soma 1 por temporada.
+          nationalTeam: state.nationalTeam
+            ? {
+                ...state.nationalTeam,
+                talentPool: state.nationalTeam.talentPool.map(p => ({ ...p, age: p.age + 1 })),
+              }
+            : state.nationalTeam,
         };
       }
 
@@ -3931,6 +3949,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'UPDATE_NATIONAL_PLAYER': {
+      if (!state.nationalTeam) return state;
+      const nationalTeam: NationalTeamState = {
+        ...state.nationalTeam,
+        talentPool: state.nationalTeam.talentPool.map(p =>
+          p.id === action.nationalPlayerId ? { ...p, ...action.updates } : p,
+        ),
+      };
+      return { ...state, nationalTeam };
+    }
+
     case 'SET_CALL_UP_LIST': {
       if (!state.nationalTeam) return state;
       const window = state.nationalTeam.windows.find(w => w.id === action.windowId);
@@ -5456,6 +5485,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'LINK_NATIONAL_PLAYER_TO_CLUB', nationalPlayerId, clubPlayerId });
   }
 
+  function updateNationalPlayer(
+    nationalPlayerId: string,
+    updates: Partial<Pick<NationalPlayer, 'club' | 'overall' | 'age'>>,
+  ) {
+    dispatch({ type: 'UPDATE_NATIONAL_PLAYER', nationalPlayerId, updates });
+  }
+
   function setCallUpList(windowId: string, callUpIds: string[]) {
     dispatch({ type: 'SET_CALL_UP_LIST', windowId, callUpIds });
   }
@@ -5630,6 +5666,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         importNationalPlayers,
         removeNationalPlayer,
         linkNationalPlayerToClub,
+        updateNationalPlayer,
         setCallUpList,
         setCallUpNumber,
         saveNationalTacticsPreset,
