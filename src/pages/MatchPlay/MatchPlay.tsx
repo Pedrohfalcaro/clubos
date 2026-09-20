@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import FormationField from '../../components/FormationField/FormationField';
 import FormationPicker from '../../components/FormationPicker/FormationPicker';
@@ -25,7 +25,7 @@ import {
   remapFormation,
   resolveTactics,
 } from '../../utils/formations';
-import { isPlayerBlockedFromLineup } from '../../types/Player';
+import { isPlayerBlockedFromLineup, sortByPosition } from '../../types/Player';
 import type { Player } from '../../types/Player';
 import { defaultMinute, uid } from '../../utils/matchEvents';
 import {
@@ -114,7 +114,7 @@ export default function MatchPlay() {
 
   const match = matchId ? getMatch(matchId) : undefined;
   const isEdit = match?.status === 'completed';
-  const players = state.players;
+  const players = useMemo(() => sortByPosition(state.players), [state.players]);
   const teamName = state.team?.name ?? '';
 
   const [step, setStep] = useState<Step>('lineup');

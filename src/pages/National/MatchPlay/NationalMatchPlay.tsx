@@ -14,6 +14,7 @@ import type {
   MatchLineup,
 } from '../../../types/Match';
 import type { FormationKey, FormationSlot, TacticsDraft } from '../../../types/Tactics';
+import { sortByPosition } from '../../../types/Player';
 import { getHomeAway } from '../../../utils/matchStats';
 import { getFormationPreset, isLineupComplete, remapFormation, resolveTactics } from '../../../utils/formations';
 import { defaultMinute, uid } from '../../../utils/matchEvents';
@@ -92,10 +93,11 @@ export default function NationalMatchPlay() {
   const teamName = nationalTeam?.name ?? '';
   const players = useMemo(
     () =>
-      (activeWindow?.callUpIds ?? [])
-        .map(id => nationalTeam?.talentPool.find(p => p.id === id))
-        .filter((p): p is NonNullable<typeof p> => !!p)
-        .map(p => nationalPlayerToPseudoPlayer(p, activeWindow?.callUpNumbers[p.id])),
+      sortByPosition(
+        (activeWindow?.callUpIds ?? [])
+          .map(id => nationalTeam?.talentPool.find(p => p.id === id))
+          .filter((p): p is NonNullable<typeof p> => !!p),
+      ).map(p => nationalPlayerToPseudoPlayer(p, activeWindow?.callUpNumbers[p.id])),
     [activeWindow, nationalTeam],
   );
 

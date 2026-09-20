@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../../context/GameContext';
 import SearchableSelect from '../../../components/SearchableSelect/SearchableSelect';
-import { PLAYER_POSITIONS, type PlayerPosition, type Player } from '../../../types/Player';
+import { PLAYER_POSITIONS, sortByPosition, type PlayerPosition, type Player } from '../../../types/Player';
 import type { NationalPlayer } from '../../../types/NationalTeam';
 import NationalPlayerHistoryModal from '../../../components/NationalPlayerHistoryModal/NationalPlayerHistoryModal';
 import {
@@ -30,7 +30,7 @@ export default function NationalPlayerBase() {
   const filteredPool = useMemo(() => {
     if (!nationalTeam) return [];
     const q = search.toLowerCase();
-    return nationalTeam.talentPool.filter(p => p.name.toLowerCase().includes(q));
+    return sortByPosition(nationalTeam.talentPool.filter(p => p.name.toLowerCase().includes(q)));
   }, [nationalTeam, search]);
 
   if (!nationalTeam) return null;

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../context/GameContext';
 import type { Player, PlayerStats, PlayerStatus } from '../../types/Player';
-import { availabilityStatusLabel, isOnNationalDuty } from '../../types/Player';
+import { availabilityStatusLabel, isOnNationalDuty, PLAYER_POSITIONS } from '../../types/Player';
 import {
   scopeOptions,
   playerStatsForScope,
@@ -22,7 +22,9 @@ import { PERSONALIDADES, isPersonality } from '../../pulse/utils';
 import PlayerHistoryModal from '../../components/PlayerHistoryModal/PlayerHistoryModal';
 import styles from './Squad.module.css';
 
-const POSITION_ORDER = ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'CF', 'ST'];
+// Mesma ordem canônica usada em Táticas/Partida/Seleção (`PLAYER_POSITIONS`) — um goleiro
+// recém-contratado aparece no topo do elenco, não no fim por ordem de chegada.
+const POSITION_ORDER = PLAYER_POSITIONS;
 const POSITION_LABELS: Record<string, string> = {
   GK: 'Goleiros', CB: 'Zagueiros', RB: 'Laterais Direitos', LB: 'Laterais Esquerdos',
   CDM: 'Volantes', CM: 'Meio-campistas', CAM: 'Meias-atacantes',

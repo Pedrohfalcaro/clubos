@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import FormationField from '../../components/FormationField/FormationField';
 import FormationPicker from '../../components/FormationPicker/FormationPicker';
 import { useGame } from '../../context/GameContext';
+import { sortByPosition } from '../../types/Player';
 import type { FormationKey, TacticsDraft, TacticsPreset } from '../../types/Tactics';
 import { MAX_TACTICS_PRESETS } from '../../types/Tactics';
 import {
@@ -36,7 +37,7 @@ export default function Tactics() {
     deleteTacticsPreset,
     setActiveTactics,
   } = useGame();
-  const players = state.players;
+  const players = useMemo(() => sortByPosition(state.players), [state.players]);
   const primaryColor = state.team?.primaryColor ?? DEFAULT_PRIMARY;
   const secondaryColor = state.team?.secondaryColor ?? DEFAULT_SECONDARY;
   const presets = state.tacticsPresets;

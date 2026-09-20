@@ -237,6 +237,19 @@ export const PLAYER_POSITIONS: PlayerPosition[] = [
   'GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'ST', 'CF',
 ];
 
+/**
+ * Ordena qualquer lista de jogadores (elenco do clube, convocados da seleção, pseudo-jogadores
+ * de tática/partida) por posição (`PLAYER_POSITIONS`) — padrão em toda tela que lista atletas,
+ * pra um goleiro recém-contratado aparecer no topo em vez de no fim da lista (por ordem de
+ * chegada). `Array.prototype.sort` é estável, então dentro da mesma posição a ordem original
+ * (normalmente por ordem de chegada) é preservada.
+ */
+export function sortByPosition<T extends { position: PlayerPosition }>(list: T[]): T[] {
+  return [...list].sort(
+    (a, b) => PLAYER_POSITIONS.indexOf(a.position) - PLAYER_POSITIONS.indexOf(b.position),
+  );
+}
+
 export function emptyPlayerStats(): PlayerStats {
   return {
     matches: 0,

@@ -13,6 +13,7 @@ import {
   type OpponentStrength,
 } from '../../../types/NationalTeam';
 import type { MatchLocation } from '../../../types/Match';
+import { sortByPosition } from '../../../types/Player';
 import type { FormationKey, TacticsDraft, TacticsPreset } from '../../../types/Tactics';
 import { MAX_TACTICS_PRESETS } from '../../../types/Tactics';
 import { calcResult, locationLabel } from '../../../utils/matchStats';
@@ -683,7 +684,7 @@ function ConvocacaoTab({
 
   const filteredPool = useMemo(() => {
     const q = search.toLowerCase();
-    return nationalTeam.talentPool.filter(p => p.name.toLowerCase().includes(q));
+    return sortByPosition(nationalTeam.talentPool.filter(p => p.name.toLowerCase().includes(q)));
   }, [nationalTeam.talentPool, search]);
 
   const callUpIds = fifaWindow.callUpIds;
@@ -866,10 +867,11 @@ function TaticaTab({ windowId }: { windowId: string }) {
   const fifaWindow = nationalTeam.windows.find(w => w.id === windowId)!;
   const players = useMemo(
     () =>
-      fifaWindow.callUpIds
-        .map(id => nationalTeam.talentPool.find(p => p.id === id))
-        .filter((p): p is NonNullable<typeof p> => !!p)
-        .map(p => nationalPlayerToPseudoPlayer(p, fifaWindow.callUpNumbers[p.id])),
+      sortByPosition(
+        fifaWindow.callUpIds
+          .map(id => nationalTeam.talentPool.find(p => p.id === id))
+          .filter((p): p is NonNullable<typeof p> => !!p),
+      ).map(p => nationalPlayerToPseudoPlayer(p, fifaWindow.callUpNumbers[p.id])),
     [fifaWindow.callUpIds, fifaWindow.callUpNumbers, nationalTeam.talentPool],
   );
   const primaryColor = nationalTeam.primaryColor ?? DEFAULT_PRIMARY;
