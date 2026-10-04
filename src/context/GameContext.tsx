@@ -3500,6 +3500,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       if (newPlayer) {
         players = [...players, newPlayer];
+        if (formerPlayers.some(p => p.id === newPlayer.id)) {
+          formerPlayers = formerPlayers.filter(p => p.id !== newPlayer.id);
+        }
       }
       if (record.type === 'loan_out' && removedPlayerId) {
         const loanReturnDate = addMonthsIso(dealDate, record.loanDurationMonths ?? 6);

@@ -9,6 +9,7 @@ import type {
 } from '../../types/Transfer';
 import { watchlistMissingForBuy } from '../../types/Transfer';
 import type { Player } from '../../types/Player';
+import { emptyPlayerStats, daysBetweenIso } from '../../types/Player';
 import type { Currency } from '../../types/Finance';
 import { POSITION_LABELS } from '../../utils/matchEvents';
 import {
@@ -66,7 +67,7 @@ export default function Transfers() {
     updateTransferRecord,
     renewPlayerContract,
   } = useGame();
-  const { transfers, players, finance, season, team, currentDate } = state;
+  const { transfers, players, formerPlayers, finance, season, team, currentDate } = state;
 
   const [tab, setTab] = useState<Tab>('lista');
   const [editingWatchId, setEditingWatchId] = useState<string | null>(null);
@@ -77,9 +78,10 @@ export default function Transfers() {
 
   // Negociar
   const [transType, setTransType] = useState<TransferType>('buy');
-  const [transPlayerSrc, setTransPlayerSrc] = useState<'new' | 'watchlist' | 'squad'>('watchlist');
+  const [transPlayerSrc, setTransPlayerSrc] = useState<'new' | 'watchlist' | 'squad' | 'ex'>('watchlist');
   const [selectedWatchId, setSelectedWatchId] = useState('');
   const [selectedSquadId, setSelectedSquadId] = useState('');
+  const [selectedExId, setSelectedExId] = useState('');
   const [pName, setPName] = useState('');
   const [pPos, setPPos] = useState('ST');
   const [pAge, setPAge] = useState('');
@@ -263,6 +265,37 @@ export default function Transfers() {
         mvNum || w.marketValue || 0,
         { availableFrom: resolvedPresentation, contractYears: yearsNum },
       );
+    } else if (transPlayerSrc === 'ex') {
+      const ex = formerPlayers.find(p => p.id === selectedExId);
+      if (!ex) return;
+      const overallNum = parseInt(pOvr) || ex.overall;
+      const ageNum = parseInt(pAge) || ex.age;
+      snapshot = {
+        name: ex.name,
+        position: ex.position,
+        age: ageNum,
+        overall: overallNum,
+        number: parseInt(pNum) || null,
+        nationality: ex.nationality,
+      };
+      playerId = ex.id;
+      newPlayerData = {
+        ...ex,
+        age: ageNum,
+        overall: overallNum,
+        potential: Math.max(ex.potential ?? overallNum, overallNum),
+        marketValue: mvNum || ex.marketValue,
+        salary: wageNum,
+        number: parseInt(pNum) || null,
+        contractYearsLeft: yearsNum,
+        status: 'Titular',
+        stats: emptyPlayerStats(),
+        morale: 70,
+        fatigue: 0,
+        availability: resolvedPresentation ? 'indisponivel' : 'disponivel',
+        availableFrom: resolvedPresentation,
+        departedAt: undefined,
+      };
     } else {
       if (!pName.trim()) return;
       snapshot = {
@@ -350,6 +383,7 @@ export default function Transfers() {
     setNotes('');
     setSelectedSquadId('');
     setSelectedWatchId('');
+    setSelectedExId('');
     setTab('historico');
   }
 
@@ -751,14 +785,14 @@ export default function Transfers() {
 
           {!isSelling && (
             <div className={styles.typeRow} style={{ marginBottom: 12 }}>
-              {(['watchlist', 'new'] as const).map(src => (
+              {(['watchlist', 'ex', 'new'] as const).map(src => (
                 <button
                   key={src}
                   type="button"
                   className={`${styles.typeBtn} ${transPlayerSrc === src ? styles.typeBtnActive : ''}`}
                   onClick={() => setTransPlayerSrc(src)}
                 >
-                  {src === 'watchlist' ? 'Da lista' : 'Novo atleta'}
+                  {src === 'watchlist' ? 'Da lista' : src === 'ex' ? 'Ex-atleta' : 'Novo atleta'}
                 </button>
               ))}
             </div>
@@ -805,6 +839,64 @@ export default function Transfers() {
                 ))}
               </select>
             </label>
+          ) : transPlayerSrc === 'ex' ? (
+            <>
+              <label className={styles.label}>
+                Ex-atleta
+                <select
+                  className={styles.select}
+                  value={selectedExId}
+                  onChange={e => {
+                    const id = e.target.value;
+                    setSelectedExId(id);
+                    const ex = formerPlayers.find(x => x.id === id);
+                    if (ex) {
+                      setPName(ex.name);
+                      setPPos(ex.position);
+                      const departedDate = ex.departedAt?.date;
+                      const nowIso = currentDate ?? new Date().toISOString();
+                      const yearsPassed = departedDate
+                        ? Math.floor(daysBetweenIso(departedDate, nowIso) / 365)
+                        : 0;
+                      setPAge(String(ex.age + yearsPassed));
+                      setPOvr(String(ex.overall));
+                      setMarketValue(String(ex.marketValue ?? ''));
+                    }
+                  }}
+                >
+                  <option value="">Selecionar…</option>
+                  {formerPlayers.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({POSITION_LABELS[p.position]})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedExId && (
+                <div className={styles.formGrid} style={{ marginTop: 12 }}>
+                  <label className={`${styles.label} ${styles.formFull}`}>
+                    Nome
+                    <input className={styles.input} value={pName} disabled />
+                  </label>
+                  <label className={styles.label}>
+                    Posição
+                    <input className={styles.input} value={POSITION_LABELS[pPos as keyof typeof POSITION_LABELS] ?? pPos} disabled />
+                  </label>
+                  <label className={styles.label}>
+                    Idade
+                    <input className={styles.input} value={pAge} disabled />
+                  </label>
+                  <label className={styles.label}>
+                    Número
+                    <input className={styles.input} type="number" value={pNum} onChange={e => setPNum(e.target.value)} />
+                  </label>
+                  <label className={styles.label}>
+                    Overall
+                    <input className={styles.input} type="number" value={pOvr} onChange={e => setPOvr(e.target.value)} />
+                  </label>
+                </div>
+              )}
+            </>
           ) : (
             <div className={styles.formGrid}>
               <label className={`${styles.label} ${styles.formFull}`}>
