@@ -49,6 +49,8 @@ interface LiveRow {
   number: string;
   name: string;
   rating: number;
+  /** já levou cartão amarelo (nome em amarelo para lembrar) */
+  yellow: boolean;
   /** variação recente da nota (para a seta de tendência) */
   delta: number;
 }
@@ -275,6 +277,7 @@ function MatchScreen({ draft, scope }: { draft: TrainingDraft; scope: TrainingSc
           number: lookOf(a).number,
           name: lookOf(a).label,
           rating: ratings[a.id],
+          yellow: a.stats.yellows > 0,
           delta: ratings[a.id] - (trendBase[a.id] ?? ratings[a.id]),
         });
         setLive({
@@ -337,6 +340,17 @@ function MatchScreen({ draft, scope }: { draft: TrainingDraft; scope: TrainingSc
     handleEvents(world.events);
     showBanner(`Substituição · ${nameOf(outId)} ↔ ${incoming.name}`);
     setLiveStats(teamStats(world));
+    // atualiza o painel de notas já com o reserva (nota 6,0), sem esperar o próximo ciclo
+    const ratings = computeRatings(world);
+    const row = (a: Agent): LiveRow => ({
+      id: a.id,
+      number: lookOf(a).number,
+      name: lookOf(a).label,
+      rating: ratings[a.id],
+      yellow: a.stats.yellows > 0,
+      delta: 0,
+    });
+    setLive({ a: world.byTeam.a.map(row), b: world.byTeam.b.map(row) });
     setSubVersion(v => v + 1);
     void team;
   }
@@ -443,7 +457,7 @@ function MatchScreen({ draft, scope }: { draft: TrainingDraft; scope: TrainingSc
                     className={`${styles.pChip} ${r.rating >= 7 ? styles.good : r.rating < 5.5 ? styles.bad : ''}`}
                   >
                     <i>{r.number}</i>
-                    <em>{r.name}</em>
+                    <em className={r.yellow ? styles.yellowName : undefined}>{r.name}</em>
                     <b>{r.rating.toFixed(1)}</b>
                     <u className={r.delta > 0.05 ? styles.up : r.delta < -0.05 ? styles.down : styles.flat}>
                       {r.delta > 0.05 ? '▲' : r.delta < -0.05 ? '▼' : '·'}

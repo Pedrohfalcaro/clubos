@@ -140,7 +140,8 @@ export function computeRatings(w: World): Record<string, number> {
     const mine = w.score[a.team];
     const theirs = w.score[a.team === 'a' ? 'b' : 'a'];
     const resultMod = mine > theirs ? TEAM_RESULT_MOD : mine < theirs ? -TEAM_RESULT_MOD : 0;
-    ratings[a.id] = ratingFromPoints(points - base * share, resultMod, w.setup.format);
+    // o bônus/penalidade do resultado vale pelo tempo jogado: quem acabou de entrar parte de 6,0
+    ratings[a.id] = ratingFromPoints(points - base * share, resultMod * share, w.setup.format);
   }
   return ratings;
 }
