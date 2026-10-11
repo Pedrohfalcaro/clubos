@@ -1,5 +1,5 @@
 import type { MatchLineup } from '../types/Match';
-import type { Player, PlayerPosition } from '../types/Player';
+import type { AltPosition, Player, PlayerPosition } from '../types/Player';
 import { isPlayerBlockedFromLineup, availabilityStatusLabel } from '../types/Player';
 import type {
   FormationKey,
@@ -11,7 +11,7 @@ import type {
 } from '../types/Tactics';
 import { MAX_TACTICS_PRESETS } from '../types/Tactics';
 import { DEFAULT_STYLE_KEY, isTacticalStyleKey } from './tacticalStyles';
-import { positionMatch } from './positions';
+import { BASE_POSITION, positionMatch } from './positions';
 
 export type { FormationKey } from '../types/Tactics';
 
@@ -91,12 +91,12 @@ const FIT_BY_RANK = [1, 0.72, 0.5];
  * da função, não perde nada; senão vale a melhor entre as posições dele.
  */
 export function playerRoleFit(
-  player: { position: PlayerPosition; altPositions?: PlayerPosition[] } | undefined,
+  player: { position: PlayerPosition; altPositions?: AltPosition[] } | undefined,
   role: SlotRole,
 ): number {
   if (!player) return roleFit(role, undefined);
   if (positionMatch(player, role) === 'exact') return 1;
-  return Math.max(...[player.position, ...(player.altPositions ?? [])].map(pos => roleFit(role, pos)));
+  return Math.max(...[player.position, ...(player.altPositions ?? [])].map(pos => roleFit(role, BASE_POSITION[pos])));
 }
 
 /**
@@ -104,7 +104,7 @@ export function playerRoleFit(
  * fora do setor = perda maior (no máximo 0,45).
  */
 export function trainingFit(
-  player: { position: PlayerPosition; altPositions?: PlayerPosition[] },
+  player: { position: PlayerPosition; altPositions?: AltPosition[] },
   role: SlotRole,
 ): number {
   const m = positionMatch(player, role);
@@ -157,8 +157,8 @@ export const FORMATION_PRESETS: FormationPreset[] = [
       { x: 62, y: 72, role: 'ZAG' },
       { x: 85, y: 72, role: 'LD' },
       { x: 50, y: 58, role: 'VOL' },
-      { x: 18, y: 46, role: 'ME' },
-      { x: 82, y: 46, role: 'MD' },
+      { x: 30, y: 46, role: 'MC' },
+      { x: 70, y: 46, role: 'MC' },
       { x: 50, y: 34, role: 'MEI' },
       { x: 38, y: 18, role: 'ATA' },
       { x: 62, y: 18, role: 'ATA' },

@@ -1,3 +1,4 @@
+import { posAbbr } from '../../utils/positions';
 import { useState } from 'react';
 import { computeRatings } from '../../training/engine';
 import type { Team, World } from '../../training/engine';
@@ -56,7 +57,7 @@ export default function BenchModal({ world, players, gameDate, kit, teamName, on
                 >
                   <i>{p.number ?? '—'}</i>
                   <span>{p.name}</span>
-                  <em>{p.position}</em>
+                  <em>{posAbbr(p.position)}</em>
                   <b>{p.overall}</b>
                 </button>
               ))}

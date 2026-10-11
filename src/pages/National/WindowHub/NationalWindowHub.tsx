@@ -1,3 +1,4 @@
+import { posAbbr } from '../../../utils/positions';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useGame } from '../../../context/GameContext';
@@ -639,7 +640,7 @@ function WindowSummaryModal({
                   <tr key={row.nationalPlayerId}>
                     <td className={sStyles.overviewName}>
                       {row.name}
-                      <span className={sStyles.overviewMeta}>{row.position} · {row.club}</span>
+                      <span className={sStyles.overviewMeta}>{posAbbr(row.position)} · {row.club}</span>
                     </td>
                     <td>{row.matches}</td>
                     <td>{row.minutes}'</td>
@@ -788,7 +789,7 @@ function ConvocacaoTab({
                     {p.caps > 0 && <span className={sStyles.capsBadge}>{p.caps}x convocado</span>}
                   </p>
                   <p className={sStyles.poolMeta}>
-                    {p.position} · {p.age} anos · {p.club}
+                    {posAbbr(p.position)} · {p.age} anos · {p.club}
                     {p.overall != null ? ` · OVR ${p.overall}` : ''}
                   </p>
                 </div>

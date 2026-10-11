@@ -21,6 +21,10 @@ export type PlayerPosition =
   | 'ST'
   | 'CF';
 
+/** Posições extras, só usadas como subposição (meia esquerda/direita, ala esquerdo/direito). */
+export type ExtraPosition = 'LM' | 'RM' | 'LWB' | 'RWB';
+export type AltPosition = PlayerPosition | ExtraPosition;
+
 export interface PlayerStats {
   matches: number;
   minutes: number;
@@ -67,7 +71,7 @@ export interface Player {
   /** Característica no treino (perfil dentro da posição); vazio = Padrão. */
   trait?: string;
   /** Subposições (até 3): posições alternativas em que o atleta joga sem perder nada. */
-  altPositions?: PlayerPosition[];
+  altPositions?: AltPosition[];
   fatigue?: number;
   availability?: PlayerAvailability;
   /** Dias restantes de lesão/indisponibilidade (clock LiveLife). */
@@ -236,6 +240,11 @@ export function daysBetweenIso(fromIso: string, toIso: string): number {
   const b = new Date(`${toIso.slice(0, 10)}T12:00:00`);
   return Math.max(1, Math.round((b.getTime() - a.getTime()) / 86_400_000));
 }
+
+/** Subposições selecionáveis, na ordem em que aparecem (campo → ataque). */
+export const ALT_POSITIONS: AltPosition[] = [
+  'GK', 'CB', 'RB', 'LB', 'RWB', 'LWB', 'CDM', 'CM', 'CAM', 'RM', 'LM', 'RW', 'LW', 'CF', 'ST',
+];
 
 export const PLAYER_POSITIONS: PlayerPosition[] = [
   'GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RW', 'LW', 'ST', 'CF',

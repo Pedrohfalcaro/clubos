@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../context/GameContext';
 import type { Player, PlayerStats, PlayerStatus } from '../../types/Player';
-import { availabilityStatusLabel, isOnNationalDuty, PLAYER_POSITIONS } from '../../types/Player';
+import { availabilityStatusLabel, isOnNationalDuty, PLAYER_POSITIONS, ALT_POSITIONS } from '../../types/Player';
 import {
   scopeOptions,
   playerStatsForScope,
@@ -20,7 +20,8 @@ import { competitionNames } from '../../utils/competitions';
 import { buildSquadExport, downloadSquadExport } from '../../utils/squadExport';
 import { PERSONALIDADES, isPersonality } from '../../pulse/utils';
 import { findTrait, traitsFor } from '../../training/engine';
-import { MAX_ALT_POSITIONS } from '../../utils/positions';
+import { MAX_ALT_POSITIONS, posAbbr, posName } from '../../utils/positions';
+
 import PlayerHistoryModal from '../../components/PlayerHistoryModal/PlayerHistoryModal';
 import styles from './Squad.module.css';
 
@@ -726,7 +727,7 @@ export default function Squad() {
                         </button>
                       )}
                     </span>
-                    <span>{p.position}</span>
+                    <span>{posAbbr(p.position)}</span>
                     <span>
                       {stats.matches}
                       <span className={styles.startsHint} title="Jogos como titular">
@@ -1060,7 +1061,7 @@ export default function Squad() {
                                 <div className={styles.editField}>
                                   <span>Subposições ({(p.altPositions ?? []).length}/{MAX_ALT_POSITIONS})</span>
                                   <div className={styles.altChips}>
-                                    {PLAYER_POSITIONS.filter(pos => pos !== p.position).map(pos => {
+                                    {ALT_POSITIONS.filter(pos => pos !== p.position).map(pos => {
                                       const alts = p.altPositions ?? [];
                                       const on = alts.includes(pos);
                                       const full = !on && alts.length >= MAX_ALT_POSITIONS;
@@ -1069,7 +1070,7 @@ export default function Squad() {
                                           key={pos}
                                           type="button"
                                           disabled={full}
-                                          title={POSITION_LABELS[pos]}
+                                          title={posName(pos)}
                                           className={`${styles.altChip} ${on ? styles.altChipOn : ''}`}
                                           onClick={() =>
                                             updatePlayer(p.id, {
@@ -1077,7 +1078,7 @@ export default function Squad() {
                                             })
                                           }
                                         >
-                                          {pos}
+                                          {posAbbr(pos)}
                                         </button>
                                       );
                                     })}

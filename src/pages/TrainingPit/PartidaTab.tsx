@@ -17,7 +17,7 @@ import {
 import type { TrainingScope } from './useTrainingScope';
 import { simulateTraining, type TrainingDraft, type TrainingTeamDraft } from '../../training/session';
 import KitChooser from '../../components/KitEditor/KitChooser';
-import { ringOf } from '../../utils/positions';
+import { posAbbr, ringOf } from '../../utils/positions';
 import type { Kit } from '../../types/Kit';
 import type { TacticalStyleKey } from '../../types/Tactics';
 import { DEFAULT_STYLE_KEY, TACTICAL_STYLES } from '../../utils/tacticalStyles';
@@ -452,7 +452,7 @@ export default function PartidaTab({
                   secondaryColor={secondary}
                 />
                 <span className={styles.playerName}>{player.name}</span>
-                <span className={styles.playerPos}>{player.position}</span>
+                <span className={styles.playerPos}>{posAbbr(player.position)}</span>
               </div>
             ))}
             {available.length === 0 && <p className={styles.empty}>Nenhum jogador disponível</p>}

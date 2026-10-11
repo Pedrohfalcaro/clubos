@@ -1,3 +1,4 @@
+import { posAbbr, posName } from '../../utils/positions';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../../context/GameContext';
@@ -225,7 +226,7 @@ export default function ClubCreate() {
                   <span className={styles.num}>{p.number ?? '—'}</span>
                   <span className={styles.name}>{p.name}</span>
                   <span className={styles.meta}>
-                    {p.position} · {p.age}a · OVR {p.overall}
+                    {posAbbr(p.position)} · {p.age}a · OVR {p.overall}
                   </span>
                   <button type="button" className={styles.remove} onClick={() => removeAthlete(p.id)}>
                     Remover
@@ -253,7 +254,7 @@ export default function ClubCreate() {
                   onChange={e => setForm(f => ({ ...f, position: e.target.value as PlayerPosition }))}
                 >
                   {PLAYER_POSITIONS.map(pos => (
-                    <option key={pos} value={pos}>{pos}</option>
+                    <option key={pos} value={pos}>{posName(pos)}</option>
                   ))}
                 </select>
               </div>

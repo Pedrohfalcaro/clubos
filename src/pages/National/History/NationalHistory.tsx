@@ -1,3 +1,4 @@
+import { posAbbr } from '../../../utils/positions';
 import { useMemo, useState } from 'react';
 import { useGame } from '../../../context/GameContext';
 import SearchableSelect from '../../../components/SearchableSelect/SearchableSelect';
@@ -125,7 +126,7 @@ export default function NationalHistory() {
                 <tr key={row.nationalPlayerId}>
                   <td className={styles.overviewName}>
                     {row.name}
-                    <span className={styles.overviewMeta}>{row.position} · {row.club}</span>
+                    <span className={styles.overviewMeta}>{posAbbr(row.position)} · {row.club}</span>
                   </td>
                   <td>{row.matches}</td>
                   <td>{row.minutes}'</td>

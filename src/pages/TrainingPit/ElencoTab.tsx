@@ -1,3 +1,4 @@
+import { posAbbr } from '../../utils/positions';
 import { useMemo } from 'react';
 import { sortByPosition, type PlayerPosition } from '../../types/Player';
 import { findTrait, traitsFor } from '../../training/engine';
@@ -100,7 +101,7 @@ export default function ElencoTab({ scope }: { scope: TrainingScope }) {
                   ))}
                 </select>
               </td>
-              <td>{r.position}</td>
+              <td>{posAbbr(r.position)}</td>
               <td>{r.sessions}</td>
               <td>{r.goals}</td>
               <td>{r.assists}</td>

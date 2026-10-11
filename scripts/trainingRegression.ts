@@ -480,6 +480,9 @@ function positionsScenario() {
     ['LW', [], 'PE', 'exact'],
     ['RW', [], 'PE', 'sector'],
     ['CAM', [], 'ME', 'sector'],
+    ['CM', ['LM'], 'ME', 'exact'],
+    ['ST', ['RWB'], 'ALD', 'exact'],
+    ['LW', [], 'ME', 'off'],
   ];
   let wrong = 0;
   for (const [position, altPositions, role, expected] of cases) {

@@ -1,4 +1,4 @@
-import type { PlayerPosition } from '../types/Player';
+import type { AltPosition, PlayerPosition } from '../types/Player';
 import type { SlotRole } from '../types/Tactics';
 
 /** Um jogador pode ter até 3 subposições (posições alternativas em que não perde nada). */
@@ -7,18 +7,18 @@ export const MAX_ALT_POSITIONS = 3;
 type Sector = 'gk' | 'def' | 'mid' | 'att';
 
 /** Posição(ões) do elenco que ocupam exatamente a função do slot. */
-const ROLE_EXACT: Record<SlotRole, PlayerPosition[]> = {
+const ROLE_EXACT: Record<SlotRole, AltPosition[]> = {
   GOL: ['GK'],
   ZAG: ['CB'],
   LE: ['LB'],
   LD: ['RB'],
-  ALE: ['LB'],
-  ALD: ['RB'],
+  ALE: ['LWB'],
+  ALD: ['RWB'],
   VOL: ['CDM'],
   MC: ['CM'],
   MEI: ['CAM'],
-  ME: ['LW'],
-  MD: ['RW'],
+  ME: ['LM'],
+  MD: ['RM'],
   PE: ['LW'],
   PD: ['RW'],
   SA: ['CF'],
@@ -44,11 +44,15 @@ const ROLE_SECTOR: Record<SlotRole, Sector> = {
   ATA: 'att',
 };
 
-const POSITION_SECTOR: Record<PlayerPosition, Sector> = {
+const POSITION_SECTOR: Record<AltPosition, Sector> = {
   GK: 'gk',
   CB: 'def',
   LB: 'def',
   RB: 'def',
+  LWB: 'def',
+  RWB: 'def',
+  LM: 'mid',
+  RM: 'mid',
   CDM: 'mid',
   CM: 'mid',
   CAM: 'mid',
@@ -58,11 +62,15 @@ const POSITION_SECTOR: Record<PlayerPosition, Sector> = {
   ST: 'att',
 };
 
-export const POSITION_LABELS: Record<PlayerPosition, string> = {
+export const POSITION_LABELS: Record<AltPosition, string> = {
   GK: 'Goleiro',
   CB: 'Zagueiro',
   LB: 'Lateral esquerdo',
   RB: 'Lateral direito',
+  LWB: 'Ala esquerdo',
+  RWB: 'Ala direito',
+  LM: 'Meia esquerda',
+  RM: 'Meia direita',
   CDM: 'Volante',
   CM: 'Meia',
   CAM: 'Meia-atacante',
@@ -70,6 +78,37 @@ export const POSITION_LABELS: Record<PlayerPosition, string> = {
   RW: 'Ponta direita',
   CF: 'Segundo atacante',
   ST: 'Atacante',
+};
+
+/** Siglas em português (as posições internas continuam com o código em inglês). */
+const POSITION_ABBR: Record<AltPosition, string> = {
+  GK: 'GOL',
+  CB: 'ZAG',
+  LB: 'LE',
+  RB: 'LD',
+  LWB: 'ALE',
+  RWB: 'ALD',
+  CDM: 'VOL',
+  CM: 'MC',
+  CAM: 'MEI',
+  LM: 'ME',
+  RM: 'MD',
+  LW: 'PE',
+  RW: 'PD',
+  CF: 'SA',
+  ST: 'ATA',
+};
+
+/** Sigla em português (ex.: CDM → VOL). */
+export const posAbbr = (p: AltPosition | string): string => POSITION_ABBR[p as AltPosition] ?? p;
+
+/** Nome por extenso em português (ex.: CDM → Volante). */
+export const posName = (p: AltPosition | string): string => POSITION_LABELS[p as AltPosition] ?? p;
+
+/** Posição do elenco equivalente, para calcular o encaixe de subposições extras. */
+export const BASE_POSITION: Record<AltPosition, PlayerPosition> = {
+  GK: 'GK', CB: 'CB', LB: 'LB', RB: 'RB', CDM: 'CDM', CM: 'CM', CAM: 'CAM', LW: 'LW', RW: 'RW', CF: 'CF', ST: 'ST',
+  LWB: 'LB', RWB: 'RB', LM: 'LW', RM: 'RW',
 };
 
 /**
@@ -80,10 +119,10 @@ export const POSITION_LABELS: Record<PlayerPosition, string> = {
 export type PositionMatch = 'exact' | 'sector' | 'off';
 
 export function positionMatch(
-  player: { position: PlayerPosition; altPositions?: PlayerPosition[] },
+  player: { position: PlayerPosition; altPositions?: AltPosition[] },
   role: SlotRole,
 ): PositionMatch {
-  const positions = [player.position, ...(player.altPositions ?? [])];
+  const positions: AltPosition[] = [player.position, ...(player.altPositions ?? [])];
   if (positions.some(p => ROLE_EXACT[role].includes(p))) return 'exact';
   if (positions.some(p => POSITION_SECTOR[p] === ROLE_SECTOR[role])) return 'sector';
   return 'off';
@@ -91,7 +130,7 @@ export function positionMatch(
 
 /** Anel de aviso na escalação: laranja (mesmo setor), vermelho (fora do setor) ou nenhum. */
 export function ringOf(
-  player: { position: PlayerPosition; altPositions?: PlayerPosition[] },
+  player: { position: PlayerPosition; altPositions?: AltPosition[] },
   role: SlotRole,
 ): 'sector' | 'off' | undefined {
   const m = positionMatch(player, role);

@@ -1,3 +1,4 @@
+import { posAbbr, posName } from '../../../utils/positions';
 import { useMemo, useState } from 'react';
 import { useGame } from '../../../context/GameContext';
 import SearchableSelect from '../../../components/SearchableSelect/SearchableSelect';
@@ -118,7 +119,7 @@ export default function NationalPlayerBase() {
                   {p.caps > 0 && <span className={styles.capsBadge}>{p.caps}x convocado</span>}
                 </p>
                 <p className={styles.poolMeta}>
-                  {p.position} · {p.age} anos · {p.club}
+                  {posAbbr(p.position)} · {p.age} anos · {p.club}
                   {p.overall != null ? ` · OVR ${p.overall}` : ''}
                 </p>
               </div>
@@ -222,7 +223,7 @@ function CreatePlayerModal({
   const [club, setClub] = useState('');
   const [overall, setOverall] = useState('');
 
-  const positionOptions = PLAYER_POSITIONS.map(pos => ({ value: pos, label: pos }));
+  const positionOptions = PLAYER_POSITIONS.map(pos => ({ value: pos, label: posName(pos) }));
   const ageNum = parseInt(age, 10);
   const overallNum = overall.trim() ? parseInt(overall, 10) : undefined;
   const canSubmit =
@@ -305,7 +306,7 @@ function CreatePlayerModal({
                     <button type="button" className={styles.pickRow} onClick={() => pickClubPlayer(p)}>
                       <span className={styles.poolName}>{p.name}</span>
                       <span className={styles.poolMeta}>
-                        {p.position} · {p.age} anos{p.overall != null ? ` · OVR ${p.overall}` : ''}
+                        {posAbbr(p.position)} · {p.age} anos{p.overall != null ? ` · OVR ${p.overall}` : ''}
                       </span>
                     </button>
                   </li>
