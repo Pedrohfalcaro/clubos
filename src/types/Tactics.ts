@@ -8,6 +8,7 @@ export type FormationKey =
   | '433'
   | '433-holding'
   | '433-falso9'
+  | '433-ofensivo'
   // 4-2-3-1 e variantes
   | '4231'
   | '4231-estreito'

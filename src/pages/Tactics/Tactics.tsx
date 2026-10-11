@@ -18,6 +18,8 @@ import {
 } from '../../utils/formations';
 import { DEFAULT_STYLE_KEY } from '../../utils/tacticalStyles';
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
+import { resolveKits } from '../../types/Kit';
+import KitChooser from '../../components/KitEditor/KitChooser';
 import styles from './Tactics.module.css';
 
 const BENCH_MAX = 9;
@@ -36,10 +38,13 @@ export default function Tactics() {
     saveTacticsPreset,
     deleteTacticsPreset,
     setActiveTactics,
+    updateTeam,
   } = useGame();
   const players = useMemo(() => sortByPosition(state.players), [state.players]);
   const primaryColor = state.team?.primaryColor ?? DEFAULT_PRIMARY;
   const secondaryColor = state.team?.secondaryColor ?? DEFAULT_SECONDARY;
+  const clubKits = resolveKits(state.team, primaryColor, secondaryColor);
+  const lineupKit = clubKits.find(k => k.id === state.team?.lineupKitId) ?? clubKits[0];
   const presets = state.tacticsPresets;
 
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -338,6 +343,12 @@ export default function Tactics() {
       </div>
 
       <div className={styles.fieldCard}>
+        <KitChooser
+          kits={clubKits}
+          value={lineupKit.id}
+          onChange={id => updateTeam({ lineupKitId: id })}
+          label="Uniforme da escalação"
+        />
         <FormationField
           players={players}
           formation={draft.formation}
@@ -350,6 +361,7 @@ export default function Tactics() {
           slotMode
           preset={preset}
           kitColor={primaryColor}
+          kit={lineupKit}
           primaryColor={primaryColor}
           secondaryColor={secondaryColor}
         />

@@ -21,6 +21,8 @@ import Tactics from './pages/Tactics/Tactics';
 import MatchPlay from './pages/MatchPlay/MatchPlay';
 import PulseMatch from './pages/PulseMatch/PulseMatch';
 import PulsePage from './pages/Pulse/Pulse';
+import TrainingPit from './pages/TrainingPit/TrainingPit';
+import TrainingMatch from './pages/TrainingMatch/TrainingMatch';
 import Competitions from './pages/Competitions/Competitions';
 import UnderConstruction from './pages/UnderConstruction/UnderConstruction';
 import Social from './pages/Social/Social';
@@ -88,7 +90,9 @@ function CoachRoutes() {
     return (
       <Routes>
         <Route path="/national/match/:windowId/:gameId/play" element={<NationalMatchPlay />} />
+        <Route path="/national/training/play" element={<TrainingMatch kind="national" />} />
         <Route element={<NationalLayout />}>
+          <Route path="/national/training" element={<TrainingPit kind="national" />} />
           <Route path="/national/dashboard" element={<NationalDashboard />} />
           <Route path="/national/windows" element={<NationalWindows />} />
           <Route path="/national/windows/:windowId" element={<NationalWindowHub />} />
@@ -106,7 +110,10 @@ function CoachRoutes() {
     <Routes>
       <Route path="/match/:matchId/pulse" element={<PulseMatch />} />
       <Route path="/match/:matchId/play" element={<MatchPlay />} />
+      <Route path="/training/play" element={<TrainingMatch kind="club" />} />
       <Route element={<Layout />}>
+        <Route path="/training" element={<TrainingPit kind="club" />} />
+        <Route path="/under/treinamento" element={<Navigate to="/training" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/squad" element={<Squad />} />
         <Route path="/matches" element={<MatchRegistration />} />

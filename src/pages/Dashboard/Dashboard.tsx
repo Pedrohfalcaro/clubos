@@ -21,6 +21,7 @@ import { boardStatus } from '../../types/Board';
 import { leagueGoalAwaitingUpdate } from '../../utils/boardGoals';
 import GoalSetupModal from '../../components/GoalSetupModal/GoalSetupModal';
 import { findMatchOnDate, formatGameDate } from '../../livelife';
+import { trainingAvailability } from '../../utils/trainingSchedule';
 import { isDateWithinWindow } from '../../utils/nationalWindows';
 import { CATEGORIA_LABELS, RARIDADE_LABELS } from '../../pulse';
 import { paymentsDueOnDate } from '../../utils/transferPayments';
@@ -203,6 +204,10 @@ export default function Dashboard() {
     [matches, currentDate],
   );
   const upcomingOpponent = todayMatch?.opponent ?? nextMatch?.opponent ?? null;
+  const trainingStatus = useMemo(
+    () => trainingAvailability(currentDate, matches, state.training.history),
+    [currentDate, matches, state.training.history],
+  );
   const h2hMatches = useMemo(() => {
     if (!upcomingOpponent) return [];
     const target = upcomingOpponent.trim().toLowerCase();
@@ -607,6 +612,20 @@ export default function Dashboard() {
                     ? 'Avançar →'
                     : 'Ativar →'}
             </span>
+          </button>
+          {/* Bloqueado fica cinza mas ainda abre a página (Histórico/Elenco); a aba Partida explica o bloqueio. */}
+          <button
+            type="button"
+            className={`${styles.trainingBtn} ${trainingStatus.available ? styles.quickBtnTraining : styles.quickBtnLocked}`}
+            onClick={() => navigate('/training')}
+            title={trainingStatus.message}
+          >
+            <span className={styles.quickIcon}>◈</span>
+            <span className={styles.trainingText}>
+              <strong>Treinamento</strong>
+              <small>{trainingStatus.available ? 'Disponível esta semana' : trainingStatus.message}</small>
+            </span>
+            <span className={styles.trainingCta}>{trainingStatus.available ? 'Treinar →' : 'Histórico →'}</span>
           </button>
         </div>
       )}

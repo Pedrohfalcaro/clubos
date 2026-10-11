@@ -1,0 +1,640 @@
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #07140b;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ——— HUD ——— */
+.hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  pointer-events: none;
+}
+
+.hud > * {
+  pointer-events: auto;
+}
+
+.hudSide {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hudRight {
+  justify-content: flex-end;
+}
+
+.scoreboard {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 4px;
+  border-radius: 12px;
+  background: rgba(8, 12, 10, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  min-width: min(520px, 60vw);
+}
+
+.team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.teamRight {
+  justify-content: flex-end;
+}
+
+.teamName {
+  font-size: 13px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+.score {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.score span {
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.clock {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #fbbf24;
+  font-variant-numeric: tabular-nums;
+}
+
+.iconBtn,
+.speedBtn {
+  padding: 7px 11px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(8, 12, 10, 0.75);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.iconBtn:hover,
+.speedBtn:hover {
+  border-color: rgba(251, 191, 36, 0.7);
+}
+
+.speed {
+  display: flex;
+  gap: 4px;
+}
+
+.speedActive {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #1a1100;
+}
+
+.banner {
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 28px;
+  border-radius: 14px;
+  background: rgba(8, 12, 10, 0.85);
+  border: 2px solid #f59e0b;
+  color: #fff;
+  font-size: clamp(18px, 3.2vw, 32px);
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  pointer-events: none;
+  animation: pop 0.25s ease-out;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* ——— Overlays ——— */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.rotate {
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 5;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--card-bg, #1a1925);
+  border: 1px solid var(--border, #2a2838);
+  color: var(--text, #8b8a93);
+  text-align: center;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-h, #fff);
+}
+
+.card p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.final {
+  font-size: 18px !important;
+  color: var(--text-h, #fff);
+}
+
+.final b {
+  color: #fbbf24;
+  font-size: 24px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.primaryBtn,
+.ghostBtn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primaryBtn {
+  border: none;
+  background: #f59e0b;
+  color: #1a1100;
+}
+
+.ghostBtn {
+  border: 1px solid var(--border, #2a2838);
+  background: none;
+  color: var(--text-h, #fff);
+}
+
+.phone {
+  width: 34px;
+  height: 58px;
+  border: 3px solid #fbbf24;
+  border-radius: 8px;
+  animation: turn 1.8s ease-in-out infinite;
+}
+
+@keyframes turn {
+  0%,
+  25% {
+    transform: rotate(0deg);
+  }
+  65%,
+  100% {
+    transform: rotate(-90deg);
+  }
+}
+
+@media (max-height: 480px) {
+  .hud {
+    padding: 4px 6px;
+  }
+
+  .scoreboard {
+    padding: 3px 10px 2px;
+  }
+
+  .score {
+    font-size: 20px;
+  }
+}
+
+/* Notas ao vivo (rodape) */
+.iconBtnOn {
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+.panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  background: linear-gradient(180deg, rgba(5, 10, 7, 0) 0%, rgba(5, 10, 7, 0.88) 28%);
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.panelRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.players {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.players::-webkit-scrollbar {
+  display: none;
+}
+
+.pChip {
+  flex: 1 0 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 12, 10, 0.78);
+  color: #d8d6e0;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.pChip i {
+  font-style: normal;
+  font-weight: 800;
+  opacity: 0.6;
+  min-width: 14px;
+  text-align: right;
+}
+
+.pChip em {
+  font-style: normal;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 78px;
+}
+
+.pChip b {
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.pChip u {
+  text-decoration: none;
+  font-size: 9px;
+  width: 9px;
+}
+
+.good {
+  border-color: rgba(34, 197, 94, 0.55);
+}
+
+.good b {
+  color: #4ade80;
+}
+
+.bad {
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.bad b {
+  color: #f87171;
+}
+
+.up {
+  color: #4ade80;
+}
+
+.down {
+  color: #f87171;
+}
+
+.flat {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-height: 480px) {
+  .pChip em {
+    display: none;
+  }
+}
+
+/* Botoes do topo quebram linha em telas estreitas */
+.hudRight {
+  flex-wrap: wrap;
+}
+
+/* Estatisticas (canto) */
+.stats {
+  position: absolute;
+  left: 10px;
+  top: 76px;
+  width: min(280px, 38vw);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(8, 12, 10, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(4px);
+  color: #d8d6e0;
+  font-size: 11px;
+}
+
+.statHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.statHead span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statRow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.statVals {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.statVals b {
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.statVals b:last-child {
+  text-align: right;
+}
+
+.statVals span {
+  opacity: 0.75;
+  font-size: 10px;
+  text-align: center;
+}
+
+.statBar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.statBar i {
+  display: block;
+  height: 100%;
+  background: #f59e0b;
+}
+
+/* Banco de reservas */
+.benchCard {
+  width: 100%;
+  max-width: 760px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--card-bg, #1a1925);
+  border: 1px solid var(--border, #2a2838);
+  color: var(--text, #8b8a93);
+}
+
+.benchHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.benchHead h2 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text-h, #fff);
+}
+
+.benchHint {
+  margin: 0;
+  font-size: 12px;
+}
+
+.benchCols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+}
+
+.benchCol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.benchCol h3 {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-h, #fff);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.benchList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 52vh;
+}
+
+.benchRow {
+  display: grid;
+  grid-template-columns: 24px 1fr auto 28px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #2a2838);
+  background: var(--bg, #111118);
+  color: var(--text-h, #fff);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.benchRow:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.benchRow:not(:disabled):hover {
+  border-color: #f59e0b;
+}
+
+.benchRow i {
+  font-style: normal;
+  font-weight: 800;
+  opacity: 0.6;
+  text-align: right;
+}
+
+.benchRow span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.benchRow em {
+  font-style: normal;
+  font-size: 10px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.benchRow b {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.benchRowOn {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.benchEmpty {
+  margin: 0;
+  font-size: 12px;
+}
+
+.benchTabs {
+  display: flex;
+  gap: 6px;
+}
+
+.benchTab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #2a2838);
+  background: var(--bg, #111118);
+  color: var(--text, #8b8a93);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.benchTabOn {
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+@media (max-width: 640px) {
+  .benchCols {
+    grid-template-columns: 1fr;
+  }
+}

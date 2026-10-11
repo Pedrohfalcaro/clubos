@@ -1,3 +1,4 @@
+import type { Kit } from './Kit';
 import type { TeamAchievement } from './Achievement';
 
 export type { TeamAchievement };
@@ -33,6 +34,10 @@ export interface Team {
   /** Kit / brand colors */
   primaryColor?: string;
   secondaryColor?: string;
+  /** Uniformes (1º, 2º e opcionalmente 3º) — independentes das cores do clube. */
+  kits?: Kit[];
+  /** Uniforme escolhido para a escalação/tática (id de `kits`); vazio = o 1º. */
+  lineupKitId?: string;
   description?: string;
   history?: string;
   /** Sala de Troféus / classificações finais */

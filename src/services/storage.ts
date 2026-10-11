@@ -8,6 +8,7 @@ import type { SavedTactics, TacticsPreset } from '../types/Tactics';
 import type { CareerMode } from '../types/CareerMode';
 import type { CareerPlayer } from '../types/CareerPlayer';
 import { calcMarketValue } from '../utils/playerValue';
+import { normalizeTrainingState, type TrainingState } from '../types/Training';
 import { createDefaultPulseState, type PulseState } from '../pulse';
 import type { ClubFinance } from '../types/Finance';
 import { createDefaultFinance, createDefaultStadiumConfig } from '../types/Finance';
@@ -64,6 +65,7 @@ export interface GameSave {
   careerPlayer?: CareerPlayer;
   tutorialCompleted?: boolean;
   pulse?: PulseState;
+  training?: Partial<TrainingState>;
   finance?: ClubFinance;
   board?: BoardState;
   transfers?: TransferState;
@@ -288,6 +290,7 @@ export function migrateSave(save: GameSave & { teamId?: string; team?: Team }): 
     tutorialCompleted: save.tutorialCompleted ?? false,
     matches,
     pulse,
+    training: normalizeTrainingState(save.training),
     players,
     formerPlayers,
     team: teamSynced,

@@ -62,7 +62,7 @@ export const TACTICAL_STYLES: TacticalStyle[] = [
       'Laterais apoiam pelos dois lados',
       'Recuperar a bola o mais alto possível',
     ],
-    bestWith: ['433', '433-holding', '4231', '343', '4222', '3421', '442-losango'],
+    bestWith: ['433', '433-holding', '433-ofensivo', '4231', '343', '4222', '3421', '442-losango'],
   },
   {
     key: 'ultra-ofensivo',
@@ -76,7 +76,7 @@ export const TACTICAL_STYLES: TacticalStyle[] = [
       'Cruzamentos e finalizações a qualquer momento',
       'Risco alto de contra-ataque sofrido',
     ],
-    bestWith: ['424', '343', '4222', '433', '433-falso9', '3421'],
+    bestWith: ['424', '343', '4222', '433', '433-falso9', '433-ofensivo', '3421'],
   },
   {
     key: 'defensivo',

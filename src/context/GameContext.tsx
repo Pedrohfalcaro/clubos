@@ -151,6 +151,14 @@ import type {
 import { createDefaultTransferState } from '../types/Transfer';
 import { paymentsDueOnDate, addMonthsIso } from '../utils/transferPayments';
 import { isDateInTransferWindow } from '../utils/transferWindow';
+import { applyTrainingToPlayers, revertTrainingOnPlayers } from '../training/effects';
+import { buildTrainingPulse } from '../training/pulseNews';
+import {
+  createDefaultTrainingState,
+  normalizeTrainingState,
+  type TrainingSession,
+  type TrainingState,
+} from '../types/Training';
 import type { SeasonArchive, SeasonPlayerSnapshot } from '../types/SeasonHistory';
 import { emptyTeamStats, sumPlayerStats } from '../types/SeasonHistory';
 import { newLedgerEntry, wageBill, calcGateRevenue, applyMatchPrize } from '../utils/finance';
@@ -190,6 +198,7 @@ export interface GameState {
   activeTacticsId: string | null;
   tutorialCompleted: boolean;
   pulse: PulseState;
+  training: TrainingState;
   finance: ClubFinance;
   board: BoardState;
   transfers: TransferState;
@@ -295,7 +304,7 @@ type GameAction =
   | { type: 'SET_MONTHLY_GOAL'; metric: MonthlyGoalMetric; target: number; ratingTarget?: number }
   | { type: 'DISMISS_MONTHLY_GOAL_PROMPT' }
   | { type: 'ADVANCE_SEASON' }
-  | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate'>> }
+  | { type: 'UPDATE_PLAYER'; playerId: string; updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'trait' | 'altPositions' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate'>> }
   | { type: 'UPDATE_PLAYER_STATS'; playerId: string; stats: Partial<PlayerStats> }
   | { type: 'UPDATE_PLAYER_PRIOR_STATS'; playerId: string; stats: Partial<PlayerStats> }
   | { type: 'UPDATE_SEASON_ARCHIVE_PLAYER_STATS'; season: number; playerId: string; stats: Partial<PlayerStats> }
@@ -322,6 +331,8 @@ type GameAction =
   | { type: 'SET_ACTIVE_TACTICS'; id: string }
   | { type: 'APPLY_PULSE'; matchId: string }
   | { type: 'UPDATE_PULSE_SETTINGS'; settings: Partial<PulseSettings> }
+  | { type: 'ADD_TRAINING_SESSION'; session: TrainingSession }
+  | { type: 'ADD_NATIONAL_TRAINING_SESSION'; session: TrainingSession }
   | { type: 'ADD_SOCIAL_POST'; post: SocialPost }
   | { type: 'MARK_SOCIAL_SEEN' }
   | {
@@ -443,7 +454,7 @@ type GameAction =
   | {
       type: 'UPDATE_NATIONAL_PLAYER';
       nationalPlayerId: string;
-      updates: Partial<Pick<NationalPlayer, 'club' | 'overall' | 'age'>>;
+      updates: Partial<Pick<NationalPlayer, 'club' | 'overall' | 'age' | 'trait'>>;
     }
   | { type: 'SET_CALL_UP_LIST'; windowId: string; callUpIds: string[] }
   | { type: 'SET_CALL_UP_NUMBER'; windowId: string; nationalPlayerId: string; number: number | null }
@@ -539,7 +550,7 @@ interface GameContextValue {
   advanceSeason: () => void;
   updatePlayer: (
     playerId: string,
-    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate' | 'nationality'>>,
+    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'trait' | 'altPositions' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate' | 'nationality'>>,
   ) => void;
   updatePlayerStats: (playerId: string, stats: Partial<PlayerStats>) => void;
   updatePlayerPriorStats: (playerId: string, stats: Partial<PlayerStats>) => void;
@@ -564,6 +575,8 @@ interface GameContextValue {
   setActiveTactics: (id: string) => void;
   rollPulseForMatch: (matchId: string) => void;
   updatePulseSettings: (settings: Partial<PulseSettings>) => void;
+  addTrainingSession: (session: TrainingSession) => void;
+  addNationalTrainingSession: (session: TrainingSession) => void;
   addSocialPost: (post: SocialPost) => void;
   markSocialSeen: () => void;
   applyPressConference: (input: {
@@ -607,7 +620,7 @@ interface GameContextValue {
     payload: SeasonImportPayload,
     options?: { replace?: boolean },
   ) => { ok: true } | { ok: false; reason: 'exists' };
-  updateTeam: (updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans'>>) => void;
+  updateTeam: (updates: Partial<Pick<Team, 'name' | 'primaryColor' | 'secondaryColor' | 'description' | 'fans' | 'kits' | 'lineupKitId'>>) => void;
   // Transfers
   addWatchlist: (player: WatchlistPlayer) => void;
   removeWatchlist: (playerId: string) => void;
@@ -709,7 +722,7 @@ interface GameContextValue {
   /** Edita clube, overall e/ou idade de um convocado da base. Idade também sobe 1 por temporada automaticamente. */
   updateNationalPlayer: (
     nationalPlayerId: string,
-    updates: Partial<Pick<NationalPlayer, 'club' | 'overall' | 'age'>>,
+    updates: Partial<Pick<NationalPlayer, 'club' | 'overall' | 'age' | 'trait'>>,
   ) => void;
   /** Define a lista definitiva de convocados de uma Data FIFA (ajusta `caps` por diff). */
   setCallUpList: (windowId: string, callUpIds: string[]) => void;
@@ -762,6 +775,7 @@ const initialState: GameState = {
   activeTacticsId: null,
   tutorialCompleted: false,
   pulse: createDefaultPulseState(),
+  training: createDefaultTrainingState(),
   finance: createDefaultFinance(),
   board: createDefaultBoardState(),
   transfers: createDefaultTransferState(),
@@ -1000,6 +1014,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         activeTacticsId: null,
         tutorialCompleted: false,
         pulse: createDefaultPulseState(),
+        training: createDefaultTrainingState(),
         finance,
         board: createDefaultBoardState(),
         transfers: createDefaultTransferState(),
@@ -1101,6 +1116,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         tutorialCompleted: false,
         currentDate: action.startDate.slice(0, 10),
         pulse: createDefaultPulseState(),
+        training: createDefaultTrainingState(),
         pendingDailyPulse: null,
         pendingMonthlyGoalPrompt: true,
         social: createDefaultSocialState(),
@@ -2964,11 +2980,55 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    case 'REWIND_DAY': {
-      if (!state.currentDate) return state;
+    case 'ADD_NATIONAL_TRAINING_SESSION': {
+      // Treino da Seleção: só registra (sem moral/lesão/Pulse — o objetivo é testar times rápido)
+      if (!state.nationalTeam) return state;
+      const nt = state.nationalTeam;
+      const training = normalizeTrainingState(nt.training);
       return {
         ...state,
-        currentDate: addDaysIso(state.currentDate, -1),
+        nationalTeam: { ...nt, training: { ...training, history: [...training.history, action.session] } },
+      };
+    }
+
+    case 'ADD_TRAINING_SESSION': {
+      // Treino aberto vira notícia no Pulse (escalações, destaques e decepções)
+      const names = new Map(state.players.map(p => [p.id, p.name]));
+      const news = buildTrainingPulse(action.session, id => names.get(id) ?? 'Jogador');
+      const session = news.length ? { ...action.session, pulseIds: news.map(n => n.id) } : action.session;
+      return {
+        ...state,
+        // moral e lesões já vêm calculadas na sessão (determinístico e reversível)
+        players: applyTrainingToPlayers(state.players, session),
+        pulse: news.length ? { ...state.pulse, history: [...news, ...state.pulse.history] } : state.pulse,
+        training: {
+          ...state.training,
+          history: [...state.training.history, session],
+        },
+      };
+    }
+
+    case 'REWIND_DAY': {
+      if (!state.currentDate) return state;
+      const previousDate = addDaysIso(state.currentDate, -1);
+      // Treino feito no dia que está sendo desfeito sai do histórico.
+      // Moral e lesões da sessão também são revertidas (`revertTrainingOnPlayers`).
+      const history = state.training.history.filter(s => s.date.slice(0, 10) <= previousDate);
+      const undone = state.training.history.filter(s => s.date.slice(0, 10) > previousDate);
+      let players = state.players;
+      for (const s of [...undone].reverse()) players = revertTrainingOnPlayers(players, s);
+      const removedNews = new Set(undone.flatMap(s => s.pulseIds ?? []));
+      return {
+        ...state,
+        currentDate: previousDate,
+        players,
+        pulse: removedNews.size
+          ? { ...state.pulse, history: state.pulse.history.filter(h => !removedNews.has(h.id)) }
+          : state.pulse,
+        training:
+          history.length === state.training.history.length
+            ? state.training
+            : { ...state.training, history },
       };
     }
 
@@ -3004,6 +3064,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         seasonCompetitions: migrateSeasonCompetitions(action.state.seasonCompetitions),
         saveSlotId: action.state.saveSlotId ?? '1',
         pulse: action.state.pulse ?? createDefaultPulseState(),
+        training: normalizeTrainingState(action.state.training),
         finance: action.state.finance ?? createDefaultFinance(),
         board: action.state.board ?? createDefaultBoardState(),
         transfers: {
@@ -4261,6 +4322,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         activeTacticsId: s.activeTacticsId,
         tutorialCompleted: s.tutorialCompleted,
         pulse: s.pulse,
+        training: s.training,
         finance: s.finance,
         board: s.board,
         transfers: s.transfers,
@@ -4727,7 +4789,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   function updatePlayer(
     playerId: string,
-    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate' | 'nationality'>>,
+    updates: Partial<Pick<Player, 'number' | 'age' | 'overall' | 'status' | 'personality' | 'trait' | 'altPositions' | 'fatigue' | 'availability' | 'injuryDaysRemaining' | 'suspensionMatchesRemaining' | 'suspensionCompetition' | 'morale' | 'name' | 'position' | 'potential' | 'salary' | 'marketValue' | 'contractYearsLeft' | 'loanReturnDate' | 'retirementDate' | 'nationality'>>,
   ) {
     dispatch({ type: 'UPDATE_PLAYER', playerId, updates });
   }
@@ -4863,6 +4925,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'APPLY_PULSE', matchId });
   }
 
+  function addTrainingSession(session: TrainingSession) {
+    dispatch({ type: 'ADD_TRAINING_SESSION', session });
+  }
+
+  function addNationalTrainingSession(session: TrainingSession) {
+    dispatch({ type: 'ADD_NATIONAL_TRAINING_SESSION', session });
+  }
+
   function updatePulseSettings(settings: Partial<PulseSettings>) {
     dispatch({ type: 'UPDATE_PULSE_SETTINGS', settings });
   }
@@ -4923,6 +4993,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           activeTacticsId: null,
           tutorialCompleted: save.tutorialCompleted ?? false,
           pulse: createDefaultPulseState(),
+          training: createDefaultTrainingState(),
           finance: createDefaultFinance(),
           board: createDefaultBoardState(),
           transfers: createDefaultTransferState(),
@@ -4998,6 +5069,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           careerPlayer: null,
           tutorialCompleted: save.tutorialCompleted ?? false,
           pulse: save.pulse ?? createDefaultPulseState(),
+          training: normalizeTrainingState(save.training),
           finance,
           board: save.board
             ? { ...save.board, goals: (save.board.goals ?? []).map(migrateBoardGoal) }
@@ -5068,6 +5140,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         activeTacticsId: state.activeTacticsId,
         tutorialCompleted: state.tutorialCompleted,
         pulse: state.pulse,
+        training: state.training,
         finance: state.finance,
         board: state.board,
         transfers: state.transfers,
@@ -5545,7 +5618,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   function updateNationalPlayer(
     nationalPlayerId: string,
-    updates: Partial<Pick<NationalPlayer, 'club' | 'overall' | 'age'>>,
+    updates: Partial<Pick<NationalPlayer, 'club' | 'overall' | 'age' | 'trait'>>,
   ) {
     dispatch({ type: 'UPDATE_NATIONAL_PLAYER', nationalPlayerId, updates });
   }
@@ -5671,6 +5744,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setActiveTactics,
         rollPulseForMatch,
         updatePulseSettings,
+        addTrainingSession,
+        addNationalTrainingSession,
         addSocialPost,
         markSocialSeen,
         applyPressConference,

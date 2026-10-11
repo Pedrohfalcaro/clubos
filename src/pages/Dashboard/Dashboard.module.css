@@ -1277,3 +1277,78 @@
   color: var(--accent-contrast, #fff);
   cursor: default;
 }
+
+/* ——— Treinamento (abaixo de Avançar Dia) ——— */
+.quickStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quickStack .quickBtn {
+  justify-content: center;
+}
+
+.quickBtnTraining {
+  border-color: rgba(245, 158, 11, 0.6);
+  background: rgba(245, 158, 11, 0.16);
+  color: #fcd34d;
+}
+
+.quickBtnTraining .quickIcon {
+  color: #f59e0b;
+}
+
+.quickBtnTraining:hover {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.26);
+}
+
+.quickBtnLocked,
+.quickBtnLocked:hover {
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  opacity: 0.6;
+  transform: none;
+}
+
+.quickBtnLocked .quickIcon {
+  color: var(--text);
+}
+
+.trainingBtn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 14px;
+  border-width: 1px;
+  border-style: solid;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.trainingText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trainingText strong {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.trainingText small {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.trainingCta {
+  font-size: 13px;
+  font-weight: 800;
+}

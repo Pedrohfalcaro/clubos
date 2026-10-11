@@ -64,6 +64,10 @@ export interface Player {
   priorStats?: PlayerStats;
   /** Pulse fields */
   personality?: string;
+  /** Característica no treino (perfil dentro da posição); vazio = Padrão. */
+  trait?: string;
+  /** Subposições (até 3): posições alternativas em que o atleta joga sem perder nada. */
+  altPositions?: PlayerPosition[];
   fatigue?: number;
   availability?: PlayerAvailability;
   /** Dias restantes de lesão/indisponibilidade (clock LiveLife). */

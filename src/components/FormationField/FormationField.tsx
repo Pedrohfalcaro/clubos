@@ -6,6 +6,8 @@ import {
 } from '../../types/Player';
 import type { FormationSlot } from '../../types/Tactics';
 import PlayerJersey from '../PlayerJersey/PlayerJersey';
+import type { Kit } from '../../types/Kit';
+import { ringOf } from '../../utils/positions';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useGame } from '../../context/GameContext';
 import { ROLE_NAMES, type FormationPreset } from '../../utils/formations';
@@ -27,6 +29,8 @@ interface FormationFieldProps {
   preset?: FormationPreset | null;
   /** Color for outfield tokens on the pitch */
   kitColor?: string;
+  /** Uniforme completo do time (desenho + cor do número). */
+  kit?: Kit;
   primaryColor?: string;
   secondaryColor?: string;
   /** Competição da partida — suspensão só bloqueia nesta competição. */
@@ -46,6 +50,7 @@ export default function FormationField({
   slotMode = false,
   preset = null,
   kitColor,
+  kit,
   primaryColor,
   secondaryColor,
   competition = null,
@@ -324,8 +329,10 @@ export default function FormationField({
                       player={player}
                       size="sm"
                       kitColor={kitColor}
+                kit={kit}
                       primaryColor={primaryColor}
                       secondaryColor={secondaryColor}
+                      ring={ringOf(player, slot.role)}
                       onClick={() => removeFromField(player.id)}
                     />
                   </div>
@@ -354,6 +361,7 @@ export default function FormationField({
                   player={player}
                   size="sm"
                   kitColor={kitColor}
+                kit={kit}
                   primaryColor={primaryColor}
                   secondaryColor={secondaryColor}
                   onClick={() => removeFromField(slot.playerId)}
@@ -414,6 +422,7 @@ export default function FormationField({
                 size="xs"
                 hideName
                 kitColor={kitColor}
+                kit={kit}
                 primaryColor={primaryColor}
                 secondaryColor={secondaryColor}
               />
@@ -469,6 +478,7 @@ export default function FormationField({
                           size="xs"
                           hideName
                           kitColor={kitColor}
+                kit={kit}
                           primaryColor={primaryColor}
                           secondaryColor={secondaryColor}
                           onClick={() => removeFromBench(id)}

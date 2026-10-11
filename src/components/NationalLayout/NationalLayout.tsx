@@ -25,6 +25,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/national/windows', label: 'Datas FIFA' },
       { to: '/national/players', label: 'Base de Jogadores' },
+      { to: '/national/training', label: 'Treinamento' },
       { to: '/national/history', label: 'Histórico' },
       { to: '/national/board', label: 'Diretoria' },
     ],

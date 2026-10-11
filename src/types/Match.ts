@@ -137,6 +137,8 @@ export interface MatchLineup {
   bench: string[];
   formationKey?: FormationKey;
   style?: TacticalStyleKey;
+  /** Uniforme usado na partida (id de `Team.kits`); vazio = pelo mando de campo. */
+  kitId?: string;
 }
 
 import type { PlayerMatchPerformance } from './PlayerMatchPerformance';

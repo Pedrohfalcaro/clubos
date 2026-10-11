@@ -37,7 +37,9 @@ import {
   opponentGoalsText,
   syncTeamGoalsCount,
 } from '../../utils/matchPlayHelpers';
-import { kitColorForLocation, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
+import { DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '../../utils/clubColors';
+import { kitForLocation, resolveKits } from '../../types/Kit';
+import KitChooser from '../../components/KitEditor/KitChooser';
 import MatchSummaryStep, { buildRatingsArray } from './MatchSummaryStep';
 import MatchResultStep, { areInjuriesValid, isResultStepValid } from './MatchResultStep';
 import ScoreStep from './steps/ScoreStep';
@@ -133,6 +135,15 @@ export default function MatchPlay() {
     ),
   );
   const { formationKey, style, formation, bench } = lineup;
+  const clubKits = resolveKits(
+    state.team,
+    state.team?.primaryColor ?? DEFAULT_PRIMARY,
+    state.team?.secondaryColor ?? DEFAULT_SECONDARY,
+  );
+  // Uniforme da partida: o escolhido; sem escolha, o 1º em casa e o 2º fora
+  const [chosenKitId, setChosenKitId] = useState<string | null>(() => match?.lineup?.kitId ?? null);
+  const activeKit =
+    clubKits.find(k => k.id === chosenKitId) ?? kitForLocation(clubKits, match?.location ?? 'home');
   const preset = getFormationPreset(formationKey);
   const availabilityWarnings = lineupWarnings(
     formation,
@@ -201,11 +212,6 @@ export default function MatchPlay() {
   const awayGoals = homeAway?.awayTeam === teamName ? goalsFor : goalsAgainst;
   const ourPitchSide: 'home' | 'away' =
     match?.location === 'away' ? 'away' : 'home';
-  const lineupKitColor = kitColorForLocation(
-    match?.location ?? 'home',
-    state.team?.primaryColor ?? DEFAULT_PRIMARY,
-    state.team?.secondaryColor ?? DEFAULT_SECONDARY,
-  );
 
   useEffect(() => {
     setTeamGoals(prev => syncTeamGoalsCount(prev, goalsFor, uid));
@@ -291,7 +297,7 @@ export default function MatchPlay() {
       assists: buildAssistEvents(teamGoals, players),
       cards: buildCardEvents(teamCards),
       playerMatches,
-      lineup: { formation, bench, formationKey, style },
+      lineup: { formation, bench, formationKey, style, kitId: activeKit.id },
       substitutions: teamSubs,
       injuries: injuries.filter(i => !!i.playerId && !!i.returnDate),
       opponentGoalScorers: opponentGoalsText(opponentGoals) || undefined,
@@ -441,6 +447,12 @@ export default function MatchPlay() {
             onChange={handleFormationChange}
             showDescription={false}
           />
+          <KitChooser
+            kits={clubKits}
+            value={activeKit.id}
+            onChange={setChosenKitId}
+            label="Uniforme da partida"
+          />
           <div className={styles.lineupCard}>
             <FormationField
               players={players}
@@ -453,7 +465,8 @@ export default function MatchPlay() {
               benchMax={9}
               slotMode
               preset={preset}
-              kitColor={lineupKitColor}
+              kitColor={activeKit.base}
+              kit={activeKit}
               primaryColor={state.team?.primaryColor ?? DEFAULT_PRIMARY}
               secondaryColor={state.team?.secondaryColor ?? DEFAULT_SECONDARY}
               competition={matchCompetition}

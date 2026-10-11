@@ -1,3 +1,4 @@
+import { createDefaultTrainingState, normalizeTrainingState, type TrainingState } from './Training';
 import type { PlayerPosition } from './Player';
 import type {
   AssistEvent,
@@ -57,6 +58,8 @@ export interface NationalPlayer {
   /** Total de convocações (independente de ter entrado em campo). */
   caps: number;
   stats: NationalPlayerStats;
+  /** Característica no treino (perfil dentro da posição); vazio = Padrão. */
+  trait?: string;
 }
 
 export interface NationalMatchPerformance {
@@ -175,6 +178,8 @@ export interface NationalTeamState {
   federationMoodHistory: { date: string; value: number; reason: string }[];
   /** `currentDate` do jogo no momento da criação (onboarding). */
   onboardedAt: string;
+  /** Treinos da Seleção (Data FIFA): sem limite de uso, sem efeito em moral/lesão. */
+  training?: TrainingState;
 }
 
 export function emptyNationalPlayerStats(): NationalPlayerStats {
@@ -202,6 +207,7 @@ export function createDefaultNationalTeamState(
     goals: [],
     federationMoodHistory: [],
     onboardedAt: options?.onboardedAt ?? new Date().toISOString().slice(0, 10),
+    training: createDefaultTrainingState(),
   };
 }
 
@@ -228,6 +234,7 @@ export function normalizeNationalTeam(
     ...nt,
     windows: nt.windows.map(normalizeFifaWindow),
     federationMoodHistory: nt.federationMoodHistory ?? [],
+    training: normalizeTrainingState(nt.training),
   };
 }
 

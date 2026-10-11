@@ -19,6 +19,8 @@ import {
 import { competitionNames } from '../../utils/competitions';
 import { buildSquadExport, downloadSquadExport } from '../../utils/squadExport';
 import { PERSONALIDADES, isPersonality } from '../../pulse/utils';
+import { findTrait, traitsFor } from '../../training/engine';
+import { MAX_ALT_POSITIONS } from '../../utils/positions';
 import PlayerHistoryModal from '../../components/PlayerHistoryModal/PlayerHistoryModal';
 import styles from './Squad.module.css';
 
@@ -1041,6 +1043,46 @@ export default function Squad() {
                                     ))}
                                   </select>
                                 </label>
+                                <label className={styles.editField}>
+                                  <span>Característica</span>
+                                  <select
+                                    className={styles.editFieldInput}
+                                    value={findTrait(p.trait, p.position)?.key ?? ''}
+                                    title={findTrait(p.trait, p.position)?.description ?? 'Perfil neutro dentro da posição'}
+                                    onChange={e => updatePlayer(p.id, { trait: e.target.value || undefined })}
+                                  >
+                                    <option value="">Padrão</option>
+                                    {traitsFor(p.position).map(t => (
+                                      <option key={t.key} value={t.key}>{t.label}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <div className={styles.editField}>
+                                  <span>Subposições ({(p.altPositions ?? []).length}/{MAX_ALT_POSITIONS})</span>
+                                  <div className={styles.altChips}>
+                                    {PLAYER_POSITIONS.filter(pos => pos !== p.position).map(pos => {
+                                      const alts = p.altPositions ?? [];
+                                      const on = alts.includes(pos);
+                                      const full = !on && alts.length >= MAX_ALT_POSITIONS;
+                                      return (
+                                        <button
+                                          key={pos}
+                                          type="button"
+                                          disabled={full}
+                                          title={POSITION_LABELS[pos]}
+                                          className={`${styles.altChip} ${on ? styles.altChipOn : ''}`}
+                                          onClick={() =>
+                                            updatePlayer(p.id, {
+                                              altPositions: on ? alts.filter(x => x !== pos) : [...alts, pos],
+                                            })
+                                          }
+                                        >
+                                          {pos}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                                 <label className={styles.editField}>
                                   <span>Moral ({Math.round(p.morale ?? 70)})</span>
                                   <input

@@ -12,6 +12,8 @@ import { analyzeLiveLifeGaps } from '../../utils/livelifeTemplates';
 import { LIVELIFE_CHANGELOG } from '../../types/LiveLife';
 import MoneyAmountHint from '../../components/MoneyAmountHint/MoneyAmountHint';
 import GoalSetupModal from '../../components/GoalSetupModal/GoalSetupModal';
+import KitsSection from '../../components/KitEditor/KitsSection';
+import { resolveKits } from '../../types/Kit';
 import { leagueGoalAwaitingUpdate } from '../../utils/boardGoals';
 import {
   parseSeasonImport,
@@ -682,6 +684,11 @@ export default function Board() {
               {dateSaved ? ' · Data salva!' : ''}
             </span>
           </div>
+          <KitsSection
+            kits={resolveKits(team, primary, secondary)}
+            onChange={kits => updateTeam({ kits })}
+          />
+
 
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Descrição do clube</label>

@@ -11,6 +11,7 @@ import type {
 } from '../types/Tactics';
 import { MAX_TACTICS_PRESETS } from '../types/Tactics';
 import { DEFAULT_STYLE_KEY, isTacticalStyleKey } from './tacticalStyles';
+import { positionMatch } from './positions';
 
 export type { FormationKey } from '../types/Tactics';
 
@@ -84,6 +85,33 @@ const ROLE_POSITIONS: Record<SlotRole, PlayerPosition[]> = {
 };
 
 const FIT_BY_RANK = [1, 0.72, 0.5];
+
+/**
+ * Encaixe do atleta numa função considerando as subposições: se a posição (ou uma subposição) é a
+ * da função, não perde nada; senão vale a melhor entre as posições dele.
+ */
+export function playerRoleFit(
+  player: { position: PlayerPosition; altPositions?: PlayerPosition[] } | undefined,
+  role: SlotRole,
+): number {
+  if (!player) return roleFit(role, undefined);
+  if (positionMatch(player, role) === 'exact') return 1;
+  return Math.max(...[player.position, ...(player.altPositions ?? [])].map(pos => roleFit(role, pos)));
+}
+
+/**
+ * Encaixe no treino: exato (inclui subposições) = 1; mesmo setor = pequena perda (0,82);
+ * fora do setor = perda maior (no máximo 0,45).
+ */
+export function trainingFit(
+  player: { position: PlayerPosition; altPositions?: PlayerPosition[] },
+  role: SlotRole,
+): number {
+  const m = positionMatch(player, role);
+  if (m === 'exact') return 1;
+  if (m === 'sector') return 0.82;
+  return Math.min(playerRoleFit(player, role), 0.45);
+}
 
 /**
  * Coordinates of the five original formations are kept byte-for-byte so saves
@@ -190,16 +218,16 @@ export const FORMATION_PRESETS: FormationPreset[] = [
     familyLabel: '4-3-3',
     defenders: 4,
     nature: 'ofensiva',
-    description: 'Trio de ataque aberto e três no meio. Boa amplitude com pressão alta.',
+    description: 'Trio de ataque aberto e meio-campo em linha, com o volante um passo atrás.',
     slots: [
       { x: 50, y: 88, role: 'GOL' },
       { x: 15, y: 68, role: 'LE' },
       { x: 38, y: 72, role: 'ZAG' },
       { x: 62, y: 72, role: 'ZAG' },
       { x: 85, y: 68, role: 'LD' },
-      { x: 25, y: 48, role: 'VOL' },
-      { x: 50, y: 52, role: 'MC' },
-      { x: 75, y: 48, role: 'MC' },
+      { x: 28, y: 50, role: 'MC' },
+      { x: 50, y: 54, role: 'VOL' },
+      { x: 72, y: 50, role: 'MC' },
       { x: 20, y: 22, role: 'PE' },
       { x: 50, y: 18, role: 'ATA' },
       { x: 80, y: 22, role: 'PD' },
@@ -249,6 +277,29 @@ export const FORMATION_PRESETS: FormationPreset[] = [
       { x: 16, y: 20, role: 'PE' },
       { x: 50, y: 28, role: 'SA' },
       { x: 84, y: 20, role: 'PD' },
+    ],
+  },
+  {
+    key: '433-ofensivo',
+    label: '4-3-3 Ofensivo',
+    variantLabel: 'Ofensivo',
+    family: '433',
+    familyLabel: '4-3-3',
+    defenders: 4,
+    nature: 'ofensiva',
+    description: 'Dois meias de ligação e um armador à frente deles, alimentando o trio de ataque.',
+    slots: [
+      { x: 50, y: 88, role: 'GOL' },
+      { x: 15, y: 68, role: 'LE' },
+      { x: 38, y: 72, role: 'ZAG' },
+      { x: 62, y: 72, role: 'ZAG' },
+      { x: 85, y: 68, role: 'LD' },
+      { x: 30, y: 52, role: 'MC' },
+      { x: 70, y: 52, role: 'MC' },
+      { x: 50, y: 38, role: 'MEI' },
+      { x: 18, y: 22, role: 'PE' },
+      { x: 50, y: 17, role: 'ATA' },
+      { x: 82, y: 22, role: 'PD' },
     ],
   },
   {
@@ -446,9 +497,9 @@ export const FORMATION_PRESETS: FormationPreset[] = [
     description: 'Três zagueiros com alas cobrindo toda a lateral e dupla de ataque.',
     slots: [
       { x: 50, y: 88, role: 'GOL' },
-      { x: 25, y: 72, role: 'ZAG' },
-      { x: 50, y: 72, role: 'ZAG' },
-      { x: 75, y: 72, role: 'ZAG' },
+      { x: 27, y: 72, role: 'ZAG' },
+      { x: 50, y: 73, role: 'ZAG' },
+      { x: 73, y: 72, role: 'ZAG' },
       { x: 12, y: 48, role: 'ALE' },
       { x: 30, y: 48, role: 'VOL' },
       { x: 50, y: 48, role: 'MC' },
@@ -469,9 +520,9 @@ export const FORMATION_PRESETS: FormationPreset[] = [
     description: 'Alas altos e um armador entre as linhas atrás da dupla de ataque.',
     slots: [
       { x: 50, y: 88, role: 'GOL' },
-      { x: 25, y: 72, role: 'ZAG' },
-      { x: 50, y: 72, role: 'ZAG' },
-      { x: 75, y: 72, role: 'ZAG' },
+      { x: 27, y: 72, role: 'ZAG' },
+      { x: 50, y: 73, role: 'ZAG' },
+      { x: 73, y: 72, role: 'ZAG' },
       { x: 10, y: 42, role: 'ALE' },
       { x: 35, y: 52, role: 'VOL' },
       { x: 50, y: 36, role: 'MEI' },
@@ -959,7 +1010,7 @@ export function remapFormation(
     const player = byId.get(entry.playerId);
     const previousRole = from.slots[entry.slot ?? -1]?.role;
     to.slots.forEach((slot, si) => {
-      const fit = roleFit(slot.role, player?.position);
+      const fit = playerRoleFit(player, slot.role);
       const sameRole = previousRole === slot.role ? 40 : 0;
       const drift = Math.hypot(entry.x - slot.x, entry.y - slot.y);
       pairs.push({ entry: ei, slot: si, score: fit * 100 + sameRole - drift });
@@ -1007,7 +1058,7 @@ export function buildBestLineup(
   const pairs: { player: Player; slot: number; score: number }[] = [];
   pool.forEach(player => {
     preset.slots.forEach((slot, si) => {
-      const fit = roleFit(slot.role, player.position);
+      const fit = playerRoleFit(player, slot.role);
       if (fit <= 0) return;
       pairs.push({ player, slot: si, score: fit * 1000 + player.overall });
     });
@@ -1077,7 +1128,7 @@ export function lineupWarnings(
       });
     }
 
-    if (roleFit(slot.role, player.position) <= 0.25) {
+    if (playerRoleFit(player, slot.role) <= 0.25) {
       warnings.push({
         kind: 'position',
         message: `${player.name} (${player.position}) escalado como ${ROLE_NAMES[slot.role]}.`,

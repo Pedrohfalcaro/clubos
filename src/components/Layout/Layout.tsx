@@ -36,7 +36,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/squad', label: 'Elenco' },
       { to: '/tactics', label: 'Tática' },
-      { to: '/under/treinamento', label: 'Treinamento' },
+      { to: '/training', label: 'Treinamento' },
       { to: '/transferencias', label: 'Transferências' },
       { to: '/diretoria', label: 'Diretoria' },
       { to: '/financas', label: 'Finanças' },
@@ -77,7 +77,6 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const WIP_ROUTES = new Set([
-  '/under/treinamento',
   '/under/social-jogadores',
   '/under/metas',
 ]);

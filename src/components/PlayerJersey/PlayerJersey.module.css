@@ -67,3 +67,11 @@
   transform: scale(1.05);
   transition: transform 0.15s;
 }
+
+.ringSector {
+  box-shadow: 0 0 0 3px #f59e0b, 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.ringOff {
+  box-shadow: 0 0 0 3px #ef4444, 0 2px 6px rgba(0, 0, 0, 0.3);
+}
