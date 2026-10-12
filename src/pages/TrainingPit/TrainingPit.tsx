@@ -1,14 +1,16 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import PartidaTab from './PartidaTab';
 import HistoricoTab from './HistoricoTab';
 import ElencoTab from './ElencoTab';
 import { useTrainingScope, type TrainingScopeKind } from './useTrainingScope';
 import styles from './TrainingPit.module.css';
 
-type TabId = 'partida' | 'historico' | 'elenco';
+type TabId = 'partida' | 'livre' | 'historico' | 'elenco';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'partida', label: 'Partida' },
+  { id: 'livre', label: 'Treino livre' },
   { id: 'historico', label: 'Histórico' },
   { id: 'elenco', label: 'Elenco' },
 ];
@@ -20,7 +22,9 @@ const TABS: { id: TabId; label: string }[] = [
 export default function TrainingPit({ kind }: { kind: TrainingScopeKind }) {
   const scope = useTrainingScope(kind);
   const { availability } = scope;
-  const [tab, setTab] = useState<TabId>(availability.available ? 'partida' : 'historico');
+  const location = useLocation();
+  const startTab = (location.state as { tab?: TabId } | null)?.tab;
+  const [tab, setTab] = useState<TabId>(startTab ?? (availability.available ? 'partida' : 'historico'));
 
   return (
     <div className={styles.page}>
@@ -59,6 +63,7 @@ export default function TrainingPit({ kind }: { kind: TrainingScopeKind }) {
             <span>{availability.message}</span>
           </div>
         ))}
+      {tab === 'livre' && <PartidaTab key="livre" scope={scope} free onSessionCreated={() => undefined} />}
       {tab === 'historico' && <HistoricoTab scope={scope} />}
       {tab === 'elenco' && <ElencoTab scope={scope} />}
     </div>

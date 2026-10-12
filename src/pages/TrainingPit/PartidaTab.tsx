@@ -15,6 +15,8 @@ import {
   type TrainingSide,
 } from '../../utils/trainingFormations';
 import type { TrainingScope } from './useTrainingScope';
+import SummaryModal from './SummaryModal';
+import type { TrainingSession } from '../../types/Training';
 import { simulateTraining, type TrainingDraft, type TrainingTeamDraft } from '../../training/session';
 import KitChooser from '../../components/KitEditor/KitChooser';
 import { posAbbr, ringOf } from '../../utils/positions';
@@ -68,9 +70,12 @@ function remapSlots(
 export default function PartidaTab({
   scope,
   onSessionCreated,
+  free = false,
 }: {
   scope: TrainingScope;
   onSessionCreated: () => void;
+  /** Treino livre: quantas vezes quiser, sem histórico, sem moral e sem efeitos. */
+  free?: boolean;
 }) {
   const navigate = useNavigate();
   const gameDate = scope.currentDate;
@@ -111,6 +116,7 @@ export default function PartidaTab({
 
   const [showOpenModal, setShowOpenModal] = useState(false);
   const [openTraining, setOpenTraining] = useState(false);
+  const [freeResult, setFreeResult] = useState<TrainingSession | null>(null);
   /** Duração de cada tempo: 2:00 ou 2:30 (padrão vem da configuração do treino). */
   const [halfSec, setHalfSec] = useState<120 | 150>(scope.settings.halfDurationSec);
 
@@ -232,7 +238,7 @@ export default function PartidaTab({
     return {
       date: (gameDate ?? new Date().toISOString()).slice(0, 10),
       season: scope.season,
-      open: openTraining,
+      open: free ? false : openTraining,
       // O modo de treino é de treinador: você assiste e acompanha as notas
       mode: 'cpu-cpu',
       format,
@@ -244,13 +250,18 @@ export default function PartidaTab({
   /** Abre a tela do jogo em 2D. */
   function playNow() {
     setShowOpenModal(false);
-    navigate(scope.routes.play, { state: { draft: buildDraft() } });
+    navigate(scope.routes.play, { state: { draft: buildDraft(), free } });
   }
 
   /** Simular rápido: roda o motor sem tela e registra o treino já com placar e notas. */
   function simulateNow() {
-    scope.register(simulateTraining(buildDraft(), scope.players));
+    const session = simulateTraining(buildDraft(), scope.players);
     setShowOpenModal(false);
+    if (free) {
+      setFreeResult(session);
+      return;
+    }
+    scope.register(session);
     onSessionCreated();
   }
 
@@ -507,7 +518,7 @@ export default function PartidaTab({
         >
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <h2 id="open-training-title" className={styles.modalTitle}>
-              Tipo de treino
+              {free ? 'Treino livre' : 'Tipo de treino'}
             </h2>
             <p className={styles.modalText}>
               {format} x {format} · {sideName.north} contra {sideName.south}
@@ -529,6 +540,7 @@ export default function PartidaTab({
               </div>
             </div>
 
+            {!free && (
             <div className={styles.switchRow}>
               <div>
                 <strong>{openTraining ? 'Treino aberto' : 'Treino fechado'}</strong>
@@ -549,6 +561,12 @@ export default function PartidaTab({
                 <span className={styles.switchKnob} />
               </button>
             </div>
+            )}
+            {free && (
+              <p className={styles.modalText}>
+                Só por diversão: não salva histórico e não conta para o elenco nem para a moral.
+              </p>
+            )}
 
             <div className={styles.modalActions}>
               <button type="button" className={styles.ghostBtn} onClick={() => setShowOpenModal(false)}>
@@ -563,6 +581,14 @@ export default function PartidaTab({
             </div>
           </div>
         </div>
+      )}
+
+      {freeResult && (
+        <SummaryModal
+          session={freeResult}
+          onClose={() => setFreeResult(null)}
+          nameOf={id => scope.players.find(p => p.id === id)?.name ?? 'Jogador'}
+        />
       )}
     </div>
   );

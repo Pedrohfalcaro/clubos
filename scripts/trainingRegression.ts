@@ -8,7 +8,7 @@
  * sair da faixa — rode depois de mexer em qualquer coisa do motor.
  */
 import { buildResult, simulateMatch } from '../src/training/engine/sim.ts';
-import { createWorld, stepWorld, substitute } from '../src/training/engine/index.ts';
+import { computeRatings, createWorld, runShootout, stepWorld, substitute } from '../src/training/engine/index.ts';
 import { TRAITS } from '../src/training/engine/traits.ts';
 import { buildTrainingPulse } from '../src/training/pulseNews.ts';
 import { applyTrainingEffects, applyTrainingToPlayers, revertTrainingOnPlayers } from '../src/training/effects.ts';
@@ -508,6 +508,42 @@ function determinism() {
   range('determinismo · seeds diferentes = partidas diferentes', a !== c ? 1 : 0, 1, 1);
 }
 
+// ---------------------------------------------------------------- 6. pênaltis
+function shootouts() {
+  const { format, slots } = LAYOUTS['11 · 4-4-2'];
+  const rand = mulberry(77);
+  let bad = 0;
+  let gkTakers = 0;
+  let unordered = 0;
+  const N = QUICK ? 30 : 100;
+  for (let i = 0; i < N; i++) {
+    const w = createWorld({
+      format,
+      halfDurationSec: 20,
+      seed: 900 + i,
+      teams: { a: team('a', slots, rand), b: team('b', slots, rand) },
+    });
+    for (let k = 0; k < 40000 && w.phase !== 'ft'; k++) stepWorld(w);
+    const ratings = computeRatings(w);
+    const r = runShootout(w, ratings, 900 + i);
+    const regular = r.kicks.filter(k => !k.sudden);
+    // intercalado (a, b, a, b…) e no máximo 5 por time na fase regular
+    const alternates = r.kicks.every((k, idx) => k.team === (idx % 2 === 0 ? 'a' : 'b'));
+    const perTeam = (t: 'a' | 'b') => regular.filter(k => k.team === t).length;
+    const winnerOk = r.score.a !== r.score.b && (r.score.a > r.score.b ? 'a' : 'b') === r.winner;
+    if (!alternates || perTeam('a') > 5 || perTeam('b') > 5 || !winnerOk) bad += 1;
+    gkTakers += r.kicks.filter(k => w.agents.find(a => a.id === k.playerId)?.group === 'GK').length;
+    // cada time cobra em ordem decrescente de nota nas 5 primeiras
+    for (const t of ['a', 'b'] as const) {
+      const rs = regular.filter(k => k.team === t).map(k => k.rating);
+      if (rs.some((x, idx) => idx > 0 && x > rs[idx - 1] + 1e-9)) unordered += 1;
+    }
+  }
+  range('pênaltis · decisões inválidas (alternância/vencedor/limite de 5)', bad, 0, 0);
+  range('pênaltis · goleiro cobrando', gkTakers, 0, 0);
+  range('pênaltis · cobradores fora da ordem de nota', unordered, 0, 0);
+}
+
 // ---------------------------------------------------------------- execução
 const t0 = Date.now();
 const counts: Record<string, number> = QUICK ? { '5': 60, '7': 60, '11': 40 } : { '5': 200, '7': 200, '11': 120 };
@@ -518,6 +554,7 @@ for (const [label, lay] of Object.entries(LAYOUTS)) {
 }
 styleScenario();
 traitScenario();
+shootouts();
 robustness();
 effectsScenario();
 positionsScenario();

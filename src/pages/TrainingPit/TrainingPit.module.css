@@ -1011,3 +1011,28 @@
   flex-direction: column;
   gap: 8px;
 }
+
+.sortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sortBtn:hover {
+  color: var(--text-h, #fff);
+}
+
+.sortArrow {
+  display: inline-block;
+  min-width: 10px;
+  font-size: 9px;
+  color: #f59e0b;
+}

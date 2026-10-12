@@ -1,0 +1,77 @@
+.panel {
+  max-width: 560px;
+  max-height: 92%;
+  overflow-y: auto;
+}
+
+.columns {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+}
+
+.list .head {
+  background: none;
+  font-weight: 800;
+  color: var(--text-h, #fff);
+  padding-left: 0;
+}
+
+.mark {
+  width: 18px;
+  text-align: center;
+}
+
+.who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-h, #fff);
+}
+
+.list em {
+  font-style: normal;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.goal .mark {
+  color: #22c55e;
+}
+
+.miss {
+  opacity: 0.8;
+}
+
+.miss .mark {
+  color: #ef4444;
+  font-weight: 800;
+}
+
+.status {
+  min-height: 18px;
+  font-weight: 700;
+}

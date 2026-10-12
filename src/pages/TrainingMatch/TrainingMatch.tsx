@@ -6,12 +6,13 @@ import {
   computeRatings,
   createWorld,
   isFinished,
+  runShootout,
   stepWorld,
   substitute,
   teamStats,
   TUNING,
 } from '../../training/engine';
-import type { Agent, MatchEvent, Team, TeamStats, World } from '../../training/engine';
+import type { Agent, MatchEvent, ShootoutResult, Team, TeamStats, World } from '../../training/engine';
 import {
   buildMatchSetup,
   rolesOf,
@@ -28,6 +29,7 @@ import { createSolidKit, kitNumberColor, type Kit } from '../../types/Kit';
 import { useTrainingScope, type TrainingScope, type TrainingScopeKind } from '../TrainingPit/useTrainingScope';
 import SummaryModal from '../TrainingPit/SummaryModal';
 import BenchModal from './BenchModal';
+import ShootoutPanel from './ShootoutPanel';
 import StatsPanel from './StatsPanel';
 import styles from './TrainingMatch.module.css';
 
@@ -67,7 +69,7 @@ function kitOf(t: { kit: string; kitDesign?: Kit }): Kit {
   return t.kitDesign ?? createSolidKit(t.kit);
 }
 
-function MatchScreen({ draft, scope }: { draft: TrainingDraft; scope: TrainingScope }) {
+function MatchScreen({ draft, scope, free }: { draft: TrainingDraft; scope: TrainingScope; free: boolean }) {
   const navigate = useNavigate();
   // a sessão é registrada pelo escopo mais recente (o loop do jogo não pode reiniciar a cada render)
   const scopeRef = useRef(scope);
@@ -115,6 +117,9 @@ function MatchScreen({ draft, scope }: { draft: TrainingDraft; scope: TrainingSc
   const [confirmExit, setConfirmExit] = useState(false);
   const [finished, setFinished] = useState<TrainingSession | null>(null);
   const [showSummary, setShowSummary] = useState(false);
+  /** Empate: o usuário escolhe encerrar ou decidir nos pênaltis (só exibição, não altera o placar salvo). */
+  const [drawResolved, setDrawResolved] = useState(false);
+  const [shootout, setShootout] = useState<ShootoutResult | null>(null);
   const [showRatings, setShowRatings] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const [benchOpen, setBenchOpen] = useState(false);
@@ -143,11 +148,11 @@ function MatchScreen({ draft, scope }: { draft: TrainingDraft; scope: TrainingSc
     if (recordedRef.current) return;
     recordedRef.current = true;
     // o escopo aplica moral/lesão (clube) e grava no histórico certo (clube ou Seleção)
-    const session = scopeRef.current.register(
-      sessionFromResult(draft, buildResult(world), rolesOf(draft), world.subs),
-    );
+    // treino livre não grava nada: sem histórico, sem moral, sem lesão
+    const built = sessionFromResult(draft, buildResult(world), rolesOf(draft), world.subs);
+    const session = free ? built : scopeRef.current.register(built);
     setFinished(session);
-  }, [draft, world]);
+  }, [draft, world, free]);
 
   const showBanner = useCallback((text: string) => {
     setBanner(text);
@@ -365,7 +370,7 @@ function MatchScreen({ draft, scope }: { draft: TrainingDraft; scope: TrainingSc
       finish();
       return;
     }
-    navigate(scope.routes.base, { replace: true });
+    navigate(scope.routes.base, { replace: true, state: free ? { tab: 'livre' } : undefined });
   }
 
   const nameA = draft.teams.a.name;
@@ -534,13 +539,54 @@ function MatchScreen({ draft, scope }: { draft: TrainingDraft; scope: TrainingSc
         </div>
       )}
 
-      {finished && !showSummary && (
+      {finished && finished.score.a === finished.score.b && !drawResolved && !shootout && (
         <div className={styles.overlay}>
           <div className={styles.card}>
-            <h2>Fim de treino</h2>
+            <h2>Empate</h2>
             <p className={styles.final}>
               {nameA} <b>{finished.score.a}</b> x <b>{finished.score.b}</b> {nameB}
             </p>
+            <p>Encerrar a partida ou decidir nos pênaltis?</p>
+            <div className={styles.row}>
+              <button type="button" className={styles.ghostBtn} onClick={() => setDrawResolved(true)}>
+                Encerrar partida
+              </button>
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={() => setShootout(runShootout(world, computeRatings(world), world.setup.seed))}
+              >
+                Decisão por pênaltis
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {finished && shootout && !drawResolved && (
+        <ShootoutPanel
+          result={shootout}
+          nameA={nameA}
+          nameB={nameB}
+          nameOf={nameOf}
+          onDone={() => setDrawResolved(true)}
+        />
+      )}
+
+      {finished && !showSummary && (finished.score.a !== finished.score.b || drawResolved) && (
+        <div className={styles.overlay}>
+          <div className={styles.card}>
+            <h2>{free ? 'Fim de jogo' : 'Fim de treino'}</h2>
+            <p className={styles.final}>
+              {nameA} <b>{finished.score.a}</b> x <b>{finished.score.b}</b> {nameB}
+            </p>
+            {shootout && (
+              <p>
+                Pênaltis: <strong>{shootout.winner === 'a' ? nameA : nameB}</strong> venceu por{' '}
+                {shootout.score.a} x {shootout.score.b}
+              </p>
+            )}
+            {free && <p>Treino livre: nada foi salvo no histórico, no elenco ou na moral.</p>}
             {mvpName && (
               <p>
                 Melhor em campo: <strong>{mvpName}</strong> ({finished.ratings[finished.mvpId ?? '']?.toFixed(1)})
@@ -566,7 +612,7 @@ function MatchScreen({ draft, scope }: { draft: TrainingDraft; scope: TrainingSc
               <button
                 type="button"
                 className={styles.primaryBtn}
-                onClick={() => navigate(scope.routes.base, { replace: true })}
+                onClick={() => navigate(scope.routes.base, { replace: true, state: free ? { tab: 'livre' } : undefined })}
               >
                 Voltar ao treinamento
               </button>
@@ -585,8 +631,10 @@ function MatchScreen({ draft, scope }: { draft: TrainingDraft; scope: TrainingSc
 export default function TrainingMatch({ kind }: { kind: TrainingScopeKind }) {
   const scope = useTrainingScope(kind);
   const location = useLocation();
-  const draft = (location.state as { draft?: TrainingDraft } | null)?.draft;
+  const navState = location.state as { draft?: TrainingDraft; free?: boolean } | null;
+  const draft = navState?.draft;
+  const free = navState?.free === true;
   if (!draft) return <Navigate to={scope.routes.base} replace />;
   // `key` garante um motor novo se o usuário iniciar outro treino na mesma sessão
-  return <MatchScreen key={draft.date + draft.teams.a.playerIds.join('')} draft={draft} scope={scope} />;
+  return <MatchScreen key={draft.date + draft.teams.a.playerIds.join('')} draft={draft} scope={scope} free={free} />;
 }

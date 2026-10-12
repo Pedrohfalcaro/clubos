@@ -1031,6 +1031,27 @@ export default function Squad() {
                                   />
                                 </label>
                                 <label className={styles.editField}>
+                                  <span>Posição principal</span>
+                                  <select
+                                    className={styles.editFieldInput}
+                                    title="Corrige a posição do jogador — ele passa para a lista da nova posição"
+                                    value={p.position}
+                                    onChange={e => {
+                                      const next = e.target.value as Player['position'];
+                                      updatePlayer(p.id, {
+                                        position: next,
+                                        // a nova posição não pode ser também subposição; a característica é da posição antiga
+                                        altPositions: (p.altPositions ?? []).filter(x => x !== next),
+                                        trait: undefined,
+                                      });
+                                    }}
+                                  >
+                                    {PLAYER_POSITIONS.map(pos => (
+                                      <option key={pos} value={pos}>{posName(pos)} ({posAbbr(pos)})</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className={styles.editField}>
                                   <span>Personalidade</span>
                                   <select
                                     className={styles.editFieldInput}

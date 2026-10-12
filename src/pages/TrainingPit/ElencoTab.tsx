@@ -1,5 +1,5 @@
 import { posAbbr } from '../../utils/positions';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { sortByPosition, type PlayerPosition } from '../../types/Player';
 import { findTrait, traitsFor } from '../../training/engine';
 import type { TrainingScope } from './useTrainingScope';
@@ -20,7 +20,42 @@ interface Row {
   avgRating: number | null;
 }
 
+type SortKey =
+  | 'position'
+  | 'name'
+  | 'sessions'
+  | 'goals'
+  | 'assists'
+  | 'saves'
+  | 'clearances'
+  | 'cleanSheets'
+  | 'avgRating'
+  | 'morale';
+
+/** Colunas que ordenam do maior para o menor no primeiro clique. */
+const DESC_FIRST: SortKey[] = ['sessions', 'goals', 'assists', 'saves', 'clearances', 'cleanSheets', 'avgRating', 'morale'];
+
 export default function ElencoTab({ scope }: { scope: TrainingScope }) {
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'position', dir: 'asc' });
+
+  function toggleSort(key: SortKey) {
+    setSort(prev =>
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: DESC_FIRST.includes(key) ? 'desc' : 'asc' },
+    );
+  }
+
+  const header = (key: SortKey, label: string) => (
+    <th
+      aria-sort={sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <button type="button" className={styles.sortBtn} onClick={() => toggleSort(key)}>
+        {label}
+        <span className={styles.sortArrow}>{sort.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</span>
+      </button>
+    </th>
+  );
 
   const rows = useMemo<Row[]>(() => {
     const real = scope.history.filter(s => !s.placeholder);
@@ -63,28 +98,46 @@ export default function ElencoTab({ scope }: { scope: TrainingScope }) {
     });
   }, [scope.players, scope.history]);
 
+  const sorted = useMemo(() => {
+    if (sort.key === 'position') return sort.dir === 'asc' ? rows : [...rows].reverse();
+    const sign = sort.dir === 'asc' ? 1 : -1;
+    const value = (r: Row): number | string => {
+      if (sort.key === 'name') return r.name;
+      // sem nota ainda: vai para o fim em qualquer ordem
+      if (sort.key === 'avgRating') return r.avgRating ?? (sort.dir === 'asc' ? Infinity : -Infinity);
+      return r[sort.key];
+    };
+    return [...rows].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      const cmp = typeof va === 'string' ? va.localeCompare(String(vb)) : (va as number) - (vb as number);
+      return cmp * sign || a.name.localeCompare(b.name);
+    });
+  }, [rows, sort]);
+
   return (
     <div className={`${styles.tabBody} ${styles.tableWrap}`}>
       <table className={styles.table}>
         <thead>
           <tr>
-            <th>Jogador</th>
-            <th>Pos</th>
+            {header('name', 'Jogador')}
+            {header('position', 'Pos')}
             <th>Característica</th>
-            <th>Treinos</th>
-            <th>Gols</th>
-            <th>Assist.</th>
-            <th>Defesas</th>
-            <th>Cortes</th>
-            <th>Sem sofrer gol</th>
-            <th>Nota média</th>
-            {scope.kind === 'club' && <th>Moral</th>}
+            {header('sessions', 'Treinos')}
+            {header('goals', 'Gols')}
+            {header('assists', 'Assist.')}
+            {header('saves', 'Defesas')}
+            {header('clearances', 'Cortes')}
+            {header('cleanSheets', 'Sem sofrer gol')}
+            {header('avgRating', 'Nota média')}
+            {scope.kind === 'club' && header('morale', 'Moral')}
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => (
+          {sorted.map(r => (
             <tr key={r.id}>
               <td>{r.name}</td>
+              <td>{posAbbr(r.position)}</td>
               <td>
                 <select
                   className={styles.select}
@@ -101,7 +154,6 @@ export default function ElencoTab({ scope }: { scope: TrainingScope }) {
                   ))}
                 </select>
               </td>
-              <td>{posAbbr(r.position)}</td>
               <td>{r.sessions}</td>
               <td>{r.goals}</td>
               <td>{r.assists}</td>
